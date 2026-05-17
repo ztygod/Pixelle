@@ -1,0 +1,32 @@
+{
+  "name": "pixelle",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "pixelle": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli/index.ts",
+    "build": "tsc",
+    "start": "node dist/cli/index.js"
+  },
+  "keywords": [],
+  "author": "tianyi zhou",
+  "license": "ISC",
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
+    "diff": "^9.0.0",
+    "execa": "^9.6.1",
+    "fast-glob": "^3.3.3",
+    "openai": "^6.38.0",
+    "playwright": "^1.60.0",
+    "prompts": "^2.4.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "tsx": "^4.22.1",
+    "typescript": "^6.0.3"
+  }
+}

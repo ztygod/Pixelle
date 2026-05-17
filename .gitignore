@@ -1,0 +1,23 @@
+# dependencies
+node_modules
+
+# build
+dist
+
+# logs
+*.log
+
+# env
+.env
+
+# playwright
+playwright-report
+test-results
+
+# system
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
