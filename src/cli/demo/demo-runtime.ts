@@ -1,4 +1,4 @@
-import type {CliHandle} from "../types/public-api.js";
+import type {CliHandle} from "../events/types.js";
 
 type ScheduledEvent = {
   delayMs: number;
@@ -11,7 +11,7 @@ export function startDemoRuntime(cli: CliHandle): () => void {
 
   const schedule: ScheduledEvent[] = [
     {
-      delayMs: 200,
+      delayMs: 450,
       run: () => {
         cli.pushEvent({
           type: "user_message",
@@ -21,50 +21,53 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       },
     },
     {
-      delayMs: 650,
+      delayMs: 900,
       run: () => {
         cli.pushEvent({
           type: "assistant_delta",
           messageId: assistantMessageId,
-          delta: "我会先分析当前项目结构，确认前端技术栈和可落地的组件边界。\n\n",
+          delta:
+            "我会把它作为 UI 展示任务处理：先确认页面边界，再展示组件片段和模拟改动。这个 demo 不读取文件、不调用模型，也不执行真实工具。\n\n",
         });
       },
     },
     {
-      delayMs: 1150,
+      delayMs: 1450,
       run: () => {
         cli.pushEvent({
           type: "tool_start",
           id: "tool_list_files",
           name: "list_files",
           input: {path: "src"},
+          description: "Scanning project...",
         });
       },
     },
     {
-      delayMs: 1900,
+      delayMs: 2300,
       run: () => {
         cli.pushEvent({
           type: "tool_done",
           id: "tool_list_files",
           name: "list_files",
           output: "src/App.tsx\nsrc/main.tsx\nsrc/components\nsrc/styles.css",
+          summary: "4 files",
         });
       },
     },
     {
-      delayMs: 2350,
+      delayMs: 2800,
       run: () => {
         cli.pushEvent({
           type: "assistant_delta",
           messageId: assistantMessageId,
           delta:
-            "# 项目判断\n\n- 检测到 React + TypeScript 项目\n- 可以新增一个登录页组件\n- 样式应保持在现有前端边界内\n\n",
+            "## 项目判断\n\n- React + TypeScript 页面可以作为独立组件落地\n- 登录区域需要明确的表单层级和按钮状态\n- 下一步展示组件草案、样式差异和设计稿路径降级\n\n",
         });
       },
     },
     {
-      delayMs: 3150,
+      delayMs: 3650,
       run: () => {
         cli.pushEvent({
           type: "assistant_delta",
@@ -75,7 +78,7 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       },
     },
     {
-      delayMs: 4100,
+      delayMs: 4550,
       run: () => {
         cli.pushEvent({
           type: "assistant_delta",
@@ -86,18 +89,19 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       },
     },
     {
-      delayMs: 4800,
+      delayMs: 5250,
       run: () => {
         cli.pushEvent({
           type: "tool_start",
           id: "tool_image_preview",
           name: "render_image_preview",
           input: {path: "./assets/login-design.png"},
+          description: "Checking terminal image protocol...",
         });
       },
     },
     {
-      delayMs: 5400,
+      delayMs: 5900,
       run: () => {
         cli.pushEvent({
           type: "tool_error",
@@ -108,7 +112,7 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       },
     },
     {
-      delayMs: 5850,
+      delayMs: 6350,
       run: () => {
         cli.pushEvent({
           type: "image_preview",
@@ -119,7 +123,7 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       },
     },
     {
-      delayMs: 6300,
+      delayMs: 6800,
       run: () => {
         cli.pushEvent({
           type: "error",
@@ -128,7 +132,7 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       },
     },
     {
-      delayMs: 6900,
+      delayMs: 7350,
       run: () => {
         cli.pushEvent({
           type: "assistant_delta",
@@ -139,7 +143,7 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       },
     },
     {
-      delayMs: 7600,
+      delayMs: 8100,
       run: () => {
         cli.pushEvent({
           type: "assistant_done",

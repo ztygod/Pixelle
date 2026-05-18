@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react";
-import {clampWidth} from "../utils/wrap.js";
+import {clampWidth} from "../utils/format.js";
 
 export function useTerminalSize(): {width: number; height: number} {
   const [size, setSize] = useState(() => ({

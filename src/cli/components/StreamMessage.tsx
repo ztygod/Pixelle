@@ -1,4 +1,5 @@
 import {Box, Text} from "ink";
+import {icons, theme} from "../utils/theme.js";
 import {MarkdownRenderer} from "./MarkdownRenderer.js";
 
 type StreamMessageProps = {
@@ -10,7 +11,7 @@ export function StreamMessage({content, streaming}: StreamMessageProps) {
   return (
     <Box flexDirection="column">
       <MarkdownRenderer content={content} />
-      {streaming ? <Text color="gray">...</Text> : null}
+      {streaming ? <Text color={theme.muted}>{icons.cursor}</Text> : null}
     </Box>
   );
 }

@@ -3,8 +3,13 @@ import {startDemoRuntime} from "./demo-runtime.js";
 
 const cli = renderCli({title: "Pixelle CLI Demo"});
 const stopDemoRuntime = startDemoRuntime(cli);
+let didShutdown = false;
 
 function shutdown(): void {
+  if (didShutdown) {
+    return;
+  }
+  didShutdown = true;
   stopDemoRuntime();
   cli.unmount();
 }
@@ -36,3 +41,10 @@ process.once("SIGINT", () => {
   shutdown();
   process.exitCode = 130;
 });
+
+if (!process.stdin.isTTY) {
+  setTimeout(() => {
+    shutdown();
+    process.exitCode = 0;
+  }, 9000);
+}

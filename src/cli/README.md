@@ -1,34 +1,32 @@
 # Pixelle CLI
 
-`src/cli` is the terminal presentation layer for Pixelle. It renders events, captures user input, and exposes a small API for an external runtime to drive the UI.
+`src/cli` is Pixelle's terminal presentation layer. It renders an event stream, captures user input, and exposes a small API for a separate runtime to drive the UI.
 
-## Responsibilities
+## Boundary
 
-The CLI layer owns:
+The CLI owns terminal layout, Markdown, code and diff rendering, assistant streaming, tool status rows, image preview fallback, local errors, and UI-only slash commands.
 
-- Terminal UI layout and Ink rendering.
-- User input capture and outward dispatch.
-- Markdown, code block, diff, and inline code rendering.
-- Assistant streaming display.
-- Tool call status cards.
-- Local image preview fallback display.
-- Error display.
+The CLI does not call models, run agents, execute tools, scan files, write files, use RAG, start MCP servers, or orchestrate runtime decisions.
 
-The CLI layer does not own:
-
-- Agent decisions.
-- Model API calls.
-- RAG, MCP, or runtime orchestration.
-- Real tool execution.
-- File reads or writes.
-
-## Run the demo
+## Commands
 
 ```sh
+pnpm build
 pnpm cli:demo
 ```
 
-The demo pushes simulated events into `renderCli()`. It is only a visual verification runtime, not an Agent Runtime. Type `/exit` to close the demo.
+`pnpm cli:demo` pushes hardcoded timer events into `renderCli()`. It is useful for screenshots and visual checks, but it is not an Agent Runtime.
+
+## Slash Commands
+
+Slash commands only change local CLI UI state:
+
+- `/help` toggles command help.
+- `/clear` clears rendered messages, tools, images, and errors.
+- `/debug` toggles event count, last event type, running tools, and terminal width in the status bar.
+- `/exit` unmounts the Ink UI.
+
+Non-command input is emitted through `onUserInput`.
 
 ## Public API
 
@@ -53,19 +51,27 @@ cli.pushEvent({
 });
 ```
 
-## CliEvent examples
+## EventBus
+
+The internal event bus supports typed listeners, wildcard listeners, one-shot listeners, bounded history, replay, and clear:
 
 ```ts
-cli.pushEvent({
-  type: "user_message",
-  content: "根据设计稿生成一个登录页",
-});
+eventBus.on("tool_start", handleToolStart);
+eventBus.on("*", handleAnyEvent);
+eventBus.once("error", handleFirstError);
+eventBus.replay(handleAnyEvent, {limit: 20});
+```
 
+History is kept in memory only and defaults to the latest 200 events.
+
+## Event Examples
+
+```ts
 cli.pushEvent({
   type: "tool_start",
   id: "tool_1",
   name: "list_files",
-  input: {path: "src"},
+  description: "Scanning project...",
 });
 
 cli.pushEvent({
@@ -73,6 +79,7 @@ cli.pushEvent({
   id: "tool_1",
   name: "list_files",
   output: "src/App.tsx\nsrc/main.tsx",
+  summary: "2 files",
 });
 
 cli.pushEvent({
@@ -80,13 +87,5 @@ cli.pushEvent({
   path: "./assets/login-design.png",
   alt: "Login design reference",
 });
-
-cli.pushEvent({
-  type: "error",
-  message: "当前终端不支持直接渲染图片，已降级为路径展示。",
-});
 ```
 
-## Demo runtime boundary
-
-`src/cli/demo/demo-runtime.ts` uses timers to push fake `CliEvent` objects into the CLI. It intentionally does not call models, inspect files, execute tools, or make decisions. Its only purpose is to verify the terminal experience.

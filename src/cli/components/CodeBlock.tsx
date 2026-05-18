@@ -1,4 +1,5 @@
 import {Box, Text} from "ink";
+import {theme} from "../utils/theme.js";
 
 type CodeBlockProps = {
   code: string;
@@ -10,33 +11,38 @@ export function CodeBlock({code, language}: CodeBlockProps) {
   const isDiff = language === "diff" || language === "patch";
 
   return (
-    <Box flexDirection="column" marginY={1}>
-      {language ? <Text color="gray">```{language}</Text> : null}
+    <Box
+      borderStyle="single"
+      borderColor={theme.border}
+      flexDirection="column"
+      marginY={1}
+      paddingX={1}
+    >
+      {language ? <Text color={theme.muted}>{language}</Text> : null}
       {lines.map((line, index) => (
         <Text key={`${index}:${line}`} color={getLineColor(line, isDiff)}>
           {line.length === 0 ? " " : line}
         </Text>
       ))}
-      {language ? <Text color="gray">```</Text> : null}
     </Box>
   );
 }
 
 function getLineColor(line: string, isDiff: boolean): string | undefined {
   if (!isDiff) {
-    return "cyan";
+    return undefined;
   }
 
   if (line.startsWith("+")) {
-    return "green";
+    return theme.success;
   }
 
   if (line.startsWith("-")) {
-    return "red";
+    return theme.danger;
   }
 
   if (line.startsWith("@@")) {
-    return "gray";
+    return theme.muted;
   }
 
   return undefined;

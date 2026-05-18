@@ -1,5 +1,5 @@
 import {Box, Text} from "ink";
-import type {CliMessage} from "../types/messages.js";
+import type {CliMessage} from "../events/types.js";
 import {MessageItem} from "./MessageItem.js";
 
 type MessageListProps = {
@@ -8,7 +8,7 @@ type MessageListProps = {
 
 export function MessageList({messages}: MessageListProps) {
   if (messages.length === 0) {
-    return <Text color="gray">No messages yet.</Text>;
+    return <Text color="gray"> </Text>;
   }
 
   return (
