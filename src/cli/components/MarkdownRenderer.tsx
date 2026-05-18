@@ -1,3 +1,4 @@
+import {Fragment} from "react";
 import {Box, Text} from "ink";
 import {parseMarkdown} from "../utils/markdown.js";
 import {CodeBlock} from "./CodeBlock.js";
@@ -62,7 +63,7 @@ function InlineText({text, prefix = ""}: {text: string; prefix?: string}) {
           );
         }
 
-        return part;
+        return <Fragment key={`${index}:${part}`}>{part}</Fragment>;
       })}
     </Text>
   );

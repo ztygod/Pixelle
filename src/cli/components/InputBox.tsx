@@ -29,7 +29,7 @@ export function InputBox({userInputBus}: InputBoxProps) {
     if (input) {
       setValue((current) => current + input);
     }
-  });
+  }, {isActive: Boolean(process.stdin.isTTY)});
 
   return (
     <Box borderStyle="single" borderColor="blue" paddingX={1}>
