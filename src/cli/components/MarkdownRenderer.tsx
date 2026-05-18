@@ -1,5 +1,7 @@
+import {Fragment} from "react";
 import {Box, Text} from "ink";
 import {parseMarkdown} from "../utils/markdown.js";
+import {theme} from "../utils/theme.js";
 import {CodeBlock} from "./CodeBlock.js";
 
 type MarkdownRendererProps = {
@@ -15,7 +17,7 @@ export function MarkdownRenderer({content}: MarkdownRendererProps) {
         switch (block.type) {
           case "heading":
             return (
-              <Text key={index} bold color={block.level <= 2 ? "blue" : "cyan"}>
+              <Text key={index} bold color={block.level <= 2 ? theme.primary : theme.muted}>
                 {block.text}
               </Text>
             );
@@ -23,7 +25,7 @@ export function MarkdownRenderer({content}: MarkdownRendererProps) {
             return <InlineText key={index} text={block.text} />;
           case "quote":
             return (
-              <Text key={index} color="gray">
+              <Text key={index} color={theme.muted}>
                 &gt; {block.text}
               </Text>
             );
@@ -56,13 +58,13 @@ function InlineText({text, prefix = ""}: {text: string; prefix?: string}) {
       {parts.map((part, index) => {
         if (part.startsWith("`") && part.endsWith("`")) {
           return (
-            <Text key={`${index}:${part}`} color="yellow">
+            <Text key={`${index}:${part}`} color={theme.accent}>
               {part.slice(1, -1)}
             </Text>
           );
         }
 
-        return part;
+        return <Fragment key={`${index}:${part}`}>{part}</Fragment>;
       })}
     </Text>
   );

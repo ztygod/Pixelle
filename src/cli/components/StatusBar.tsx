@@ -1,20 +1,23 @@
 import {Box, Text} from "ink";
-import type {ToolCallState} from "../types/messages.js";
+import type {CliViewState} from "../state/cli-state.js";
+import {theme} from "../utils/theme.js";
 
 type StatusBarProps = {
-  tools: ToolCallState[];
+  title: string;
+  state: CliViewState;
   width: number;
-  lastError?: string;
 };
 
-export function StatusBar({tools, width, lastError}: StatusBarProps) {
-  const runningTools = tools.filter((tool) => tool.status === "running").length;
+export function StatusBar({title, state, width}: StatusBarProps) {
+  const runningTools = state.tools.filter((tool) => tool.status === "running").length;
 
   return (
-    <Box borderStyle="single" borderColor={lastError ? "red" : "gray"} paddingX={1}>
-      <Text color={lastError ? "red" : "gray"}>
-        width {width} | tools running {runningTools}
-        {lastError ? ` | ${lastError}` : ""}
+    <Box paddingX={1}>
+      <Text color={state.lastError ? theme.danger : theme.muted}>
+        {title} UI only · {runningTools} tools running · /help
+        {state.debug
+          ? ` · events: ${state.eventCount} · last: ${state.lastEventType ?? "none"} · width: ${width}`
+          : ""}
       </Text>
     </Box>
   );

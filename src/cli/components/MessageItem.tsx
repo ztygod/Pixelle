@@ -1,5 +1,6 @@
 import {Box, Text} from "ink";
-import type {CliMessage} from "../types/messages.js";
+import type {CliMessage} from "../events/types.js";
+import {icons, theme} from "../utils/theme.js";
 import {MarkdownRenderer} from "./MarkdownRenderer.js";
 import {StreamMessage} from "./StreamMessage.js";
 
@@ -12,7 +13,7 @@ export function MessageItem({message}: MessageItemProps) {
 
   return (
     <Box flexDirection="column" marginBottom={1}>
-      <Text color={label.color} bold>
+      <Text color={label.color}>
         {label.text}
       </Text>
       <Box paddingLeft={2} flexDirection="column">
@@ -31,10 +32,10 @@ export function MessageItem({message}: MessageItemProps) {
 function getLabel(role: CliMessage["role"]): {text: string; color: string} {
   switch (role) {
     case "user":
-      return {text: "You", color: "green"};
+      return {text: icons.user, color: theme.muted};
     case "assistant":
-      return {text: "Pixelle", color: "blue"};
+      return {text: `${icons.assistant} Pixelle`, color: theme.primary};
     case "error":
-      return {text: "Error", color: "red"};
+      return {text: "Error", color: theme.danger};
   }
 }

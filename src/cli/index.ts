@@ -2,9 +2,13 @@
 
 import {pathToFileURL} from "node:url";
 import {renderCli} from "./render-cli.js";
-import type {CliEvent, UserInputEvent} from "./types/events.js";
-import type {CliHandle, RenderCliOptions} from "./types/public-api.js";
-import {createId} from "./utils/ids.js";
+import type {
+  CliEvent,
+  CliHandle,
+  RenderCliOptions,
+  UserInputEvent,
+} from "./events/types.js";
+import {createId} from "./utils/format.js";
 
 export type {CliEvent, UserInputEvent};
 export type {CliHandle, RenderCliOptions};
@@ -13,18 +17,6 @@ export {renderCli};
 function startStandaloneCli(): void {
   const cli = renderCli({
     title: "Pixelle CLI",
-    initialEvents: [
-      {
-        type: "assistant_delta",
-        messageId: "welcome",
-        delta:
-          "# Pixelle\nTerminal UI is running. Type `/exit` to close this view.",
-      },
-      {
-        type: "assistant_done",
-        messageId: "welcome",
-      },
-    ],
   });
 
   cli.onUserInput((input) => {

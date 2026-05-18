@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "tsx src/cli/index.ts",
     "build": "tsc",
+    "cli:demo": "tsx src/cli/demo/index.tsx",
     "start": "node dist/cli/index.js"
   },
   "keywords": [],
