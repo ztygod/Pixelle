@@ -1,12 +1,11 @@
 import {useEffect, useReducer} from "react";
-import type {CliEventBus} from "../events/event-bus.js";
 import type {CliCommand, CliViewState} from "./cli-state.js";
 import {
   initialCliState,
   parseCliCommand,
   reduceCliState,
 } from "./cli-state.js";
-import type {CliEvent} from "../events/types.js";
+import type {CliEvent, CliEventBus} from "../types.js";
 
 export type UseCliStateResult = {
   state: CliViewState;

@@ -3,7 +3,7 @@ import type {
   CliMessage,
   ImagePreviewState,
   ToolCallState,
-} from "../events/types.js";
+} from "../types.js";
 import {createId} from "../utils/format.js";
 
 export type CliCommand =
@@ -93,9 +93,10 @@ function reduceCliCommand(
 }
 
 function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
-  const createdAt = event.createdAt ?? Date.now();
-  const meta = {
-    eventCount: state.eventCount + 1,
+  const eventCreatedAt = event.createdAt ?? Date.now();
+  const eventOrder = state.eventCount + 1;
+  const viewEventStats = {
+    eventCount: eventOrder,
     lastEventType: event.type,
   };
 
@@ -103,7 +104,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
     case "user_message":
       return {
         ...state,
-        ...meta,
+        ...viewEventStats,
         showHelp: false,
         messages: [
           ...state.messages,
@@ -111,7 +112,8 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             id: event.id ?? createId("user"),
             role: "user",
             content: event.content,
-            createdAt,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
           },
         ],
       };
@@ -123,7 +125,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
       if (!existing) {
         return {
           ...state,
-          ...meta,
+          ...viewEventStats,
           showHelp: false,
           messages: [
             ...state.messages,
@@ -131,7 +133,8 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
               id: event.messageId,
               role: "assistant",
               content: event.delta,
-              createdAt,
+              createdAt: eventCreatedAt,
+              order: eventOrder,
               streaming: true,
             },
           ],
@@ -140,7 +143,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
 
       return {
         ...state,
-        ...meta,
+        ...viewEventStats,
         messages: state.messages.map((message) =>
           message.id === event.messageId
             ? {
@@ -156,7 +159,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
     case "assistant_done":
       return {
         ...state,
-        ...meta,
+        ...viewEventStats,
         messages: state.messages.map((message) =>
           message.id === event.messageId
             ? {
@@ -170,7 +173,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
     case "tool_start":
       return {
         ...state,
-        ...meta,
+        ...viewEventStats,
         tools: [
           ...state.tools.filter((tool) => tool.id !== event.id),
           {
@@ -179,7 +182,8 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             status: "running",
             input: event.input,
             description: event.description,
-            createdAt,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
           },
         ],
       };
@@ -187,7 +191,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
     case "tool_done":
       return {
         ...state,
-        ...meta,
+        ...viewEventStats,
         tools: state.tools.map((tool) =>
           tool.id === event.id
             ? {
@@ -195,7 +199,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
                 status: "done",
                 output: event.output,
                 summary: event.summary,
-                completedAt: createdAt,
+                completedAt: eventCreatedAt,
               }
             : tool,
         ),
@@ -204,14 +208,14 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
     case "tool_error":
       return {
         ...state,
-        ...meta,
+        ...viewEventStats,
         tools: state.tools.map((tool) =>
           tool.id === event.id
             ? {
                 ...tool,
                 status: "error",
                 error: event.error,
-                completedAt: createdAt,
+                completedAt: eventCreatedAt,
               }
             : tool,
         ),
@@ -221,14 +225,15 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
     case "image_preview":
       return {
         ...state,
-        ...meta,
+        ...viewEventStats,
         images: [
           ...state.images,
           {
             id: event.id ?? createId("image"),
             path: event.path,
             alt: event.alt,
-            createdAt,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
           },
         ],
       };
@@ -236,7 +241,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
     case "error":
       return {
         ...state,
-        ...meta,
+        ...viewEventStats,
         lastError: event.message,
         messages: [
           ...state.messages,
@@ -244,7 +249,8 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             id: createId("error"),
             role: "error",
             content: event.message,
-            createdAt,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
           },
         ],
       };
