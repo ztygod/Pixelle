@@ -1,5 +1,4 @@
-import type {CliEventBus, UserInputBus} from "../events/event-bus.js";
-import type {CliEvent} from "../events/types.js";
+import type {CliEvent, CliEventBus, UserInputBus} from "../types.js";
 import {useTerminalSize} from "../hooks/useTerminalSize.js";
 import {useCliState} from "../state/useCliState.js";
 import {Layout} from "./Layout.js";

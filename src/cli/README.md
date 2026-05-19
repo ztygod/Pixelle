@@ -8,6 +8,20 @@ The CLI owns terminal layout, Markdown, code and diff rendering, assistant strea
 
 The CLI does not call models, run agents, execute tools, scan files, write files, use RAG, start MCP servers, or orchestrate runtime decisions.
 
+`src/cli/index.ts` is a side-effect-free public API entry. The executable CLI entry lives in `src/bin/pixelle.ts`. Demo programs live under `demos/` and consume the CLI through the public API.
+
+## Structure
+
+`app/` owns the top-level Ink composition. `state/` owns event reduction and selectors. `components/chrome/` contains shell UI such as the welcome screen, status bar, command help, and input box. `components/timeline/` contains renderers for chronological content. `components/markdown/` contains Markdown and code rendering helpers.
+
+The render data flow is:
+
+```text
+EventBus -> useCliState -> reduceCliState -> selectTimelineItems -> Timeline -> TimelineItem
+```
+
+Messages, tools, images, and errors are rendered through the timeline selector so new content appears chronologically above the input box. Assistant deltas are still merged by the reducer before rendering.
+
 ## Commands
 
 ```sh
@@ -51,9 +65,9 @@ cli.pushEvent({
 });
 ```
 
-## EventBus
+## Events
 
-The internal event bus supports typed listeners, wildcard listeners, one-shot listeners, bounded history, replay, and clear:
+The shared event bus lives outside `src/cli`. It supports typed listeners, wildcard listeners, one-shot listeners, bounded history, replay, middleware, automatic `createdAt` completion, and clear:
 
 ```ts
 eventBus.on("tool_start", handleToolStart);
@@ -62,7 +76,7 @@ eventBus.once("error", handleFirstError);
 eventBus.replay(handleAnyEvent, {limit: 20});
 ```
 
-History is kept in memory only and defaults to the latest 200 events.
+History is kept in memory only and defaults to the latest 200 events. CLI event payloads and view state types live in `src/cli/types.ts`; streaming assistant deltas are merged by the CLI reducer, not by the event bus.
 
 ## Event Examples
 

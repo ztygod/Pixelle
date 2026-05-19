@@ -1,19 +1,29 @@
 export const theme = {
+  brand: "cyan",
   primary: "cyan",
   muted: "gray",
+  faint: "gray",
   accent: "yellow",
   success: "green",
   danger: "red",
+  rail: "gray",
   border: "gray",
+  code: "white",
   text: "white",
 } as const;
 
 export const icons = {
-  assistant: "✦",
+  assistant: "◆",
   user: "›",
-  running: "⠋",
+  tool: "◇",
+  running: "●",
   done: "✓",
   error: "!",
   cursor: "▌",
   image: "▧",
+  rail: "│",
+  railGap: "┆",
+  node: "●",
+  runningFrames: ["·", "•", "●", "•"],
+  cursorFrames: ["▌", "▍"],
 } as const;

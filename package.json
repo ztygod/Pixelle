@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "type": "module",
   "bin": {
-    "pixelle": "./dist/cli/index.js"
+    "pixelle": "./dist/bin/pixelle.js"
   },
   "scripts": {
-    "dev": "tsx src/cli/index.ts",
+    "dev": "tsx src/bin/pixelle.ts",
     "build": "tsc",
-    "cli:demo": "tsx src/cli/demo/index.tsx",
-    "start": "node dist/cli/index.js"
+    "cli:demo": "tsx demos/cli/index.tsx",
+    "start": "node dist/bin/pixelle.js"
   },
   "keywords": [],
   "author": "tianyi zhou",
