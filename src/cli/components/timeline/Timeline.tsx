@@ -12,7 +12,7 @@ export function Timeline({items}: TimelineProps) {
     <Box flexDirection="column" marginBottom={items.length > 0 ? 1 : 0}>
       {items.map((item, index) => (
         <Box key={item.key} flexDirection="row">
-          <Box width={3} flexDirection="column" alignItems="center">
+          <Box width={2} flexDirection="column" alignItems="center">
             <Text color={getMarkerColor(item)}>{getMarker(item)}</Text>
             {index < items.length - 1 ? (
               <Text color={theme.rail}>{icons.rail}</Text>
