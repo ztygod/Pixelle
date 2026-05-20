@@ -7,11 +7,15 @@ import {icons, theme} from "../../utils/theme.js";
 type InputBoxProps = {
   userInputBus: UserInputBus;
   runCommand(input: string): CliCommand | undefined;
+  width: number;
   onExit: () => void;
 };
 
-export function InputBox({userInputBus, runCommand, onExit}: InputBoxProps) {
+export function InputBox({userInputBus, runCommand, width, onExit}: InputBoxProps) {
   const [value, setValue] = useState("");
+  const hasValue = value.length > 0;
+  const borderColor = hasValue ? theme.brand : theme.border;
+  const showSendHint = width >= 54;
 
   useInput((input, key) => {
     if (key.return) {
@@ -47,15 +51,30 @@ export function InputBox({userInputBus, runCommand, onExit}: InputBoxProps) {
   }, {isActive: Boolean(process.stdin.isTTY)});
 
   return (
-    <Box paddingX={1}>
-      <Text color={theme.brand}>Pixelle</Text>
+    <Box
+      borderStyle="round"
+      borderColor={borderColor}
+      paddingX={1}
+      marginTop={1}
+      flexDirection="row"
+      width="100%"
+    >
+      <Text color={hasValue ? theme.brand : theme.muted}>
+        {hasValue ? icons.inputActive : icons.inputIdle}
+      </Text>
+      <Text color={theme.brand}> Pixelle</Text>
       <Text color={theme.muted}> {icons.user} </Text>
-      {value.length > 0 ? (
-        <Text color={theme.text}>{value}</Text>
-      ) : (
-        <Text color={theme.muted}>Ask or type /help</Text>
-      )}
-      <Text color={theme.muted}>{icons.cursor}</Text>
+      <Box flexGrow={1}>
+        {hasValue ? (
+          <Text color={theme.text}>{value}</Text>
+        ) : (
+          <Text color={theme.muted}>Message Pixelle...</Text>
+        )}
+        <Text color={hasValue ? theme.brand : theme.muted}>
+          {icons.cursor}
+        </Text>
+      </Box>
+      {showSendHint ? <Text color={theme.faint}> Enter to send</Text> : null}
     </Box>
   );
 }

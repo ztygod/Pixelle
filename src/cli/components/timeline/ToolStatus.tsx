@@ -2,7 +2,6 @@ import {Box, Text} from "ink";
 import type {ToolCallState} from "../../types.js";
 import {formatUnknown, hasLongDetail} from "../../utils/format.js";
 import {icons, theme} from "../../utils/theme.js";
-import {useTerminalPulse} from "../motion/useTerminalPulse.js";
 
 type ToolStatusProps = {
   tool: ToolCallState;
@@ -10,25 +9,20 @@ type ToolStatusProps = {
 
 export function ToolStatus({tool}: ToolStatusProps) {
   const color = getColor(tool.status);
-  const pulseFrame = useTerminalPulse(
-    icons.runningFrames.length,
-    150,
-    tool.status === "running",
-  );
-  const icon = getIcon(tool.status, pulseFrame);
+  const icon = getIcon(tool.status);
   const detail = getInlineDetail(tool);
   const expanded =
     hasLongDetail(tool.input) || hasLongDetail(tool.output) || hasLongDetail(tool.error);
 
   return (
-    <Box flexDirection="column" marginBottom={1} paddingLeft={1}>
+    <Box flexDirection="column" marginBottom={1}>
       <Text>
         <Text color={color}>{icon}</Text>{" "}
         <Text color={theme.text}>{tool.name}</Text>
         {detail ? <Text color={theme.muted}> / {detail}</Text> : null}
       </Text>
       {expanded ? (
-        <Box flexDirection="column" marginLeft={2} marginTop={1}>
+        <Box flexDirection="column" marginLeft={1} marginTop={1}>
           {tool.input !== undefined ? (
             <Text color={theme.muted}>input  {formatUnknown(tool.input, 500)}</Text>
           ) : null}
@@ -56,10 +50,10 @@ function getInlineDetail(tool: ToolCallState): string {
   return tool.error ?? "Failed";
 }
 
-function getIcon(status: ToolCallState["status"], frame: number): string {
+function getIcon(status: ToolCallState["status"]): string {
   switch (status) {
     case "running":
-      return icons.runningFrames[frame];
+      return icons.running;
     case "done":
       return icons.done;
     case "error":

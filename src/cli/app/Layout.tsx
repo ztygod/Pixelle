@@ -34,7 +34,7 @@ export function Layout({
   const timelineItems = selectTimelineItems(state);
 
   return (
-    <Box flexDirection="column" paddingX={1}>
+    <Box flexDirection="column">
       <WelcomeScreen version={version} cwd={cwd} compact={hasContent} />
       {state.showHelp ? <CommandHelp /> : null}
       <Timeline items={timelineItems} />
@@ -42,6 +42,7 @@ export function Layout({
       <InputBox
         userInputBus={userInputBus}
         runCommand={runCommand}
+        width={width}
         onExit={onExit}
       />
     </Box>

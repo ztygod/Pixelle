@@ -12,12 +12,12 @@ export function MessageItem({message}: MessageItemProps) {
   const label = getLabel(message.role);
 
   return (
-    <Box flexDirection="column" marginBottom={1} paddingLeft={1}>
+    <Box flexDirection="column" marginBottom={1}>
       <Text>
         <Text color={label.color}>{label.text}</Text>
         {message.streaming ? <Text color={theme.muted}>  writing</Text> : null}
       </Text>
-      <Box paddingLeft={message.role === "user" ? 0 : 1} flexDirection="column">
+      <Box flexDirection="column">
         {message.role === "assistant" ? (
           <StreamMessage content={message.content} streaming={message.streaming} />
         ) : message.role === "error" ? (

@@ -26,4 +26,6 @@ export const icons = {
   node: "●",
   runningFrames: ["·", "•", "●", "•"],
   cursorFrames: ["▌", "▍"],
+  inputIdle: "○",
+  inputActive: "●",
 } as const;
