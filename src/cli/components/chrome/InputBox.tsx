@@ -16,6 +16,8 @@ export function InputBox({userInputBus, runCommand, width, onExit}: InputBoxProp
   const hasValue = value.length > 0;
   const borderColor = hasValue ? theme.brand : theme.border;
   const showSendHint = width >= 54;
+  const isInteractive = Boolean(process.stdin.isTTY);
+  const cursor = isInteractive ? `\u001B[5m${icons.cursor}\u001B[25m` : icons.cursor;
 
   useInput((input, key) => {
     if (key.return) {
@@ -48,7 +50,7 @@ export function InputBox({userInputBus, runCommand, width, onExit}: InputBoxProp
     if (input) {
       setValue((current) => current + input);
     }
-  }, {isActive: Boolean(process.stdin.isTTY)});
+  }, {isActive: isInteractive});
 
   return (
     <Box
@@ -71,7 +73,7 @@ export function InputBox({userInputBus, runCommand, width, onExit}: InputBoxProp
           <Text color={theme.muted}>Message Pixelle...</Text>
         )}
         <Text color={hasValue ? theme.brand : theme.muted}>
-          {icons.cursor}
+          {cursor}
         </Text>
       </Box>
       {showSendHint ? <Text color={theme.faint}> Enter to send</Text> : null}
