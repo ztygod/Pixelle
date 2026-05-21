@@ -5,7 +5,6 @@ import {InputBox} from "../components/chrome/InputBox.js";
 import {StatusBar} from "../components/chrome/StatusBar.js";
 import {Timeline} from "../components/timeline/Timeline.js";
 import {selectTimelineItems} from "../state/timeline.js";
-import {CommandHelp} from "../components/chrome/CommandHelp.js";
 import {WelcomeScreen} from "../components/chrome/WelcomeScreen.js";
 
 type LayoutProps = {
@@ -36,8 +35,7 @@ export function Layout({
   return (
     <Box flexDirection="column">
       <WelcomeScreen version={version} cwd={cwd} compact={hasContent} />
-      {state.showHelp ? <CommandHelp /> : null}
-      <Timeline items={timelineItems} />
+      <Timeline items={timelineItems} showHelp={state.showHelp} />
       <StatusBar title={title} state={state} width={width} />
       <InputBox
         userInputBus={userInputBus}
