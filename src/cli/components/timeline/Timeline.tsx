@@ -1,20 +1,24 @@
 import {Box, Text} from "ink";
 import type {CliTimelineItem} from "../../state/timeline.js";
 import {icons, theme} from "../../utils/theme.js";
+import {CommandHelp} from "../chrome/CommandHelp.js";
 import {TimelineItem} from "./TimelineItem.js";
 
 type TimelineProps = {
   items: CliTimelineItem[];
+  showHelp: boolean;
 };
 
-export function Timeline({items}: TimelineProps) {
+export function Timeline({items, showHelp}: TimelineProps) {
+  const itemCount = items.length + (showHelp ? 1 : 0);
+
   return (
-    <Box flexDirection="column" marginBottom={items.length > 0 ? 1 : 0}>
+    <Box flexDirection="column" marginBottom={itemCount > 0 ? 1 : 0}>
       {items.map((item, index) => (
         <Box key={item.key} flexDirection="row">
           <Box width={2} flexDirection="column" alignItems="center">
             <Text color={getMarkerColor(item)}>{getMarker(item)}</Text>
-            {index < items.length - 1 ? (
+            {index < itemCount - 1 ? (
               <Text color={theme.rail}>{icons.rail}</Text>
             ) : (
               <Text> </Text>
@@ -25,6 +29,17 @@ export function Timeline({items}: TimelineProps) {
           </Box>
         </Box>
       ))}
+      {showHelp ? (
+        <Box key="command-help" flexDirection="row">
+          <Box width={2} flexDirection="column" alignItems="center">
+            <Text color={theme.accent}>{icons.tool}</Text>
+            <Text> </Text>
+          </Box>
+          <Box flexDirection="column" flexGrow={1}>
+            <CommandHelp />
+          </Box>
+        </Box>
+      ) : null}
     </Box>
   );
 }
