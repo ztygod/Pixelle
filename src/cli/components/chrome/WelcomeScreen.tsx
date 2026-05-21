@@ -1,49 +1,67 @@
-import {Box, Text} from "ink";
-import {WelcomeLogo} from "./WelcomeLogo.js";
-import {theme} from "../../utils/theme.js";
+import { Box, Text } from "ink";
+import { WelcomeLogo } from "./WelcomeLogo.js";
+import { theme } from "../../utils/theme.js";
+
+type GitStatus = "clean" | "modified" | "unknown";
 
 type WelcomeScreenProps = {
   version: string;
   cwd: string;
-  compact: boolean;
+  model?: string;
+  gitBranch?: string;
+  gitStatus?: GitStatus;
 };
 
-export function WelcomeScreen({version, cwd, compact}: WelcomeScreenProps) {
+export function WelcomeScreen({
+  version,
+  cwd,
+  model = "gpt-5.5",
+  gitBranch = "main",
+  gitStatus = "unknown",
+}: WelcomeScreenProps) {
   const shortCwd = formatCwd(cwd);
-
-  if (compact) {
-    return (
-      <Box flexDirection="column" marginBottom={1}>
-        <WelcomeLogo />
-        <Text color={theme.muted}>v{version} / {shortCwd} · /help</Text>
-      </Box>
-    );
-  }
 
   return (
     <Box
       borderStyle="round"
       borderColor={theme.border}
       flexDirection="column"
+      alignSelf="flex-start"
       marginBottom={1}
-      paddingX={2}
+      paddingX={1}
       paddingY={1}
-      width="100%"
     >
-      <Box flexDirection="row">
+      <Box>
         <WelcomeLogo />
       </Box>
-      <Box marginTop={1}>
-        <Text color={theme.accent}>=^.^=</Text>
-        <Text color={theme.muted}> ready in </Text>
-        <Text color={theme.text}>{shortCwd}</Text>
+
+      <Box marginTop={1} flexDirection="column">
+        <InfoRow label="version" value={`v${version}`} />
+
+        <InfoRow label="model" value={model} />
+
+        <InfoRow
+          label="git"
+          value={`${gitBranch} ${formatGitStatus(gitStatus)}`}
+        />
+
+        <InfoRow label="directory" value={shortCwd} />
       </Box>
-      <Box>
-        <Text color={theme.muted}>v{version} / local terminal session / ui only</Text>
-      </Box>
-      <Box marginTop={1}>
-        <Text color={theme.faint}>/help  /clear  /debug  /exit</Text>
-      </Box>
+    </Box>
+  );
+}
+
+type InfoRowProps = {
+  label: string;
+  value: string;
+};
+
+function InfoRow({ label, value }: InfoRowProps) {
+  return (
+    <Box>
+      <Text color={theme.muted}> {label.padEnd(9)} </Text>
+
+      <Text color={theme.text}>{value}</Text>
     </Box>
   );
 }
@@ -59,3 +77,18 @@ function formatCwd(cwd: string): string {
   return `.../${parts.slice(-3).join("/")}`;
 }
 
+function formatGitStatus(status: GitStatus): string {
+  switch (status) {
+    case "clean":
+      return "✓ clean";
+
+    case "modified":
+      return "● modified";
+
+    case "unknown":
+      return "? unknown";
+
+    default:
+      return status;
+  }
+}
