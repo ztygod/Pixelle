@@ -10,12 +10,6 @@ function startStandaloneCli(): void {
   });
 
   cli.onUserInput((input) => {
-    if (input.content === "/exit") {
-      cli.unmount();
-      process.exitCode = 0;
-      return;
-    }
-
     cli.pushEvent({
       type: "user_message",
       id: createId("local_user"),
@@ -31,6 +25,13 @@ function startStandaloneCli(): void {
         "No runtime is attached. The CLI layer captured your input and exposed it through `onUserInput`.",
     });
     cli.pushEvent({type: "assistant_done", messageId});
+  });
+
+  cli.onRuntimeCommand((command) => {
+    cli.pushEvent({
+      type: "error",
+      message: `No runtime is attached to handle ${command.raw}.`,
+    });
   });
 }
 

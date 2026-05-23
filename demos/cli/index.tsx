@@ -15,12 +15,6 @@ function shutdown(): void {
 }
 
 cli.onUserInput((input) => {
-  if (input.content === "/exit") {
-    shutdown();
-    process.exitCode = 0;
-    return;
-  }
-
   cli.pushEvent({
     type: "user_message",
     content: input.content,
@@ -35,6 +29,13 @@ cli.onUserInput((input) => {
       "Demo runtime only: CLI captured this input and emitted it through `onUserInput`; no agent is attached.",
   });
   cli.pushEvent({type: "assistant_done", messageId});
+});
+
+cli.onRuntimeCommand((command) => {
+  cli.pushEvent({
+    type: "error",
+    message: `Demo runtime does not handle ${command.raw}.`,
+  });
 });
 
 process.once("SIGINT", () => {

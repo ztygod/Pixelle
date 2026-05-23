@@ -6,12 +6,6 @@ import type {
 } from "../types.js";
 import {createId} from "../utils/format.js";
 
-export type CliCommand =
-  | {type: "clear"}
-  | {type: "debug"}
-  | {type: "help"}
-  | {type: "exit"};
-
 export type CliViewState = {
   messages: CliMessage[];
   tools: ToolCallState[];
@@ -32,63 +26,15 @@ export const initialCliState: CliViewState = {
   eventCount: 0,
 };
 
-export type CliAction =
-  | {type: "event"; event: CliEvent}
-  | {type: "command"; command: CliCommand};
+export type CliAction = {type: "event"; event: CliEvent};
 
 export function reduceCliState(
   state: CliViewState,
   action: CliAction,
 ): CliViewState {
   switch (action.type) {
-    case "command":
-      return reduceCliCommand(state, action.command);
     case "event":
       return reduceCliEvent(state, action.event);
-  }
-}
-
-export function parseCliCommand(input: string): CliCommand | undefined {
-  switch (input.trim()) {
-    case "/clear":
-      return {type: "clear"};
-    case "/debug":
-      return {type: "debug"};
-    case "/help":
-      return {type: "help"};
-    case "/exit":
-      return {type: "exit"};
-    default:
-      return undefined;
-  }
-}
-
-function reduceCliCommand(
-  state: CliViewState,
-  command: CliCommand,
-): CliViewState {
-  switch (command.type) {
-    case "clear":
-      return {
-        ...state,
-        messages: [],
-        tools: [],
-        images: [],
-        lastError: undefined,
-        showHelp: false,
-      };
-    case "debug":
-      return {
-        ...state,
-        debug: !state.debug,
-      };
-    case "help":
-      return {
-        ...state,
-        showHelp: !state.showHelp,
-      };
-    case "exit":
-      return state;
   }
 }
 
@@ -101,6 +47,38 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
   };
 
   switch (event.type) {
+    case "cli_clear":
+      return {
+        ...state,
+        ...viewEventStats,
+        messages: [],
+        tools: [],
+        images: [],
+        lastError: undefined,
+        showHelp: false,
+      };
+
+    case "cli_debug_toggle":
+      return {
+        ...state,
+        ...viewEventStats,
+        debug: !state.debug,
+      };
+
+    case "cli_help_toggle":
+      return {
+        ...state,
+        ...viewEventStats,
+        showHelp: !state.showHelp,
+      };
+
+    case "runtime_command":
+      return {
+        ...state,
+        ...viewEventStats,
+        showHelp: false,
+      };
+
     case "user_message":
       return {
         ...state,

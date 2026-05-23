@@ -1,17 +1,13 @@
 import {Box, Text, useInput} from "ink";
 import {useState} from "react";
-import type {UserInputBus} from "../../types.js";
-import type {CliCommand} from "../../state/cli-state.js";
 import {icons, theme} from "../../utils/theme.js";
 
 type InputBoxProps = {
-  userInputBus: UserInputBus;
-  runCommand(input: string): CliCommand | undefined;
+  onSubmit(input: string): void;
   width: number;
-  onExit: () => void;
 };
 
-export function InputBox({userInputBus, runCommand, width, onExit}: InputBoxProps) {
+export function InputBox({onSubmit, width}: InputBoxProps) {
   const [value, setValue] = useState("");
   const hasValue = value.length > 0;
   const borderColor = hasValue ? theme.brand : theme.border;
@@ -23,16 +19,7 @@ export function InputBox({userInputBus, runCommand, width, onExit}: InputBoxProp
     if (key.return) {
       const trimmed = value.trim();
       if (trimmed.length > 0) {
-        const command = runCommand(trimmed);
-        if (command?.type === "exit") {
-          onExit();
-        } else if (!command) {
-          userInputBus.emit({
-            type: "submit",
-            content: trimmed,
-            createdAt: Date.now(),
-          });
-        }
+        onSubmit(trimmed);
       }
       setValue("");
       return;

@@ -1,15 +1,10 @@
 import {useEffect, useReducer} from "react";
-import type {CliCommand, CliViewState} from "./cli-state.js";
-import {
-  initialCliState,
-  parseCliCommand,
-  reduceCliState,
-} from "./cli-state.js";
+import type {CliViewState} from "./cli-state.js";
+import {initialCliState, reduceCliState} from "./cli-state.js";
 import type {CliEvent, CliEventBus} from "../types.js";
 
 export type UseCliStateResult = {
   state: CliViewState;
-  runCommand(input: string): CliCommand | undefined;
 };
 
 export function useCliState(
@@ -32,15 +27,6 @@ export function useCliState(
     [eventBus],
   );
 
-  return {
-    state,
-    runCommand(input) {
-      const command = parseCliCommand(input);
-      if (command) {
-        dispatch({type: "command", command});
-      }
-      return command;
-    },
-  };
+  return {state};
 }
 
