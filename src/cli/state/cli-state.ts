@@ -114,6 +114,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
               createdAt: eventCreatedAt,
               order: eventOrder,
               streaming: true,
+              stage: event.stage ?? "thinking",
             },
           ],
         };
@@ -128,6 +129,47 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
                 ...message,
                 content: message.content + event.delta,
                 streaming: true,
+                stage: event.stage ?? message.stage,
+              }
+            : message,
+        ),
+      };
+    }
+
+    case "assistant_stage": {
+      const existing = state.messages.find(
+        (message) => message.id === event.messageId,
+      );
+      if (!existing) {
+        return {
+          ...state,
+          ...viewEventStats,
+          showHelp: false,
+          messages: [
+            ...state.messages,
+            {
+              id: event.messageId,
+              role: "assistant",
+              content: "",
+              createdAt: eventCreatedAt,
+              order: eventOrder,
+              streaming: true,
+              stage: event.stage,
+            },
+          ],
+        };
+      }
+
+      return {
+        ...state,
+        ...viewEventStats,
+        showHelp: false,
+        messages: state.messages.map((message) =>
+          message.id === event.messageId
+            ? {
+                ...message,
+                stage: event.stage,
+                streaming: event.stage !== "complete" ? message.streaming : false,
               }
             : message,
         ),
@@ -143,6 +185,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             ? {
                 ...message,
                 streaming: false,
+                stage: "complete",
               }
             : message,
         ),
@@ -157,11 +200,12 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
           {
             id: event.id,
             name: event.name,
-            status: "running",
+            status: event.status ?? "running",
             input: event.input,
             description: event.description,
             createdAt: eventCreatedAt,
             order: eventOrder,
+            startedAt: event.status === "pending" ? undefined : eventCreatedAt,
           },
         ],
       };
@@ -174,10 +218,11 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
           tool.id === event.id
             ? {
                 ...tool,
-                status: "done",
+                status: "success",
                 output: event.output,
                 summary: event.summary,
                 completedAt: eventCreatedAt,
+                durationMs: getDurationMs(tool, eventCreatedAt),
               }
             : tool,
         ),
@@ -194,6 +239,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
                 status: "error",
                 error: event.error,
                 completedAt: eventCreatedAt,
+                durationMs: getDurationMs(tool, eventCreatedAt),
               }
             : tool,
         ),
@@ -233,5 +279,17 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         ],
       };
   }
+}
+
+function getDurationMs(
+  tool: ToolCallState,
+  completedAt: number,
+): number | undefined {
+  const startedAt = tool.startedAt ?? tool.createdAt;
+  if (!startedAt || completedAt < startedAt) {
+    return undefined;
+  }
+
+  return completedAt - startedAt;
 }
 

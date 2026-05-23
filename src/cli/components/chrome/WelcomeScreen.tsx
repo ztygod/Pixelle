@@ -31,12 +31,22 @@ export function WelcomeScreen({
       paddingX={1}
       paddingY={1}
     >
-      <Box>
+      <Box flexDirection="row">
         <WelcomeLogo />
       </Box>
 
+      <Box marginTop={1}>
+        <Text color={theme.rail}>{"─".repeat(44)}</Text>
+      </Box>
+
       <Box marginTop={1} flexDirection="column">
-        <InfoRow label="version" value={`v${version}`} />
+        <Box marginBottom={1}>
+          <Text color={theme.success}>░</Text>
+          <Text color={theme.muted}> runtime </Text>
+          <Text color={theme.text}>demo interface ready</Text>
+        </Box>
+
+        <InfoRow label="version" value={`v${version}`} accent />
 
         <InfoRow label="model" value={model} />
 
@@ -54,14 +64,15 @@ export function WelcomeScreen({
 type InfoRowProps = {
   label: string;
   value: string;
+  accent?: boolean;
 };
 
-function InfoRow({ label, value }: InfoRowProps) {
+function InfoRow({ label, value, accent = false }: InfoRowProps) {
   return (
     <Box>
       <Text color={theme.muted}> {label.padEnd(9)} </Text>
 
-      <Text color={theme.text}>{value}</Text>
+      <Text color={accent ? theme.primary : theme.text}>{value}</Text>
     </Box>
   );
 }

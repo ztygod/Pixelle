@@ -6,9 +6,10 @@ import {CodeBlock} from "./CodeBlock.js";
 
 type MarkdownRendererProps = {
   content: string;
+  revealCode?: boolean;
 };
 
-export function MarkdownRenderer({content}: MarkdownRendererProps) {
+export function MarkdownRenderer({content, revealCode = false}: MarkdownRendererProps) {
   const blocks = parseMarkdown(content);
 
   return (
@@ -42,7 +43,14 @@ export function MarkdownRenderer({content}: MarkdownRendererProps) {
               </Box>
             );
           case "code":
-            return <CodeBlock key={index} code={block.code} language={block.language} />;
+            return (
+              <CodeBlock
+                key={index}
+                code={block.code}
+                language={block.language}
+                reveal={revealCode}
+              />
+            );
         }
       })}
     </Box>

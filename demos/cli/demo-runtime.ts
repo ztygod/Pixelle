@@ -6,7 +6,9 @@ type ScheduledEvent = {
 };
 
 export function startDemoRuntime(cli: CliHandle): () => void {
-  const assistantMessageId = "demo_assistant_login_page";
+  const planningMessageId = "demo_assistant_planning";
+  const executionMessageId = "demo_assistant_execution";
+  const fallbackMessageId = "demo_assistant_fallback";
   const timers: NodeJS.Timeout[] = [];
 
   const schedule: ScheduledEvent[] = [
@@ -24,84 +26,149 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       delayMs: 900,
       run: () => {
         cli.pushEvent({
+          type: "assistant_stage",
+          messageId: planningMessageId,
+          stage: "thinking",
+        });
+        cli.pushEvent({
           type: "assistant_delta",
-          messageId: assistantMessageId,
+          messageId: planningMessageId,
+          stage: "thinking",
           delta:
-            "我会把它作为 UI 展示任务处理：先确认页面边界，再展示组件片段和模拟改动。这个 demo 不读取文件、不调用模型，也不执行真实工具。\n\n",
+            "我会把它作为 UI 展示任务处理。这个 demo 只播放模拟 runtime 事件：不读取文件、不调用模型，也不执行真实工具。\n\n",
         });
       },
     },
     {
-      delayMs: 1450,
+      delayMs: 1350,
+      run: () => {
+        cli.pushEvent({
+          type: "assistant_stage",
+          messageId: planningMessageId,
+          stage: "planning",
+        });
+        cli.pushEvent({
+          type: "assistant_delta",
+          messageId: planningMessageId,
+          stage: "planning",
+          delta:
+            "## Plan\n\n- Identify the page shell and input states\n- Generate a compact React component\n- Summarize the visual diff and image fallback path\n\n",
+        });
+        cli.pushEvent({
+          type: "assistant_done",
+          messageId: planningMessageId,
+        });
+      },
+    },
+    {
+      delayMs: 1900,
+      run: () => {
+        cli.pushEvent({
+          type: "tool_start",
+          id: "tool_list_files",
+          name: "list_files",
+          status: "pending",
+          input: {path: "src"},
+          description: "Queued project scan",
+        });
+      },
+    },
+    {
+      delayMs: 2350,
       run: () => {
         cli.pushEvent({
           type: "tool_start",
           id: "tool_list_files",
           name: "list_files",
           input: {path: "src"},
-          description: "Scanning project...",
+          description: "Scanning project shape",
         });
       },
     },
     {
-      delayMs: 2300,
+      delayMs: 3050,
       run: () => {
         cli.pushEvent({
           type: "tool_done",
           id: "tool_list_files",
           name: "list_files",
           output: "src/App.tsx\nsrc/main.tsx\nsrc/components\nsrc/styles.css",
-          summary: "4 files",
+          summary: "4 files discovered",
         });
       },
     },
     {
-      delayMs: 2800,
+      delayMs: 3500,
       run: () => {
         cli.pushEvent({
+          type: "assistant_stage",
+          messageId: executionMessageId,
+          stage: "executing",
+        });
+        cli.pushEvent({
           type: "assistant_delta",
-          messageId: assistantMessageId,
+          messageId: executionMessageId,
+          stage: "executing",
           delta:
-            "## 项目判断\n\n- React + TypeScript 页面可以作为独立组件落地\n- 登录区域需要明确的表单层级和按钮状态\n- 下一步展示组件草案、样式差异和设计稿路径降级\n\n",
+            "## Runtime notes\n\n- React + TypeScript 页面可以作为独立组件落地\n- 登录区域需要明确表单层级、按钮状态和辅助链接\n- 接下来展示组件草案和模拟 diff\n\n",
         });
       },
     },
     {
-      delayMs: 3650,
+      delayMs: 4300,
       run: () => {
         cli.pushEvent({
           type: "assistant_delta",
-          messageId: assistantMessageId,
+          messageId: executionMessageId,
+          stage: "executing",
           delta:
             "```tsx\nexport function LoginPage() {\n  return (\n    <main className=\"login-page\">\n      <section className=\"login-panel\">\n        <h1>Welcome back</h1>\n        <button>Sign in</button>\n      </section>\n    </main>\n  );\n}\n```\n\n",
         });
       },
     },
     {
-      delayMs: 4550,
+      delayMs: 5400,
       run: () => {
         cli.pushEvent({
           type: "assistant_delta",
-          messageId: assistantMessageId,
+          messageId: executionMessageId,
+          stage: "executing",
           delta:
             "```diff\n+ <LoginPage />\n- <Placeholder />\n@@ styles.css @@\n+ .login-page { min-height: 100vh; }\n+ .login-panel { max-width: 420px; }\n```\n\n",
+        });
+        cli.pushEvent({
+          type: "assistant_done",
+          messageId: executionMessageId,
         });
       },
     },
     {
-      delayMs: 5250,
+      delayMs: 6200,
+      run: () => {
+        cli.pushEvent({
+          type: "tool_start",
+          id: "tool_image_preview",
+          name: "render_image_preview",
+          status: "pending",
+          input: {path: "./assets/login-design.png"},
+          description: "Queued image preview",
+        });
+      },
+    },
+    {
+      delayMs: 6500,
       run: () => {
         cli.pushEvent({
           type: "tool_start",
           id: "tool_image_preview",
           name: "render_image_preview",
           input: {path: "./assets/login-design.png"},
-          description: "Checking terminal image protocol...",
+          description: "Checking terminal image protocol",
         });
       },
     },
     {
-      delayMs: 5900,
+      delayMs: 7100,
       run: () => {
         cli.pushEvent({
           type: "tool_error",
@@ -112,7 +179,7 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       },
     },
     {
-      delayMs: 6350,
+      delayMs: 7550,
       run: () => {
         cli.pushEvent({
           type: "image_preview",
@@ -123,7 +190,7 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       },
     },
     {
-      delayMs: 6800,
+      delayMs: 7900,
       run: () => {
         cli.pushEvent({
           type: "error",
@@ -132,22 +199,36 @@ export function startDemoRuntime(cli: CliHandle): () => void {
       },
     },
     {
-      delayMs: 7350,
+      delayMs: 8450,
       run: () => {
         cli.pushEvent({
+          type: "assistant_stage",
+          messageId: fallbackMessageId,
+          stage: "executing",
+        });
+        cli.pushEvent({
           type: "assistant_delta",
-          messageId: assistantMessageId,
+          messageId: fallbackMessageId,
+          stage: "executing",
           delta:
             "> 图片预览已降级，但路径仍保留在上下文中。\n\n我会继续把设计稿作为本地参考路径展示，不执行任何真实文件读取或模型分析。\n",
         });
       },
     },
     {
-      delayMs: 8100,
+      delayMs: 9050,
+      run: () => {
+        cli.pushEvent({
+          type: "cli_help_toggle",
+        });
+      },
+    },
+    {
+      delayMs: 9650,
       run: () => {
         cli.pushEvent({
           type: "assistant_done",
-          messageId: assistantMessageId,
+          messageId: fallbackMessageId,
         });
       },
     },
