@@ -18,6 +18,11 @@ export type CliEvent =
   | (BaseEvent<"assistant_delta"> & {
       messageId: string;
       delta: string;
+      stage?: AgentStage;
+    })
+  | (BaseEvent<"assistant_stage"> & {
+      messageId: string;
+      stage: AgentStage;
     })
   | (BaseEvent<"assistant_done"> & {
       messageId: string;
@@ -27,6 +32,7 @@ export type CliEvent =
       name: string;
       input?: unknown;
       description?: string;
+      status?: Extract<ToolCallStatus, "pending" | "running">;
     })
   | (BaseEvent<"tool_done"> & {
       id: string;
@@ -55,6 +61,8 @@ export type UserInputEvent = BaseEvent<"submit"> & {
 
 export type MessageRole = "user" | "assistant" | "error";
 
+export type AgentStage = "thinking" | "planning" | "executing" | "complete";
+
 export type CliMessage = {
   id: string;
   role: MessageRole;
@@ -62,9 +70,10 @@ export type CliMessage = {
   createdAt: number;
   order: number;
   streaming?: boolean;
+  stage?: AgentStage;
 };
 
-export type ToolCallStatus = "running" | "done" | "error";
+export type ToolCallStatus = "pending" | "running" | "success" | "done" | "error";
 
 export type ToolCallState = {
   id: string;
@@ -77,7 +86,10 @@ export type ToolCallState = {
   summary?: string;
   createdAt: number;
   order: number;
+  startedAt?: number;
   completedAt?: number;
+  durationMs?: number;
+  collapsed?: boolean;
 };
 
 export type ImagePreviewState = {

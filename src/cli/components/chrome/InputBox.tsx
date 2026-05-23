@@ -1,5 +1,5 @@
 import {Box, Text, useInput} from "ink";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import {icons, theme} from "../../utils/theme.js";
 
 type InputBoxProps = {
@@ -9,17 +9,34 @@ type InputBoxProps = {
 
 export function InputBox({onSubmit, width}: InputBoxProps) {
   const [value, setValue] = useState("");
+  const [submitted, setSubmitted] = useState(false);
   const hasValue = value.length > 0;
-  const borderColor = hasValue ? theme.brand : theme.border;
+  const borderColor = submitted ? theme.success : hasValue ? theme.brand : theme.border;
   const showSendHint = width >= 54;
   const isInteractive = Boolean(process.stdin.isTTY);
   const cursor = isInteractive ? `\u001B[5m${icons.cursor}\u001B[25m` : icons.cursor;
+  const modeLabel = submitted ? "submitted" : hasValue ? "compose" : "console";
+
+  useEffect(() => {
+    if (!submitted) {
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setSubmitted(false);
+    }, 450);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [submitted]);
 
   useInput((input, key) => {
     if (key.return) {
       const trimmed = value.trim();
       if (trimmed.length > 0) {
         onSubmit(trimmed);
+        setSubmitted(true);
       }
       setValue("");
       return;
@@ -49,15 +66,15 @@ export function InputBox({onSubmit, width}: InputBoxProps) {
       width="100%"
     >
       <Text color={hasValue ? theme.brand : theme.muted}>
-        {hasValue ? icons.inputActive : icons.inputIdle}
+        {submitted ? icons.done : hasValue ? icons.inputActive : icons.inputIdle}
       </Text>
       <Text color={theme.brand}> Pixelle</Text>
-      <Text color={theme.muted}> {icons.user} </Text>
+      <Text color={theme.muted}> {modeLabel} {icons.user} </Text>
       <Box flexGrow={1}>
         {hasValue ? (
           <Text color={theme.text}>{value}</Text>
         ) : (
-          <Text color={theme.muted}>Message Pixelle...</Text>
+          <Text color={theme.muted}>Ask Pixelle or type /help</Text>
         )}
         <Text color={hasValue ? theme.brand : theme.muted}>
           {cursor}

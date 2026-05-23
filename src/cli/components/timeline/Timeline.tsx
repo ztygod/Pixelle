@@ -66,7 +66,15 @@ function getMarkerColor(item: CliTimelineItem): string {
   }
 
   if (item.kind === "tool") {
-    return item.tool.status === "error" ? theme.danger : theme.accent;
+    if (item.tool.status === "error") {
+      return theme.danger;
+    }
+
+    if (item.tool.status === "success" || item.tool.status === "done") {
+      return theme.success;
+    }
+
+    return theme.accent;
   }
 
   return theme.muted;

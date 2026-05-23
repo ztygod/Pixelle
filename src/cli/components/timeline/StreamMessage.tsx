@@ -5,12 +5,13 @@ import {MarkdownRenderer} from "../markdown/MarkdownRenderer.js";
 type StreamMessageProps = {
   content: string;
   streaming?: boolean;
+  revealCode?: boolean;
 };
 
-export function StreamMessage({content, streaming}: StreamMessageProps) {
+export function StreamMessage({content, streaming, revealCode}: StreamMessageProps) {
   return (
     <Box flexDirection="column">
-      <MarkdownRenderer content={content} />
+      <MarkdownRenderer content={content} revealCode={revealCode} />
       {streaming ? (
         <Text color={theme.muted}>{icons.cursor}</Text>
       ) : null}

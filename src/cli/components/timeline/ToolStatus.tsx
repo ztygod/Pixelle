@@ -19,6 +19,10 @@ export function ToolStatus({tool}: ToolStatusProps) {
       <Text>
         <Text color={color}>{icon}</Text>{" "}
         <Text color={theme.text}>{tool.name}</Text>
+        <Text color={theme.muted}> / {formatStatus(tool.status)}</Text>
+        {formatDuration(tool) ? (
+          <Text color={theme.faint}> / {formatDuration(tool)}</Text>
+        ) : null}
         {detail ? <Text color={theme.muted}> / {detail}</Text> : null}
       </Text>
       {expanded ? (
@@ -39,11 +43,15 @@ export function ToolStatus({tool}: ToolStatusProps) {
 }
 
 function getInlineDetail(tool: ToolCallState): string {
+  if (tool.status === "pending") {
+    return tool.description ?? "Queued";
+  }
+
   if (tool.status === "running") {
     return tool.description ?? "Running...";
   }
 
-  if (tool.status === "done") {
+  if (tool.status === "success" || tool.status === "done") {
     return tool.summary ?? formatUnknown(tool.output ?? "done", 80);
   }
 
@@ -52,8 +60,11 @@ function getInlineDetail(tool: ToolCallState): string {
 
 function getIcon(status: ToolCallState["status"]): string {
   switch (status) {
+    case "pending":
+      return icons.running;
     case "running":
       return icons.running;
+    case "success":
     case "done":
       return icons.done;
     case "error":
@@ -63,12 +74,31 @@ function getIcon(status: ToolCallState["status"]): string {
 
 function getColor(status: ToolCallState["status"]): string {
   switch (status) {
+    case "pending":
+      return theme.muted;
     case "running":
       return theme.accent;
+    case "success":
     case "done":
       return theme.success;
     case "error":
       return theme.danger;
   }
+}
+
+function formatStatus(status: ToolCallState["status"]): string {
+  return status === "done" ? "success" : status;
+}
+
+function formatDuration(tool: ToolCallState): string | undefined {
+  if (tool.durationMs !== undefined) {
+    return `${tool.durationMs}ms`;
+  }
+
+  if (tool.status === "running" && tool.startedAt) {
+    return "running";
+  }
+
+  return undefined;
 }
 

@@ -47,5 +47,5 @@ if (!process.stdin.isTTY) {
   setTimeout(() => {
     shutdown();
     process.exitCode = 0;
-  }, 9000);
+  }, 11000);
 }
