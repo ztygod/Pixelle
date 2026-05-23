@@ -4,15 +4,17 @@
 
 ## Boundary
 
-The CLI owns terminal layout, Markdown, code and diff rendering, assistant streaming, tool status rows, image preview fallback, local errors, and UI-only slash commands.
+The CLI owns terminal layout, Markdown, code and diff rendering, assistant streaming, tool status rows, image preview fallback, and local errors.
 
 The CLI does not call models, run agents, execute tools, scan files, write files, use RAG, start MCP servers, or orchestrate runtime decisions.
+
+Slash command parsing and dispatch live in `src/commands`. UI commands emit CLI events back into the view reducer. Runtime-facing commands emit a runtime command intent that an agent runtime can subscribe to through the CLI handle.
 
 `src/cli/index.ts` is a side-effect-free public API entry. The executable CLI entry lives in `src/bin/pixelle.ts`. Demo programs live under `demos/` and consume the CLI through the public API.
 
 ## Structure
 
-`app/` owns the top-level Ink composition. `state/` owns event reduction and selectors. `components/chrome/` contains shell UI such as the welcome screen, status bar, command help, and input box. `components/timeline/` contains renderers for chronological content. `components/markdown/` contains Markdown and code rendering helpers.
+`app/` owns the top-level Ink composition and wires input into the commands layer. `state/` owns event reduction and selectors. `components/chrome/` contains shell UI such as the welcome screen, status bar, command help, and input box. `components/timeline/` contains renderers for chronological content. `components/markdown/` contains Markdown and code rendering helpers.
 
 The render data flow is:
 
@@ -33,12 +35,13 @@ pnpm cli:demo
 
 ## Slash Commands
 
-Slash commands only change local CLI UI state:
+Slash commands are parsed outside the CLI reducer:
 
 - `/help` toggles command help.
 - `/clear` clears rendered messages, tools, images, and errors.
 - `/debug` toggles event count, last event type, running tools, and terminal width in the status bar.
 - `/exit` unmounts the Ink UI.
+- `/model`, `/mcp`, `/agent`, and `/tool` emit runtime command intents for a future Agent Runtime.
 
 Non-command input is emitted through `onUserInput`.
 
@@ -51,6 +54,10 @@ const cli = renderCli({title: "Pixelle"});
 
 cli.onUserInput((input) => {
   console.log(input.content);
+});
+
+cli.onRuntimeCommand((command) => {
+  console.log(command.raw);
 });
 
 cli.pushEvent({

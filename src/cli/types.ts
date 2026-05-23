@@ -1,6 +1,16 @@
 import type {BaseEvent, EventBus} from "../eventsbus/index.js";
 
+export type RuntimeCommandEvent = BaseEvent<"runtime_command"> & {
+  command: string;
+  args: readonly string[];
+  raw: string;
+};
+
 export type CliEvent =
+  | BaseEvent<"cli_clear">
+  | BaseEvent<"cli_debug_toggle">
+  | BaseEvent<"cli_help_toggle">
+  | RuntimeCommandEvent
   | (BaseEvent<"user_message"> & {
       id?: string;
       content: string;
@@ -86,6 +96,7 @@ export type RenderCliOptions = {
 export type CliHandle = {
   pushEvent(event: CliEvent): void;
   onUserInput(callback: (input: UserInputEvent) => void): () => void;
+  onRuntimeCommand(callback: (command: RuntimeCommandEvent) => void): () => void;
   unmount(): void;
 };
 

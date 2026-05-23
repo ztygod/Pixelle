@@ -1,6 +1,5 @@
 import { Box } from "ink";
-import type { UserInputBus } from "../types.js";
-import type { CliCommand, CliViewState } from "../state/cli-state.js";
+import type { CliViewState } from "../state/cli-state.js";
 import { InputBox } from "../components/chrome/InputBox.js";
 import { StatusBar } from "../components/chrome/StatusBar.js";
 import { Timeline } from "../components/timeline/Timeline.js";
@@ -12,10 +11,8 @@ type LayoutProps = {
   version: string;
   cwd: string;
   state: CliViewState;
-  userInputBus: UserInputBus;
-  runCommand(input: string): CliCommand | undefined;
+  onSubmit(input: string): void;
   width: number;
-  onExit: () => void;
 };
 
 export function Layout({
@@ -23,18 +20,16 @@ export function Layout({
   version,
   cwd,
   state,
-  userInputBus,
-  runCommand,
+  onSubmit,
   width,
-  onExit,
 }: LayoutProps) {
   const timelineItems = selectTimelineItems(state);
 
   return (
     <Box flexDirection="column">
       <WelcomeScreen
-        version="0.1.0"
-        cwd={process.cwd()}
+        version={version}
+        cwd={cwd}
         model="gpt-5.5"
         gitBranch="feat/cli-header"
         gitStatus="modified"
@@ -42,10 +37,8 @@ export function Layout({
       <Timeline items={timelineItems} showHelp={state.showHelp} />
       <StatusBar title={title} state={state} width={width} />
       <InputBox
-        userInputBus={userInputBus}
-        runCommand={runCommand}
+        onSubmit={onSubmit}
         width={width}
-        onExit={onExit}
       />
     </Box>
   );

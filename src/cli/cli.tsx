@@ -6,6 +6,7 @@ import type {
   CliEventBus,
   CliHandle,
   RenderCliOptions,
+  RuntimeCommandEvent,
   UserInputBus,
   UserInputEvent,
 } from "./types.js";
@@ -37,6 +38,13 @@ export function renderCli(options: RenderCliOptions = {}): CliHandle {
     },
     onUserInput(callback) {
       return userInputBus.subscribe(callback);
+    },
+    onRuntimeCommand(callback) {
+      return eventBus.on("runtime_command", (event) => {
+        if (event.type === "runtime_command") {
+          callback(event as RuntimeCommandEvent);
+        }
+      });
     },
     unmount() {
       instance.unmount();
