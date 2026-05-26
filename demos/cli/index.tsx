@@ -1,4 +1,4 @@
-import {renderCli} from "../../src/cli/index.js";
+import {renderCli} from "../../apps/cli/src/cli/index.js";
 import { startDemoRuntime } from "./demo-runtime.js";
 
 const cli = renderCli({title: "Pixelle CLI Demo"});

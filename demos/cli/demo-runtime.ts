@@ -1,4 +1,4 @@
-import type {CliHandle} from "../../src/cli/index.js";
+import type {CliHandle} from "../../apps/cli/src/cli/index.js";
 
 type ScheduledEvent = {
   delayMs: number;

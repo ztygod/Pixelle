@@ -1,15 +1,22 @@
 {
-  "name": "pixelle",
+  "name": "pixelle-monorepo",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
-  "bin": {
-    "pixelle": "./dist/bin/pixelle.js"
-  },
   "scripts": {
-    "dev": "tsx src/bin/pixelle.ts",
-    "build": "tsc",
-    "cli:demo": "tsx demos/cli/index.tsx",
-    "start": "node dist/bin/pixelle.js"
+    "dev": "pnpm --filter @pixelle/cli dev",
+    "build": "pnpm --filter @pixelle/cli build",
+    "dev:legacy": "pnpm --filter @pixelle/cli dev",
+    "build:legacy": "pnpm --filter @pixelle/cli build",
+    "cli:demo": "tsx --tsconfig apps/cli/tsconfig.json demos/cli/index.tsx",
+    "start": "pnpm --filter @pixelle/cli start",
+    "start:legacy": "pnpm --filter @pixelle/cli start",
+    "dev:web": "pnpm --filter @pixelle/web dev",
+    "dev:server": "pnpm --filter @pixelle/server dev",
+    "build:workspace": "pnpm -r --filter \"@pixelle/*\" build",
+    "build:web": "pnpm --filter @pixelle/web build",
+    "build:server": "pnpm --filter @pixelle/server build",
+    "typecheck": "pnpm -r --filter \"@pixelle/*\" typecheck"
   },
   "keywords": [],
   "author": "tianyi zhou",
