@@ -2,7 +2,9 @@
 
 [中文](./README.zh-CN.md)
 
-Pixelle is a TypeScript and Ink based terminal interface project. The current repository focuses on the CLI presentation layer: it renders event streams, captures user input, and displays assistant messages, tool states, errors, Markdown, code blocks, diffs, and image preview fallbacks.
+Pixelle is evolving into a multi-entry AI Coding Workspace for frontend engineering. The current repository keeps the existing TypeScript and Ink CLI intact while adding the first monorepo skeleton for a Web workspace, a Server runtime backend, and shared packages.
+
+The existing CLI presentation layer still renders event streams, captures user input, and displays assistant messages, tool states, errors, Markdown, code blocks, diffs, and image preview fallbacks.
 
 The Pixelle CLI layer does not call models, execute tools, scan or edit files, or orchestrate agent decisions. A separate runtime can drive the UI by pushing events through the public API and subscribing to user input and runtime command intents.
 
@@ -33,17 +35,25 @@ pnpm dev
 pnpm build
 pnpm start
 pnpm cli:demo
+pnpm dev:web
+pnpm dev:server
+pnpm build:workspace
+pnpm typecheck
 ```
 
 - `pnpm dev`: start the standalone Pixelle CLI from source.
 - `pnpm build`: compile TypeScript into `dist/`.
 - `pnpm start`: run the compiled CLI entrypoint.
 - `pnpm cli:demo`: start the built-in demo runtime with simulated events.
+- `pnpm dev:web`: start the Vite Web workspace.
+- `pnpm dev:server`: start the Fastify runtime backend skeleton.
+- `pnpm build:workspace`: build the shared packages, Web app, and Server app.
+- `pnpm typecheck`: typecheck the workspace packages and apps.
 
 ## API Usage
 
 ```ts
-import {renderCli} from "./src/cli/index.js";
+import {renderCli} from "./apps/cli/src/cli/index.js";
 
 const cli = renderCli({title: "Pixelle"});
 
@@ -70,11 +80,11 @@ cli.pushEvent({
 ## Project Structure
 
 ```text
-src/bin/        CLI executable entrypoint
-src/cli/        Terminal presentation layer and public CLI API
-src/commands/   Slash command parsing and dispatch
-src/eventsbus/  Shared event bus
+apps/cli/       CLI executable entrypoint and terminal presentation layer
+apps/web/       React Web workspace skeleton
+apps/server/    Fastify Agent Runtime backend skeleton
+packages/       Shared types, events, core contracts, sandbox, prompt, config
 demos/          Local demo runtime
 ```
 
-See `src/cli/README.md` for more details about the CLI internals.
+See `apps/cli/src/cli/README.md` for more details about the CLI internals.

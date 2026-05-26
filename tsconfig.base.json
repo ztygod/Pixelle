@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@pixelle/types": ["./packages/types/src/index.ts"],
+      "@pixelle/events": ["./packages/events/src/index.ts"],
+      "@pixelle/core": ["./packages/core/src/index.ts"],
+      "@pixelle/sandbox": ["./packages/sandbox/src/index.ts"],
+      "@pixelle/config": ["./packages/config/src/index.ts"],
+      "@pixelle/prompt": ["./packages/prompt/src/index.ts"]
+    }
+  }
+}

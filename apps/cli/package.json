@@ -1,0 +1,33 @@
+{
+  "name": "@pixelle/cli",
+  "version": "1.0.0",
+  "type": "module",
+  "bin": {
+    "pixelle": "./dist/bin/pixelle.js"
+  },
+  "exports": {
+    ".": "./dist/cli/index.js"
+  },
+  "types": "./dist/cli/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "dev": "tsx src/bin/pixelle.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/bin/pixelle.js"
+  },
+  "dependencies": {
+    "@pixelle/core": "workspace:*",
+    "@pixelle/events": "workspace:*",
+    "chalk": "^5.6.2",
+    "diff": "^9.0.0",
+    "ink": "^7.0.3",
+    "react": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "@types/react": "^19.2.14",
+    "tsx": "^4.22.1",
+    "typescript": "^6.0.3"
+  }
+}

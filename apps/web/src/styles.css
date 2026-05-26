@@ -1,0 +1,272 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    "Aptos",
+    "Segoe UI",
+    sans-serif;
+  background: #11130f;
+  color: #eef0e8;
+  --panel: #181b16;
+  --panel-strong: #20251e;
+  --line: #343a31;
+  --muted: #9da696;
+  --text: #eef0e8;
+  --accent: #b8ff4d;
+  --accent-2: #60d5ff;
+  --danger: #ff6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    #11130f;
+  background-size: 28px 28px;
+}
+
+button {
+  font: inherit;
+}
+
+.workspace-shell {
+  min-height: 100vh;
+  padding: 18px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid var(--line);
+  background: rgba(24, 27, 22, 0.92);
+  padding: 14px 16px;
+}
+
+.eyebrow,
+.message-label,
+.event-card span,
+.protocol-card span {
+  margin: 0;
+  color: var(--muted);
+  font-family: "Cascadia Mono", "SFMono-Regular", monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 2px 0 0;
+  font-size: clamp(22px, 3vw, 34px);
+  letter-spacing: 0;
+}
+
+.topbar-actions,
+.status-pill,
+.panel-title,
+.branch-row,
+.protocol-card {
+  display: flex;
+  align-items: center;
+}
+
+.topbar-actions {
+  gap: 10px;
+}
+
+.status-pill,
+.icon-button {
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  color: var(--text);
+}
+
+.status-pill {
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+.icon-button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  cursor: pointer;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.72fr) minmax(360px, 1.7fr) minmax(260px, 0.95fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.rail,
+.main-stage {
+  min-height: calc(100vh - 104px);
+  border: 1px solid var(--line);
+  background: rgba(24, 27, 22, 0.94);
+}
+
+.rail {
+  padding: 14px;
+}
+
+.panel-title {
+  gap: 8px;
+  font-weight: 700;
+}
+
+.branch-row {
+  gap: 7px;
+  margin-top: 14px;
+  color: var(--accent-2);
+  font-family: "Cascadia Mono", "SFMono-Regular", monospace;
+  font-size: 12px;
+}
+
+.file-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 18px;
+}
+
+.file-list button,
+.editor-tabs button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-list button {
+  overflow-wrap: anywhere;
+  padding: 9px 8px;
+}
+
+.file-list button:hover,
+.editor-tabs .active {
+  border-color: var(--line);
+  background: #22281f;
+  color: var(--text);
+}
+
+.main-stage {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.chat-strip {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  padding: 16px;
+}
+
+.speaker {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  background: var(--accent);
+  color: #10130d;
+}
+
+.chat-strip p:last-child {
+  margin: 5px 0 0;
+  max-width: 70ch;
+  color: #d7ddd0;
+  line-height: 1.5;
+}
+
+.editor-frame {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 460px;
+}
+
+.editor-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  padding: 8px;
+}
+
+.editor-tabs button {
+  padding: 8px 10px;
+}
+
+pre {
+  margin: 0;
+  overflow: auto;
+  padding: 22px;
+  color: #d9f7c4;
+  font-family: "Cascadia Mono", "SFMono-Regular", monospace;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.event-stack {
+  display: grid;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.event-card {
+  border-left: 3px solid var(--accent);
+  background: #20251e;
+  padding: 10px;
+}
+
+.event-card strong,
+.protocol-card strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.protocol-card {
+  gap: 10px;
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  background: #11150f;
+  padding: 12px;
+}
+
+@media (max-width: 980px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rail,
+  .main-stage {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .workspace-shell {
+    padding: 10px;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}

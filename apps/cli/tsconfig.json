@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "declaration": true,
+    "declarationMap": true,
+    "disableSourceOfProjectReferenceRedirect": true
+  },
+  "include": ["src"],
+  "references": [{"path": "../../packages/core"}, {"path": "../../packages/events"}]
+}

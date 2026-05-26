@@ -1,17 +1,13 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-
-    "rootDir": "./src",
-    "outDir": "./dist",
-
-    "strict": true,
-    "jsx": "react-jsx",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "types": ["node"]
-  },
-  "include": ["src"]
+  "files": [],
+  "references": [
+    {"path": "./apps/cli"},
+    {"path": "./apps/server"},
+    {"path": "./packages/config"},
+    {"path": "./packages/core"},
+    {"path": "./packages/events"},
+    {"path": "./packages/prompt"},
+    {"path": "./packages/sandbox"},
+    {"path": "./packages/types"}
+  ]
 }
