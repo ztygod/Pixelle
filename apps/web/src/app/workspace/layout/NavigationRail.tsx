@@ -1,0 +1,29 @@
+import {navItems} from "../data/workspace-data";
+
+export function NavigationRail() {
+  return (
+    <nav className="workspace-panel flex min-h-0 shrink-0 flex-row items-center justify-between rounded-lg p-2 xl:flex-col">
+      <div className="hidden size-9 place-items-center rounded-md bg-[#b7ff55] text-sm font-bold text-[#071006] xl:grid">
+        px
+      </div>
+      <div className="flex gap-1 xl:flex-col">
+        {navItems.map(({active, icon: Icon, label}) => (
+          <button
+            aria-label={label}
+            className={
+              active
+                ? "grid size-9 place-items-center rounded-md border border-[#b7ff55]/25 bg-[#b7ff55]/12 text-[#b7ff55] shadow-[0_0_24px_rgba(183,255,85,0.12)] transition"
+                : "grid size-9 place-items-center rounded-md text-[#808a7a] transition hover:bg-white/[0.06] hover:text-[#f2f5ed]"
+            }
+            key={label}
+            title={label}
+            type="button"
+          >
+            <Icon size={17} />
+          </button>
+        ))}
+      </div>
+      <div className="hidden h-8 w-px bg-white/10 xl:block" />
+    </nav>
+  );
+}
