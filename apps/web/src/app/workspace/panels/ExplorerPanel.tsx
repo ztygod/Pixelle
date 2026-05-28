@@ -1,12 +1,10 @@
 import {ChevronRight, File, Folder, GitBranch} from "lucide-react";
-import {Separator} from "../../../components/ui/separator";
-import {ProjectContextCard} from "../components/ProjectContextCard";
 import {fileTree} from "../data/workspace-data";
 import type {FileTreeNode} from "../types";
 
 export function ExplorerPanel() {
   return (
-    <aside className="workspace-panel flex min-h-[360px] flex-col overflow-hidden rounded-lg p-3 xl:min-h-0">
+    <aside className="workspace-panel flex min-h-[360px] w-full flex-col overflow-hidden rounded-lg p-3 xl:h-full xl:min-h-0">
       <div className="mb-3 flex shrink-0 items-center justify-between">
         <div>
           <p className="mono-label text-[10px] uppercase text-[#7f8979]">Workspace</p>
@@ -27,11 +25,6 @@ export function ExplorerPanel() {
           <TreeNode key={node.name} node={node} />
         ))}
       </nav>
-
-      <div className="shrink-0">
-        <Separator className="my-4" />
-        <ProjectContextCard />
-      </div>
     </aside>
   );
 }

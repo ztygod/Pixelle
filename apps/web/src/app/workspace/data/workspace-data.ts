@@ -1,35 +1,21 @@
 import {
-  Bot,
   Box,
   Bug,
-  Code2,
-  FileCode2,
   Files,
   GitBranch,
-  Hammer,
   MessageSquare,
   Package,
   Puzzle,
   RefreshCw,
   Settings,
   Sparkles,
-  TerminalSquare,
 } from "lucide-react";
 import type {
   FileTreeNode,
   NavItem,
   QuickAction,
-  RuntimeMetric,
   TimelineItem,
-  WorkspaceMode,
 } from "../types";
-
-export const workspaceModes: WorkspaceMode[] = [
-  "BUILD",
-  "PLAN",
-  "DEBUG",
-  "REFACTOR",
-];
 
 export const navItems: NavItem[] = [
   {label: "Chat", icon: MessageSquare, active: true},
@@ -117,30 +103,4 @@ export const timelineItems: TimelineItem[] = [
     description: "A calm AI-native coding surface ready for runtime integration.",
     state: "queued",
   },
-];
-
-export const runtimeMetrics: RuntimeMetric[] = [
-  {label: "model", value: "Pixelle Agent", detail: "coding workspace"},
-  {label: "context", value: "128k", detail: "project memory"},
-  {label: "tokens", value: "18.4k", detail: "current session"},
-  {label: "tools", value: "6 active", detail: "shell, files, preview"},
-  {label: "latency", value: "842ms", detail: "runtime heartbeat"},
-  {label: "status", value: "Ready", detail: "WebContainer online"},
-];
-
-export const consoleLines = [
-  "$ npm run dev",
-  "> pixelle-web@0.0.0 dev",
-  "VITE v7.2.6 ready in 418 ms",
-  "Local:   http://localhost:5173/",
-  "agent: preview mounted",
-  "runtime: waiting for next instruction",
-];
-
-export const projectSignals = [
-  {label: "framework", value: "React + Vite", icon: Code2},
-  {label: "agent", value: "Build mode", icon: Bot},
-  {label: "entry", value: "src/app/App.tsx", icon: FileCode2},
-  {label: "runtime", value: "Web preview", icon: TerminalSquare},
-  {label: "quality", value: "Typecheck queued", icon: Hammer},
 ];

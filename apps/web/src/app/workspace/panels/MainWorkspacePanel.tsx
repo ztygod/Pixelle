@@ -24,12 +24,12 @@ export function MainWorkspacePanel() {
   }
 
   return (
-    <section className="workspace-panel flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-lg xl:min-h-0">
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+    <section className="workspace-panel flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-lg xl:h-full xl:min-h-0">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-5 sm:py-6">
         <div
           className={cn(
-            "mx-auto flex min-h-full max-w-3xl flex-col py-4 transition-all duration-300 ease-out",
-            isActive ? "justify-start" : "justify-center",
+            "mx-auto flex min-h-full max-w-3xl flex-col transition-all duration-300 ease-out",
+            isActive ? "pt-2 sm:pt-4" : "justify-start pt-[14vh] sm:pt-[16vh] xl:pt-[12vh]",
           )}
         >
           <div
@@ -65,10 +65,14 @@ export function MainWorkspacePanel() {
           </div>
 
           <QuickActions onSelect={startExecution} />
-          <PromptComposer onSubmit={startExecution} />
         </div>
       </div>
       <AgentTimeline visible={isActive} />
+      <div className="shrink-0 border-t border-white/10 bg-[#080b08]/55 px-4 py-3 sm:px-5">
+        <div className="mx-auto max-w-3xl">
+          <PromptComposer onSubmit={startExecution} />
+        </div>
+      </div>
     </section>
   );
 }

@@ -1,7 +1,5 @@
 import type {LucideIcon} from "lucide-react";
 
-export type WorkspaceMode = "BUILD" | "PLAN" | "DEBUG" | "REFACTOR";
-
 export interface NavItem {
   label: string;
   icon: LucideIcon;
@@ -29,10 +27,4 @@ export interface TimelineItem {
   title: string;
   description: string;
   state: TimelineState;
-}
-
-export interface RuntimeMetric {
-  label: string;
-  value: string;
-  detail: string;
 }

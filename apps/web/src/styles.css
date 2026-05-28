@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: dark;
+  color-scheme: dark light;
   font-family:
     "Aptos",
     "Segoe UI",
@@ -107,4 +107,116 @@ button {
 .mono-label {
   font-family: "Cascadia Mono", "SFMono-Regular", ui-monospace, monospace;
   letter-spacing: 0;
+}
+
+.workspace-theme {
+  --bg: #070907;
+  --panel: rgba(15, 18, 15, 0.86);
+  --line: rgba(204, 255, 168, 0.12);
+  --text: #f2f5ed;
+  --text-strong: #eef4e8;
+  --muted: #8d978a;
+  --muted-strong: #aeb9a7;
+  --surface: #080b08;
+  --surface-strong: #10140f;
+  --accent: #b7ff55;
+  --accent-text: #071006;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(183, 255, 85, 0.09), transparent 28rem),
+    radial-gradient(circle at 84% 20%, rgba(87, 139, 255, 0.08), transparent 30rem),
+    linear-gradient(180deg, #090b09 0%, #070907 52%, #050705 100%);
+  color: var(--text);
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.workspace-theme.light {
+  color-scheme: light;
+  --bg: #f4f6ef;
+  --panel: rgba(255, 255, 250, 0.96);
+  --line: rgba(67, 87, 45, 0.32);
+  --text: #172012;
+  --text-strong: #10170d;
+  --muted: #68745f;
+  --muted-strong: #46523f;
+  --surface: #f8faf3;
+  --surface-strong: #ffffff;
+  --accent: #5d8f12;
+  --accent-text: #f8ffe7;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(129, 187, 34, 0.17), transparent 28rem),
+    radial-gradient(circle at 85% 18%, rgba(68, 115, 214, 0.12), transparent 30rem),
+    linear-gradient(180deg, #fbfcf7 0%, #f0f4e8 56%, #e8eddf 100%);
+}
+
+.workspace-theme.light .workspace-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(246, 249, 239, 0.96)),
+    var(--panel);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 18px 44px rgba(38, 55, 30, 0.16);
+  backdrop-filter: blur(10px);
+}
+
+.workspace-theme.light [class*="text-[#f2f5ed]"],
+.workspace-theme.light [class*="text-[#eef4e8]"],
+.workspace-theme.light [class*="text-[#dbe4d4]"],
+.workspace-theme.light [class*="text-[#c8d2c0]"],
+.workspace-theme.light [class*="text-[#cdd8c6]"] {
+  color: var(--text) !important;
+}
+
+.workspace-theme.light [class*="text-[#aeb9a7]"],
+.workspace-theme.light [class*="text-[#9fa998]"],
+.workspace-theme.light [class*="text-[#9ca596]"],
+.workspace-theme.light [class*="text-[#98a292]"],
+.workspace-theme.light [class*="text-[#8d978a]"],
+.workspace-theme.light [class*="text-[#87917f]"],
+.workspace-theme.light [class*="text-[#7f8979]"],
+.workspace-theme.light [class*="text-[#778173]"],
+.workspace-theme.light [class*="text-[#6f796b]"] {
+  color: var(--muted) !important;
+}
+
+.workspace-theme.light [class*="text-[#b7ff55]"],
+.workspace-theme.light [class*="text-[#caff86]"],
+.workspace-theme.light [class*="text-[#cbff89]"],
+.workspace-theme.light [class*="text-[#89a676]"] {
+  color: var(--accent) !important;
+}
+
+.workspace-theme.light [class*="text-[#071006]"] {
+  color: var(--accent-text) !important;
+}
+
+.workspace-theme.light [class*="bg-[#080b08]"],
+.workspace-theme.light [class*="bg-[#080a08]"],
+.workspace-theme.light [class*="bg-[#10140f]"] {
+  background-color: var(--surface) !important;
+}
+
+.workspace-theme.light [class*="bg-black/"] {
+  background-color: rgba(43, 56, 35, 0.08) !important;
+}
+
+.workspace-theme.light [class*="bg-white/"] {
+  background-color: rgba(255, 255, 255, 0.58) !important;
+}
+
+.workspace-theme.light [class*="border-white/"] {
+  border-color: rgba(67, 87, 45, 0.22) !important;
+}
+
+.workspace-theme.light [class*="border-[#b7ff55]"] {
+  border-color: rgba(93, 143, 18, 0.34) !important;
+}
+
+.workspace-theme.light [class*="shadow-"] {
+  box-shadow: 0 10px 30px rgba(45, 64, 34, 0.12) !important;
+}
+
+.workspace-theme.light textarea::placeholder {
+  color: #87927d;
 }
