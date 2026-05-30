@@ -11,15 +11,37 @@
   font-synthesis: none;
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
-  --bg: #070907;
-  --panel: rgba(15, 18, 15, 0.86);
-  --panel-strong: rgba(20, 24, 20, 0.92);
-  --line: rgba(204, 255, 168, 0.12);
-  --line-strong: rgba(204, 255, 168, 0.22);
-  --muted: #8d978a;
-  --text: #f2f5ed;
-  --accent: #b7ff55;
-  --accent-soft: rgba(183, 255, 85, 0.16);
+  --color-bg-canvas: #08090b;
+  --color-bg-subtle: #0c0d10;
+  --color-surface-panel: rgba(18, 19, 23, 0.92);
+  --color-surface-card: rgba(24, 25, 30, 0.92);
+  --color-surface-elevated: #1b1d22;
+  --color-surface-inset: #0f1115;
+  --color-border-subtle: rgba(255, 255, 255, 0.07);
+  --color-border-default: rgba(255, 255, 255, 0.1);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+  --color-text-primary: #f4f4f5;
+  --color-text-secondary: #c7c9d1;
+  --color-text-tertiary: #8f96a3;
+  --color-text-disabled: #5f6672;
+  --color-accent: #b7ff55;
+  --color-accent-hover: #c8ff79;
+  --color-accent-active: #9ee33f;
+  --color-accent-subtle: rgba(183, 255, 85, 0.11);
+  --color-accent-border: rgba(183, 255, 85, 0.22);
+  --color-accent-foreground: #071006;
+  --color-focus-ring: rgba(183, 255, 85, 0.38);
+  --shadow-panel: 0 24px 80px rgba(0, 0, 0, 0.28);
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --bg: var(--color-bg-canvas);
+  --panel: var(--color-surface-panel);
+  --panel-strong: var(--color-surface-card);
+  --line: var(--color-border-subtle);
+  --line-strong: var(--color-border-default);
+  --muted: var(--color-text-tertiary);
+  --text: var(--color-text-primary);
+  --accent: var(--color-accent);
+  --accent-soft: var(--color-accent-subtle);
 }
 
 * {
@@ -41,9 +63,9 @@ body {
   margin: 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 18% 12%, rgba(183, 255, 85, 0.09), transparent 28rem),
-    radial-gradient(circle at 84% 20%, rgba(87, 139, 255, 0.08), transparent 30rem),
-    linear-gradient(180deg, #090b09 0%, #070907 52%, #050705 100%);
+    radial-gradient(circle at 18% 12%, rgba(183, 255, 85, 0.035), transparent 28rem),
+    radial-gradient(circle at 84% 20%, rgba(87, 139, 255, 0.055), transparent 30rem),
+    linear-gradient(180deg, #0b0c0f 0%, var(--color-bg-canvas) 54%, #050608 100%);
 }
 
 #root {
@@ -75,8 +97,8 @@ button {
 }
 
 ::selection {
-  color: #071006;
-  background: rgba(183, 255, 85, 0.9);
+  color: var(--color-accent-foreground);
+  background: color-mix(in srgb, var(--color-accent) 88%, transparent);
 }
 
 ::-webkit-scrollbar {
@@ -91,16 +113,16 @@ button {
 ::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 999px;
-  background: rgba(183, 255, 85, 0.22);
+  background: color-mix(in srgb, var(--color-text-tertiary) 26%, transparent);
   background-clip: padding-box;
 }
 
 .workspace-panel {
-  border: 1px solid var(--line);
+  border: 1px solid var(--color-border-subtle);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
-    var(--panel);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent),
+    var(--color-surface-panel);
+  box-shadow: var(--shadow-panel);
   backdrop-filter: blur(18px);
 }
 
@@ -110,21 +132,43 @@ button {
 }
 
 .workspace-theme {
-  --bg: #070907;
-  --panel: rgba(15, 18, 15, 0.86);
-  --line: rgba(204, 255, 168, 0.12);
-  --text: #f2f5ed;
-  --text-strong: #eef4e8;
-  --muted: #8d978a;
-  --muted-strong: #aeb9a7;
-  --surface: #080b08;
-  --surface-strong: #10140f;
-  --accent: #b7ff55;
-  --accent-text: #071006;
+  --color-bg-canvas: #08090b;
+  --color-bg-subtle: #0c0d10;
+  --color-surface-panel: rgba(18, 19, 23, 0.92);
+  --color-surface-card: rgba(24, 25, 30, 0.92);
+  --color-surface-elevated: #1b1d22;
+  --color-surface-inset: #0f1115;
+  --color-border-subtle: rgba(255, 255, 255, 0.07);
+  --color-border-default: rgba(255, 255, 255, 0.1);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+  --color-text-primary: #f4f4f5;
+  --color-text-secondary: #c7c9d1;
+  --color-text-tertiary: #8f96a3;
+  --color-text-disabled: #5f6672;
+  --color-accent: #b7ff55;
+  --color-accent-hover: #c8ff79;
+  --color-accent-active: #9ee33f;
+  --color-accent-subtle: rgba(183, 255, 85, 0.11);
+  --color-accent-border: rgba(183, 255, 85, 0.22);
+  --color-accent-foreground: #071006;
+  --color-focus-ring: rgba(183, 255, 85, 0.38);
+  --shadow-panel: 0 24px 80px rgba(0, 0, 0, 0.28);
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --bg: var(--color-bg-canvas);
+  --panel: var(--color-surface-panel);
+  --line: var(--color-border-subtle);
+  --text: var(--color-text-primary);
+  --text-strong: var(--color-text-primary);
+  --muted: var(--color-text-tertiary);
+  --muted-strong: var(--color-text-secondary);
+  --surface: var(--color-surface-inset);
+  --surface-strong: var(--color-surface-card);
+  --accent: var(--color-accent);
+  --accent-text: var(--color-accent-foreground);
   background:
-    radial-gradient(circle at 18% 12%, rgba(183, 255, 85, 0.09), transparent 28rem),
-    radial-gradient(circle at 84% 20%, rgba(87, 139, 255, 0.08), transparent 30rem),
-    linear-gradient(180deg, #090b09 0%, #070907 52%, #050705 100%);
+    radial-gradient(circle at 18% 12%, rgba(183, 255, 85, 0.035), transparent 28rem),
+    radial-gradient(circle at 84% 20%, rgba(87, 139, 255, 0.055), transparent 30rem),
+    linear-gradient(180deg, #0b0c0f 0%, var(--color-bg-canvas) 54%, #050608 100%);
   color: var(--text);
   transition:
     background-color 180ms ease,
@@ -133,30 +177,49 @@ button {
 
 .workspace-theme.light {
   color-scheme: light;
-  --bg: #f4f6ef;
-  --panel: rgba(255, 255, 250, 0.96);
-  --line: rgba(67, 87, 45, 0.32);
-  --text: #172012;
-  --text-strong: #10170d;
-  --muted: #68745f;
-  --muted-strong: #46523f;
-  --surface: #f8faf3;
-  --surface-strong: #ffffff;
-  --accent: #5d8f12;
-  --accent-text: #f8ffe7;
+  --color-bg-canvas: #f7f8fa;
+  --color-bg-subtle: #f2f4f7;
+  --color-surface-panel: #ffffff;
+  --color-surface-card: #fbfcfd;
+  --color-surface-elevated: #ffffff;
+  --color-surface-inset: #f3f4f6;
+  --color-border-subtle: rgba(15, 23, 42, 0.07);
+  --color-border-default: rgba(15, 23, 42, 0.11);
+  --color-border-strong: rgba(15, 23, 42, 0.18);
+  --color-text-primary: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-tertiary: #6b7280;
+  --color-text-disabled: #9ca3af;
+  --color-accent: #74d13d;
+  --color-accent-hover: #63bd31;
+  --color-accent-active: #4f9f27;
+  --color-accent-subtle: rgba(116, 209, 61, 0.1);
+  --color-accent-border: rgba(116, 209, 61, 0.24);
+  --color-accent-foreground: #0f1f0a;
+  --color-focus-ring: rgba(116, 209, 61, 0.34);
+  --shadow-panel: 0 12px 32px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --bg: var(--color-bg-canvas);
+  --panel: var(--color-surface-panel);
+  --line: var(--color-border-subtle);
+  --text: var(--color-text-primary);
+  --text-strong: var(--color-text-primary);
+  --muted: var(--color-text-tertiary);
+  --muted-strong: var(--color-text-secondary);
+  --surface: var(--color-surface-inset);
+  --surface-strong: var(--color-surface-card);
+  --accent: var(--color-accent);
+  --accent-text: var(--color-accent-foreground);
   background:
-    radial-gradient(circle at 12% 10%, rgba(129, 187, 34, 0.17), transparent 28rem),
-    radial-gradient(circle at 85% 18%, rgba(68, 115, 214, 0.12), transparent 30rem),
-    linear-gradient(180deg, #fbfcf7 0%, #f0f4e8 56%, #e8eddf 100%);
+    radial-gradient(circle at 78% 8%, rgba(15, 23, 42, 0.035), transparent 30rem),
+    linear-gradient(180deg, #ffffff 0%, var(--color-bg-canvas) 48%, #f2f4f7 100%);
 }
 
 .workspace-theme.light .workspace-panel {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(246, 249, 239, 0.96)),
-    var(--panel);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 18px 44px rgba(38, 55, 30, 0.16);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), transparent),
+    var(--color-surface-panel);
+  box-shadow: var(--shadow-panel);
   backdrop-filter: blur(10px);
 }
 
@@ -194,29 +257,29 @@ button {
 .workspace-theme.light [class*="bg-[#080b08]"],
 .workspace-theme.light [class*="bg-[#080a08]"],
 .workspace-theme.light [class*="bg-[#10140f]"] {
-  background-color: var(--surface) !important;
+  background-color: var(--color-surface-card) !important;
 }
 
 .workspace-theme.light [class*="bg-black/"] {
-  background-color: rgba(43, 56, 35, 0.08) !important;
+  background-color: rgba(15, 23, 42, 0.04) !important;
 }
 
 .workspace-theme.light [class*="bg-white/"] {
-  background-color: rgba(255, 255, 255, 0.58) !important;
+  background-color: var(--color-surface-card) !important;
 }
 
 .workspace-theme.light [class*="border-white/"] {
-  border-color: rgba(67, 87, 45, 0.22) !important;
+  border-color: var(--color-border-subtle) !important;
 }
 
 .workspace-theme.light [class*="border-[#b7ff55]"] {
-  border-color: rgba(93, 143, 18, 0.34) !important;
+  border-color: var(--color-accent-border) !important;
 }
 
 .workspace-theme.light [class*="shadow-"] {
-  box-shadow: 0 10px 30px rgba(45, 64, 34, 0.12) !important;
+  box-shadow: var(--shadow-card) !important;
 }
 
 .workspace-theme.light textarea::placeholder {
-  color: #87927d;
+  color: var(--color-text-disabled);
 }

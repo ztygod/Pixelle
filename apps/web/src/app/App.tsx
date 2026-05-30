@@ -1,5 +1,10 @@
-import {WorkspaceShell} from "./workspace/WorkspaceShell";
+import {AppProviders} from "@/app/providers/app-providers";
+import {AppRoutes} from "@/app/router/routes";
 
 export function App() {
-  return <WorkspaceShell />;
+  return (
+    <AppProviders>
+      <AppRoutes />
+    </AppProviders>
+  );
 }
