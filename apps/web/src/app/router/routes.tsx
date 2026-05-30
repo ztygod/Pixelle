@@ -1,5 +1,5 @@
-import {WorkspacePage} from "@/pages/workspace/WorkspacePage";
+import {AgentWorkspacePage} from "@/pages/agent-workspace/AgentWorkspacePage";
 
 export function AppRoutes() {
-  return <WorkspacePage />;
+  return <AgentWorkspacePage />;
 }
