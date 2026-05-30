@@ -21,7 +21,7 @@ export function AgentWorkspace() {
 
   return (
     <main
-      className={`workspace-theme ${themeMode} flex h-screen min-h-0 flex-col overflow-hidden p-3 text-[#f2f5ed] sm:p-4`}
+      className={`workspace-theme ${themeMode} flex h-screen min-h-0 flex-col overflow-hidden p-3 text-[var(--color-text-primary)] sm:p-4`}
     >
       <AgentWorkspaceLayout
         agentInteraction={agentInteractionRegion?.render()}

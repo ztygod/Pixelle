@@ -17,7 +17,7 @@ export function WorkspaceResizeHandle({
       role="separator"
       title={label}
     >
-      <span className="h-12 w-px rounded-full bg-white/10 transition group-hover:bg-[#b7ff55]/70" />
+      <span className="h-12 w-px rounded-full bg-[var(--color-border-default)] transition group-hover:bg-[var(--color-accent)]" />
     </div>
   );
 }

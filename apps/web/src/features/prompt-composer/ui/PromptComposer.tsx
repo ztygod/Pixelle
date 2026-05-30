@@ -25,7 +25,7 @@ export function PromptComposer({onSubmit}: PromptComposerProps) {
   }
 
   return (
-    <div className="rounded-xl border border-[#b7ff55]/16 bg-[#080b08]/80 p-2 shadow-[0_0_52px_rgba(183,255,85,0.08)]">
+    <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-elevated)] p-2 shadow-[var(--shadow-card)]">
       <Textarea
         aria-label="Prompt input"
         onChange={(event) => {
@@ -34,7 +34,7 @@ export function PromptComposer({onSubmit}: PromptComposerProps) {
         placeholder="描述你想构建、修复或重构的内容..."
         value={draft}
       />
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border-subtle)] pt-2">
         <div className="flex items-center gap-1">
           <Button aria-label="Attach file" size="icon-sm" type="button" variant="ghost">
             <Paperclip size={15} />

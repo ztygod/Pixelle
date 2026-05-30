@@ -14,7 +14,7 @@ export function WorkspaceNavigationRail({
 
   return (
     <nav className="workspace-panel flex min-h-0 shrink-0 flex-row items-center justify-center rounded-lg p-2 xl:h-full xl:flex-col xl:justify-start">
-      <div className="hidden size-9 place-items-center rounded-md bg-[#b7ff55] text-sm font-bold text-[#071006] xl:grid">
+      <div className="hidden size-9 place-items-center rounded-md bg-[var(--color-accent)] text-sm font-bold text-[var(--color-accent-foreground)] xl:grid">
         px
       </div>
       <div className="flex gap-1 xl:mt-3 xl:flex-col xl:items-center">
@@ -23,8 +23,8 @@ export function WorkspaceNavigationRail({
             aria-label={label}
             className={
               active
-                ? "grid size-9 place-items-center rounded-md border border-[#b7ff55]/25 bg-[#b7ff55]/12 text-[#b7ff55] shadow-[0_0_24px_rgba(183,255,85,0.12)] transition"
-                : "grid size-9 place-items-center rounded-md text-[#808a7a] transition hover:bg-white/[0.06] hover:text-[#f2f5ed]"
+                ? "grid size-9 place-items-center rounded-md border border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] text-[var(--color-accent)] shadow-[var(--shadow-card)] transition"
+                : "grid size-9 place-items-center rounded-md text-[var(--color-text-tertiary)] transition hover:bg-[var(--color-surface-card)] hover:text-[var(--color-text-primary)]"
             }
             key={label}
             title={label}
@@ -38,8 +38,8 @@ export function WorkspaceNavigationRail({
         aria-label={isLight ? "Switch to dark mode" : "Switch to light mode"}
         className={
           isLight
-            ? "mt-auto grid size-9 place-items-center rounded-md border border-[#b7ff55]/30 bg-[#b7ff55]/14 text-[#4d6f16] transition hover:bg-[#b7ff55]/22 xl:mb-2"
-            : "mt-auto grid size-9 place-items-center rounded-md text-[#808a7a] transition hover:bg-white/[0.06] hover:text-[#f2f5ed] xl:mb-2"
+            ? "mt-auto grid size-9 place-items-center rounded-md border border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] text-[var(--color-accent-active)] transition hover:bg-[var(--color-accent-subtle)] xl:mb-2"
+            : "mt-auto grid size-9 place-items-center rounded-md text-[var(--color-text-tertiary)] transition hover:bg-[var(--color-surface-card)] hover:text-[var(--color-text-primary)] xl:mb-2"
         }
         onClick={onToggleTheme}
         title={isLight ? "Switch to dark mode" : "Switch to light mode"}

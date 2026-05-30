@@ -9,12 +9,12 @@ export function AppPreviewSidebar() {
 
   return (
     <aside className="workspace-panel flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-lg xl:h-full xl:min-h-0">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border-subtle)] px-3 py-2">
         <div className="min-w-0">
-          <p className="mono-label text-[10px] uppercase text-[#7f8979]">
+          <p className="mono-label text-[10px] uppercase text-[var(--color-text-tertiary)]">
             Live Preview
           </p>
-          <h2 className="truncate text-sm font-semibold text-[#f2f5ed]">
+          <h2 className="truncate text-sm font-semibold text-[var(--color-text-primary)]">
             Web App Preview
           </h2>
         </div>
@@ -50,30 +50,30 @@ export function AppPreviewSidebar() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        <div className="flex min-h-full flex-col overflow-hidden rounded-lg border border-white/10 bg-[#080a08]">
-          <div className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-white/[0.03] px-3 py-2">
+        <div className="flex min-h-full flex-col overflow-hidden rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-inset)]">
+          <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-3 py-2">
             <span className="size-2.5 rounded-full bg-[#ff6b6b]/80" />
             <span className="size-2.5 rounded-full bg-[#ffd166]/80" />
-            <span className="size-2.5 rounded-full bg-[#b7ff55]/80" />
-            <span className="mono-label ml-2 truncate text-[10px] text-[#7f8979]">
+            <span className="size-2.5 rounded-full bg-[var(--color-accent)]" />
+            <span className="mono-label ml-2 truncate text-[10px] text-[var(--color-text-tertiary)]">
               {getPreviewUrlLabel(url)}
             </span>
           </div>
           <div className="grid min-h-56 flex-1 place-items-center p-4">
-            <div className="w-full max-w-md rounded-lg border border-[#b7ff55]/16 bg-[#10140f] p-4 shadow-[0_0_44px_rgba(183,255,85,0.08)]">
-              <p className="mono-label text-[10px] uppercase text-[#89a676]">
+            <div className="w-full max-w-md rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] p-4 shadow-[var(--shadow-card)]">
+              <p className="mono-label text-[10px] uppercase text-[var(--color-text-tertiary)]">
                 Preview surface
               </p>
-              <h3 className="mt-8 text-2xl font-semibold text-[#f2f5ed]">
+              <h3 className="mt-8 text-2xl font-semibold text-[var(--color-text-primary)]">
                 Build the workspace, then verify visually.
               </h3>
               <div className="mt-8 grid grid-cols-[repeat(auto-fit,minmax(72px,1fr))] gap-2">
                 {["Plan", "Patch", "Run"].map((label) => (
                   <div
-                    className="rounded-md border border-white/10 bg-white/[0.04] p-3"
+                    className="rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-elevated)] p-3"
                     key={label}
                   >
-                    <span className="mono-label text-[10px] text-[#b7ff55]">
+                    <span className="mono-label text-[10px] text-[var(--color-accent)]">
                       {label}
                     </span>
                   </div>

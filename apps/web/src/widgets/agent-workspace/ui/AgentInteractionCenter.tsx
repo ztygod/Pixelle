@@ -29,12 +29,12 @@ export function AgentInteractionCenter() {
                 : "mb-8 translate-y-0 opacity-100",
             )}
           >
-            <p className="mono-label mb-3 text-xs uppercase text-[#8d978a]">
+            <p className="mono-label mb-3 text-xs uppercase text-[var(--color-text-tertiary)]">
               Agent workspace
             </p>
             <h2
               className={cn(
-                "font-semibold tracking-normal text-[#f2f5ed] transition-all duration-300 ease-out",
+                "font-semibold tracking-normal text-[var(--color-text-primary)] transition-all duration-300 ease-out",
                 isActive ? "text-2xl sm:text-3xl" : "text-3xl sm:text-5xl",
               )}
             >
@@ -42,14 +42,14 @@ export function AgentInteractionCenter() {
             </h2>
             <p
               className={cn(
-                "max-w-2xl leading-7 text-[#aeb9a7] transition-all duration-300 ease-out",
+                "max-w-2xl leading-7 text-[var(--color-text-secondary)] transition-all duration-300 ease-out",
                 isActive ? "mt-2 text-sm" : "mt-4 text-base",
               )}
             >
               你的 AI 编程助手，帮你构建、调试和交付现代 Web 应用。
             </p>
             {isActive ? (
-              <p className="mono-label mt-3 truncate rounded-full border border-[#b7ff55]/16 bg-[#b7ff55]/8 px-3 py-1.5 text-[11px] text-[#caff86]">
+              <p className="mono-label mt-3 truncate rounded-full border border-[var(--color-accent-border)] bg-[var(--color-accent-subtle)] px-3 py-1.5 text-[11px] text-[var(--color-accent)]">
                 active prompt: {activePrompt}
               </p>
             ) : null}
@@ -59,7 +59,7 @@ export function AgentInteractionCenter() {
         </div>
       </div>
       <TaskTimeline visible={isActive} />
-      <div className="shrink-0 border-t border-white/10 bg-[#080b08]/55 px-4 py-3 sm:px-5">
+      <div className="shrink-0 border-t border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-4 py-3 sm:px-5">
         <div className="mx-auto max-w-3xl">
           <PromptComposer onSubmit={startExecution} />
         </div>
