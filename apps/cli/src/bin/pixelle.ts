@@ -1,36 +1,59 @@
 #!/usr/bin/env node
 
+import {
+  createAgentRuntime,
+  createInMemoryAgentSessionStore,
+} from "@pixelle/agent";
+import type {CommandIntent} from "@pixelle/agent";
+import type {PixelleEvent} from "@pixelle/events";
 import {pathToFileURL} from "node:url";
 import {renderCli} from "../cli/index.js";
-import {createId} from "../cli/utils/format.js";
+import {agentEventToCliEvent} from "../cli/runtime-events.js";
 
-function startStandaloneCli(): void {
+async function startStandaloneCli(): Promise<void> {
+  const sessions = createInMemoryAgentSessionStore();
+  const runtime = createAgentRuntime({sessionStore: sessions});
+  const session = await runtime.createSession();
   const cli = renderCli({
     title: "Pixelle CLI",
   });
+  const submitToRuntime = async (
+    input:
+      | {type: "user_message"; content: string}
+      | {type: "command"; command: CommandIntent},
+  ) => {
+    const events: PixelleEvent[] = [];
+    await runtime.submit(
+      {
+        ...input,
+        sessionId: session.id,
+      },
+      {
+        emit(event) {
+          events.push(event);
+          const cliEvent = agentEventToCliEvent(event);
+          if (cliEvent) {
+            cli.pushEvent(cliEvent);
+          }
+        },
+      },
+    );
+    sessions.appendEvents(session.id, events);
+  };
 
   cli.onUserInput((input) => {
-    cli.pushEvent({
-      type: "user_message",
-      id: createId("local_user"),
-      content: input.content,
-      createdAt: input.createdAt,
-    });
-
-    const messageId = createId("local_assistant");
-    cli.pushEvent({
-      type: "assistant_delta",
-      messageId,
-      delta:
-        "No runtime is attached. The CLI layer captured your input and exposed it through `onUserInput`.",
-    });
-    cli.pushEvent({type: "assistant_done", messageId});
+    void submitToRuntime({type: "user_message", content: input.content});
   });
 
   cli.onRuntimeCommand((command) => {
-    cli.pushEvent({
-      type: "error",
-      message: `No runtime is attached to handle ${command.raw}.`,
+    void submitToRuntime({
+      type: "command",
+      command: {
+        raw: command.raw,
+        name: command.command,
+        args: command.args,
+        scope: "runtime",
+      },
     });
   });
 }
@@ -40,5 +63,5 @@ const entrypoint = process.argv[1]
   : undefined;
 
 if (import.meta.url === entrypoint) {
-  startStandaloneCli();
+  await startStandaloneCli();
 }

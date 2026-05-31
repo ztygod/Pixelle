@@ -17,7 +17,7 @@
     "start": "node dist/bin/pixelle.js"
   },
   "dependencies": {
-    "@pixelle/core": "workspace:*",
+    "@pixelle/agent": "workspace:*",
     "@pixelle/events": "workspace:*",
     "chalk": "^5.6.2",
     "diff": "^9.0.0",

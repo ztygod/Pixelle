@@ -1,4 +1,4 @@
-import type {AgentEvent} from "@pixelle/events";
+import type {PixelleEvent} from "@pixelle/events";
 import type {FastifyReply} from "fastify";
 
 export function writeSseHeaders(reply: FastifyReply): void {
@@ -10,7 +10,6 @@ export function writeSseHeaders(reply: FastifyReply): void {
   });
 }
 
-export function writeSseEvent(reply: FastifyReply, event: AgentEvent): void {
-  reply.raw.write(`event: ${event.type}\n`);
+export function writeSseEvent(reply: FastifyReply, event: PixelleEvent): void {
   reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
 }

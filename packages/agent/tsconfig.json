@@ -8,5 +8,9 @@
     "declarationMap": true
   },
   "include": ["src"],
-  "references": [{"path": "../events"}, {"path": "../types"}]
+  "references": [
+    {"path": "../events"},
+    {"path": "../prompt"},
+    {"path": "../types"}
+  ]
 }

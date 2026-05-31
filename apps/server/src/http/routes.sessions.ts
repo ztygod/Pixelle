@@ -1,7 +1,6 @@
-import type {AgentEvent} from "@pixelle/events";
+import type {AgentRuntime, AgentSessionStore} from "@pixelle/agent";
+import type {PixelleEvent} from "@pixelle/events";
 import type {FastifyInstance} from "fastify";
-import {createDemoRuntimeEvents} from "../runtime/demo-runtime.js";
-import type {SessionStore} from "../sessions/session-store.js";
 import {writeSseEvent, writeSseHeaders} from "./sse.js";
 
 type MessageBody = {
@@ -10,10 +9,11 @@ type MessageBody = {
 
 export function registerSessionRoutes(
   server: FastifyInstance,
-  sessions: SessionStore,
+  runtime: AgentRuntime,
+  sessions: AgentSessionStore,
 ): void {
   server.post("/api/sessions", async () => {
-    return sessions.create();
+    return runtime.createSession();
   });
 
   server.get("/api/sessions/:sessionId", async (request, reply) => {
@@ -37,10 +37,22 @@ export function registerSessionRoutes(
       return reply.code(400).send({error: "Message content is required"});
     }
 
-    const events = createDemoRuntimeEvents(sessionId, body.content.trim());
+    const events: PixelleEvent[] = [];
+    const result = await runtime.submit(
+      {
+        type: "user_message",
+        sessionId,
+        content: body.content.trim(),
+      },
+      {
+        emit(event) {
+          events.push(event);
+        },
+      },
+    );
     sessions.appendEvents(sessionId, events);
 
-    return {accepted: true, events: events.length};
+    return {accepted: true, events: result.eventsEmitted};
   });
 
   server.get("/api/sessions/:sessionId/events", async (request, reply) => {
