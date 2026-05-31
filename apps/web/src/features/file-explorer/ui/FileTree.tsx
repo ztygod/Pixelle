@@ -1,4 +1,4 @@
-import type {FileNode} from "@/features/file-explorer/model/types";
+import type {FileNode} from "@/features/file-system";
 import {FileTreeNode} from "@/features/file-explorer/ui/FileTreeNode";
 
 interface FileTreeProps {
@@ -6,6 +6,7 @@ interface FileTreeProps {
   nodes: FileNode[];
   onFileOpen?: () => void;
   selectedFilePath: string | null;
+  workspaceId: string | null;
 }
 
 export function FileTree({
@@ -13,6 +14,7 @@ export function FileTree({
   nodes,
   onFileOpen,
   selectedFilePath,
+  workspaceId,
 }: FileTreeProps) {
   if (nodes.length === 0) {
     return (
@@ -32,6 +34,7 @@ export function FileTree({
           node={node}
           onFileOpen={onFileOpen}
           selectedFilePath={selectedFilePath}
+          workspaceId={workspaceId}
         />
       ))}
     </div>

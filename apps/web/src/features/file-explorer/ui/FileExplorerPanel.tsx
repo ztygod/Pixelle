@@ -1,6 +1,7 @@
 import {FolderOpen} from "lucide-react";
 import {Button} from "@/shared/ui/button";
 import {useFileExplorerStore} from "@/features/file-explorer/model/file-explorer.store";
+import {useFileSystemStore} from "@/features/file-system";
 import {FileExplorerState} from "@/features/file-explorer/ui/FileExplorerState";
 import {FileTree} from "@/features/file-explorer/ui/FileTree";
 import {OpenFolderEmpty} from "@/features/file-explorer/ui/OpenFolderEmpty";
@@ -10,16 +11,20 @@ interface FileExplorerPanelProps {
 }
 
 export function FileExplorerPanel({onFileOpen}: FileExplorerPanelProps) {
-  const rootName = useFileExplorerStore((state) => state.rootName);
-  const tree = useFileExplorerStore((state) => state.tree);
+  const activeWorkspaceId = useFileSystemStore((state) => state.activeWorkspaceId);
+  const workspace = useFileSystemStore((state) =>
+    state.activeWorkspaceId
+      ? state.workspacesById[state.activeWorkspaceId]
+      : null,
+  );
   const selectedFilePath = useFileExplorerStore((state) => state.selectedFilePath);
   const expandedFolderPaths = useFileExplorerStore(
     (state) => state.expandedFolderPaths,
   );
-  const isLoading = useFileExplorerStore((state) => state.isLoading);
-  const error = useFileExplorerStore((state) => state.error);
+  const isLoading = useFileSystemStore((state) => state.isOpeningWorkspace);
+  const error = useFileSystemStore((state) => state.error);
   const openFolder = useFileExplorerStore((state) => state.openFolder);
-  const hasFolder = Boolean(rootName);
+  const hasFolder = Boolean(activeWorkspaceId && workspace);
 
   return (
     <aside className="workspace-panel flex min-h-[360px] w-full flex-col overflow-hidden rounded-lg p-3 xl:h-full xl:min-h-0">
@@ -49,7 +54,7 @@ export function FileExplorerPanel({onFileOpen}: FileExplorerPanelProps) {
       {hasFolder ? (
         <div className="mb-3 flex shrink-0 items-center gap-2 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-card)] px-3 py-2 text-xs text-[var(--color-text-secondary)]">
           <FolderOpen className="shrink-0 text-[var(--color-accent)]" size={14} />
-          <span className="min-w-0 truncate">{rootName}</span>
+          <span className="min-w-0 truncate">{workspace?.rootName}</span>
         </div>
       ) : null}
 
@@ -71,9 +76,10 @@ export function FileExplorerPanel({onFileOpen}: FileExplorerPanelProps) {
         >
           <FileTree
             expandedFolderPaths={expandedFolderPaths}
-            nodes={tree}
+            nodes={workspace?.tree ?? []}
             onFileOpen={onFileOpen}
             selectedFilePath={selectedFilePath}
+            workspaceId={activeWorkspaceId}
           />
         </nav>
       ) : null}

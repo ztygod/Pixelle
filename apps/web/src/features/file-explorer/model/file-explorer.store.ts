@@ -1,82 +1,36 @@
 import {create} from "zustand";
-import {openDirectoryTree, readOpenedFile} from "@/features/file-explorer/services/browser-file-system.service";
-import type {
-  FileExplorerState,
-  FileNode,
-  OpenedFile,
-} from "@/features/file-explorer/model/types";
+import {useFileSystemStore} from "@/features/file-system";
+import type {FileNode} from "@/features/file-system";
+
+export type FileExplorerState = {
+  selectedFilePath: string | null;
+  expandedFolderPaths: Set<string>;
+};
 
 interface FileExplorerActions {
   openFolder: () => Promise<void>;
-  openFile: (node: FileNode) => Promise<OpenedFile | null>;
+  selectFile: (path: string) => void;
   toggleFolder: (path: string) => void;
-  clearError: () => void;
 }
-
-const initialState: FileExplorerState = {
-  rootName: null,
-  tree: [],
-  selectedFilePath: null,
-  openedFiles: [],
-  activeFilePath: null,
-  expandedFolderPaths: new Set(),
-  isLoading: false,
-  error: null,
-};
 
 export const useFileExplorerStore = create<
   FileExplorerState & FileExplorerActions
 >((set) => ({
-  ...initialState,
-  clearError: () => set({error: null}),
-  openFile: async (node) => {
-    if (node.type !== "file") {
-      return null;
-    }
-
-    set({error: null, selectedFilePath: node.path});
-
-    try {
-      const openedFile = await readOpenedFile(node);
-
-      set((state) => ({
-        activeFilePath: openedFile.path,
-        openedFiles: upsertOpenedFile(state.openedFiles, openedFile),
-        selectedFilePath: openedFile.path,
-      }));
-
-      return openedFile;
-    } catch (error) {
-      set({error: getErrorMessage(error)});
-      return null;
-    }
-  },
+  selectedFilePath: null,
+  expandedFolderPaths: new Set(),
   openFolder: async () => {
-    set({error: null, isLoading: true});
+    const workspace = await useFileSystemStore.getState().openWorkspace();
 
-    try {
-      const {rootName, tree} = await openDirectoryTree();
-
-      set({
-        activeFilePath: null,
-        error: null,
-        expandedFolderPaths: new Set(),
-        isLoading: false,
-        openedFiles: [],
-        rootName,
-        selectedFilePath: null,
-        tree,
-      });
-    } catch (error) {
-      set({
-        error:
-          error instanceof DOMException && error.name === "AbortError"
-            ? null
-            : getErrorMessage(error),
-        isLoading: false,
-      });
+    if (!workspace) {
+      return;
     }
+
+    set({
+      expandedFolderPaths: new Set(),
+      selectedFilePath: null,
+    });
   },
+  selectFile: (path) => set({selectedFilePath: path}),
   toggleFolder: (path) =>
     set((state) => {
       const expandedFolderPaths = new Set(state.expandedFolderPaths);
@@ -91,24 +45,4 @@ export const useFileExplorerStore = create<
     }),
 }));
 
-function upsertOpenedFile(openedFiles: OpenedFile[], openedFile: OpenedFile) {
-  const existingIndex = openedFiles.findIndex(
-    (file) => file.path === openedFile.path,
-  );
-
-  if (existingIndex === -1) {
-    return [...openedFiles, openedFile];
-  }
-
-  return openedFiles.map((file, index) =>
-    index === existingIndex ? openedFile : file,
-  );
-}
-
-function getErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Something went wrong while reading the folder.";
-}
+export type {FileNode};

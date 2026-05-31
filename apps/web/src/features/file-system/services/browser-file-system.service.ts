@@ -1,14 +1,13 @@
 import {
-  detectLanguage,
   shouldSkipDirectory,
   sortFileNodes,
-} from "@/features/file-explorer/model/file-tree.utils";
+} from "@/features/file-system/model/file-system.utils";
 import type {
   BrowserDirectoryHandle,
   BrowserFileHandle,
   FileNode,
-  OpenedFile,
-} from "@/features/file-explorer/model/types";
+  FileReadResult,
+} from "@/features/file-system/model/types";
 
 const MAX_DIRECTORY_DEPTH = 8;
 const MAX_TEXT_FILE_SIZE = 2 * 1024 * 1024;
@@ -32,45 +31,72 @@ export class FileTooLargeError extends Error {
   }
 }
 
-export async function openDirectoryTree() {
+export class FileWriteUnsupportedError extends Error {
+  constructor(fileName: string) {
+    super(`${fileName} cannot be saved from this browser session.`);
+    this.name = "FileWriteUnsupportedError";
+  }
+}
+
+export async function pickWorkspaceDirectory() {
   const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
 
   if (!picker) {
     throw new FileSystemAccessUnsupportedError();
   }
 
-  const rootHandle = await picker();
-  const tree = await readDirectory(rootHandle, "", 0);
-
-  return {
-    rootName: rootHandle.name,
-    tree,
-  };
+  return picker();
 }
 
-export async function readOpenedFile(node: FileNode): Promise<OpenedFile> {
-  if (node.type !== "file" || !node.handle || node.handle.kind !== "file") {
-    throw new Error("Only file nodes can be opened.");
-  }
+export async function readWorkspaceTree(rootHandle: BrowserDirectoryHandle) {
+  const fileHandlesByPath: Record<string, BrowserFileHandle> = {};
+  const tree = await readDirectory(rootHandle, "", 0, fileHandlesByPath);
 
-  const file = await (node.handle as BrowserFileHandle).getFile();
+  return {tree, fileHandlesByPath};
+}
+
+export async function readTextFile(
+  path: string,
+  handle: BrowserFileHandle,
+): Promise<FileReadResult> {
+  const file = await handle.getFile();
 
   if (file.size > MAX_TEXT_FILE_SIZE) {
     throw new FileTooLargeError(file.name);
   }
 
   return {
-    path: node.path,
-    name: node.name,
+    path,
+    name: file.name,
     content: await file.text(),
-    language: detectLanguage(node.path),
+    lastModified: file.lastModified,
+    size: file.size,
   };
+}
+
+export async function writeTextFile(
+  path: string,
+  handle: BrowserFileHandle,
+  content: string,
+) {
+  if (!handle.createWritable) {
+    throw new FileWriteUnsupportedError(path);
+  }
+
+  const writable = await handle.createWritable();
+
+  try {
+    await writable.write(content);
+  } finally {
+    await writable.close();
+  }
 }
 
 async function readDirectory(
   handle: BrowserDirectoryHandle,
   parentPath: string,
   depth: number,
+  fileHandlesByPath: Record<string, BrowserFileHandle>,
 ): Promise<FileNode[]> {
   if (depth >= MAX_DIRECTORY_DEPTH) {
     return [];
@@ -91,18 +117,18 @@ async function readDirectory(
         name: entry.name,
         path,
         type: "folder",
-        children: await readDirectory(entry, path, depth + 1),
-        handle: entry,
+        children: await readDirectory(entry, path, depth + 1, fileHandlesByPath),
       });
       continue;
     }
 
+    // Keep browser file handles out of the tree so UI nodes stay serializable.
+    fileHandlesByPath[path] = entry;
     nodes.push({
       id: path,
       name: entry.name,
       path,
       type: "file",
-      handle: entry,
     });
   }
 

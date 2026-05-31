@@ -1,5 +1,6 @@
 import {ChevronRight, File, Folder, FolderOpen} from "lucide-react";
-import type {FileNode} from "@/features/file-explorer/model/types";
+import type {FileNode} from "@/features/file-system";
+import {useDocumentStore} from "@/entities/workspace-document";
 import {useFileExplorerStore} from "@/features/file-explorer/model/file-explorer.store";
 import {cn} from "@/shared/lib/cn";
 
@@ -9,6 +10,7 @@ interface FileTreeNodeProps {
   node: FileNode;
   onFileOpen?: () => void;
   selectedFilePath: string | null;
+  workspaceId: string | null;
 }
 
 export function FileTreeNode({
@@ -17,8 +19,10 @@ export function FileTreeNode({
   node,
   onFileOpen,
   selectedFilePath,
+  workspaceId,
 }: FileTreeNodeProps) {
-  const openFile = useFileExplorerStore((state) => state.openFile);
+  const openDocument = useDocumentStore((state) => state.openDocument);
+  const selectFile = useFileExplorerStore((state) => state.selectFile);
   const toggleFolder = useFileExplorerStore((state) => state.toggleFolder);
   const isFolder = node.type === "folder";
   const isExpanded = expandedFolderPaths.has(node.path);
@@ -33,7 +37,12 @@ export function FileTreeNode({
       return;
     }
 
-    const openedFile = await openFile(node);
+    if (!workspaceId) {
+      return;
+    }
+
+    selectFile(node.path);
+    const openedFile = await openDocument(workspaceId, node.path);
 
     if (openedFile) {
       onFileOpen?.();
@@ -83,6 +92,7 @@ export function FileTreeNode({
               node={child}
               onFileOpen={onFileOpen}
               selectedFilePath={selectedFilePath}
+              workspaceId={workspaceId}
             />
           ))
         ) : (

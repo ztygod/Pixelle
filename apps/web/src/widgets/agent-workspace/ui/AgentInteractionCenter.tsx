@@ -18,7 +18,7 @@ export function AgentInteractionCenter() {
   );
 
   return (
-    <section className="workspace-panel flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-lg xl:h-full xl:min-h-0">
+    <section className="workspace-panel flex min-h-[560px] min-w-0 w-full flex-col overflow-hidden rounded-lg xl:h-full xl:min-h-0">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--color-border-subtle)] px-3 py-2">
         <div className="min-w-0">
           <p className="mono-label text-[10px] uppercase text-[var(--color-text-tertiary)]">
@@ -96,8 +96,8 @@ export function AgentInteractionCenter() {
           </div>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-hidden p-3">
-          <div className="min-h-full overflow-hidden rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-inset)]">
+        <div className="flex min-h-0 w-full flex-1 overflow-hidden p-3">
+          <div className="h-full min-h-0 w-full overflow-hidden rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-inset)]">
             <CodeView />
           </div>
         </div>

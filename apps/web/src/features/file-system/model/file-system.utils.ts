@@ -1,4 +1,4 @@
-import type {FileNode} from "@/features/file-explorer/model/types";
+import type {FileNode} from "@/features/file-system/model/types";
 
 const SKIPPED_DIRECTORY_NAMES = new Set([
   ".git",
@@ -11,20 +11,6 @@ const SKIPPED_DIRECTORY_NAMES = new Set([
   "node_modules",
   "out",
 ]);
-
-const LANGUAGE_BY_EXTENSION: Record<string, string> = {
-  css: "css",
-  html: "html",
-  js: "javascript",
-  json: "json",
-  jsx: "javascript",
-  md: "markdown",
-  ts: "typescript",
-  tsx: "typescript",
-  txt: "text",
-  yml: "yaml",
-  yaml: "yaml",
-};
 
 export function shouldSkipDirectory(name: string) {
   return SKIPPED_DIRECTORY_NAMES.has(name);
@@ -42,14 +28,4 @@ export function sortFileNodes(nodes: FileNode[]) {
 
 export function getFileNameFromPath(path: string) {
   return path.split("/").at(-1) ?? path;
-}
-
-export function detectLanguage(path: string) {
-  const extension = path.split(".").at(-1)?.toLowerCase();
-
-  if (!extension) {
-    return undefined;
-  }
-
-  return LANGUAGE_BY_EXTENSION[extension];
 }
