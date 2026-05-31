@@ -1,14 +1,21 @@
-import {ProjectExplorerSidebar} from "@/features/project-explorer";
+import {FileExplorerPanel} from "@/features/file-explorer";
 import {AppPreviewSidebar} from "@/features/app-preview";
 import {AgentInteractionCenter} from "@/widgets/agent-workspace/ui/AgentInteractionCenter";
+import {useAgentInteractionViewStore} from "@/widgets/agent-workspace/model/agent-interaction-view-store";
 import {createWorkspaceRegionRegistry} from "@/widgets/agent-workspace/model/workspace-region-registry";
 
 export const agentWorkspaceRegions = createWorkspaceRegionRegistry([
   {
-    id: "project-explorer",
-    title: "Project Explorer",
+    id: "file-explorer",
+    title: "File Explorer",
     placement: "project-context",
-    render: () => <ProjectExplorerSidebar />,
+    render: () => (
+      <FileExplorerPanel
+        onFileOpen={() =>
+          useAgentInteractionViewStore.getState().setActiveView("code")
+        }
+      />
+    ),
   },
   {
     id: "agent-interaction",
