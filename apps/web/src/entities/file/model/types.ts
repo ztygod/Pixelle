@@ -1,4 +1,4 @@
-import type {WorkspaceFile} from "@pixelle/types";
+import type {WorkspaceFile} from "@pixelle/agent";
 
 export interface FileTreeNode {
   name: string;

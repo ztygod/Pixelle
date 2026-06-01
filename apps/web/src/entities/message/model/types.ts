@@ -1,4 +1,4 @@
-import type {AgentStage, MessageId, SessionId} from "@pixelle/types";
+import type {AgentStage, MessageId, SessionId} from "@pixelle/agent";
 
 export interface Message {
   id: MessageId | string;

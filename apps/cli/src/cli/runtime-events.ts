@@ -1,4 +1,4 @@
-import type {PixelleEvent} from "@pixelle/events";
+import type {PixelleEvent} from "@pixelle/agent";
 import type {CliEvent} from "./types.js";
 
 export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined {

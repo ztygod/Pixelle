@@ -1,7 +1,20 @@
-import type {PixelleEvent} from "@pixelle/events";
-import {createPromptBuilder} from "@pixelle/prompt";
-import type {AgentPrompt, PromptBuilder, PromptMessage} from "@pixelle/prompt";
-import type {SessionId, ToolCallId} from "@pixelle/types";
+import type {PixelleEvent} from "./events/index.js";
+import {createPromptBuilder} from "./prompt/index.js";
+import type {AgentPrompt, PromptBuilder, PromptMessage} from "./prompt/index.js";
+import type {SessionId, ToolCallId} from "./types/index.js";
+
+export {EventBus} from "./events/index.js";
+export type {BaseEvent, PixelleEvent} from "./events/index.js";
+export type {
+  AgentStage,
+  MessageId,
+  PatchSummary,
+  ProjectId,
+  SessionId,
+  ToolCallId,
+  ToolCallStatus,
+  WorkspaceFile,
+} from "./types/index.js";
 
 export type CommandScope = "ui" | "runtime" | "tool" | "project";
 
@@ -142,10 +155,6 @@ export type AgentRuntimeOptions = {
   createId?: (prefix: string) => string;
 };
 
-export type ContextBuilder<TContext = unknown> = {
-  build(input: RuntimeInput): Promise<TContext>;
-};
-
 export function createCommandRegistry(
   commands: readonly CommandDefinition[] = defaultCommandDefinitions,
 ): CommandRegistry {
@@ -220,7 +229,7 @@ export function createInMemoryAgentSessionStore(
   };
 }
 
-export function createMockModelClient(): ModelClient {
+function createMockModelClient(): ModelClient {
   return {
     async respond(request) {
       const userInput = getLatestUserMessage(request.prompt.messages);

@@ -1,5 +1,5 @@
 import type {AgentRuntime, AgentSessionStore} from "@pixelle/agent";
-import type {PixelleEvent} from "@pixelle/events";
+import type {PixelleEvent} from "@pixelle/agent";
 import type {FastifyInstance} from "fastify";
 import {writeSseEvent, writeSseHeaders} from "./sse.js";
 

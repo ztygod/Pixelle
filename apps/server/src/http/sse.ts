@@ -1,4 +1,4 @@
-import type {PixelleEvent} from "@pixelle/events";
+import type {PixelleEvent} from "@pixelle/agent";
 import type {FastifyReply} from "fastify";
 
 export function writeSseHeaders(reply: FastifyReply): void {

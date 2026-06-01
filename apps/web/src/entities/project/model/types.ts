@@ -1,4 +1,4 @@
-import type {ProjectId} from "@pixelle/types";
+import type {ProjectId} from "@pixelle/agent";
 
 export interface Project {
   id: ProjectId | string;

@@ -5,7 +5,7 @@ import {
   createInMemoryAgentSessionStore,
 } from "@pixelle/agent";
 import type {CommandIntent} from "@pixelle/agent";
-import type {PixelleEvent} from "@pixelle/events";
+import type {PixelleEvent} from "@pixelle/agent";
 import {pathToFileURL} from "node:url";
 import {renderCli} from "../cli/index.js";
 import {agentEventToCliEvent} from "../cli/runtime-events.js";

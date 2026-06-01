@@ -1,4 +1,4 @@
-import type {SessionId} from "@pixelle/types";
+import type {SessionId} from "@pixelle/agent";
 
 export interface Session {
   id: SessionId | string;

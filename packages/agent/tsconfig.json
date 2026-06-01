@@ -7,10 +7,5 @@
     "declaration": true,
     "declarationMap": true
   },
-  "include": ["src"],
-  "references": [
-    {"path": "../events"},
-    {"path": "../prompt"},
-    {"path": "../types"}
-  ]
+  "include": ["src"]
 }

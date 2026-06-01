@@ -14,8 +14,6 @@
   },
   "dependencies": {
     "@pixelle/agent": "workspace:*",
-    "@pixelle/config": "workspace:*",
-    "@pixelle/events": "workspace:*",
     "fastify": "^5.6.2"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-import type {PixelleEvent} from "@pixelle/events";
+import type {PixelleEvent} from "@pixelle/agent";
 import {pixelleEventBus} from "@/shared/realtime/event-bus";
 import {useRuntimeLogStore} from "@/features/runtime-status/model/runtime-log-store";
 import {useRuntimeStatusStore} from "@/features/runtime-status/model/runtime-status-store";

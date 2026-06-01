@@ -1,4 +1,4 @@
-import type {ProjectId, SessionId} from "@pixelle/types";
+import type {ProjectId, SessionId} from "@pixelle/agent";
 
 export interface Workspace {
   id: string;

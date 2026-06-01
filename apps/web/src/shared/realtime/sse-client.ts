@@ -1,4 +1,4 @@
-import type {PixelleEvent} from "@pixelle/events";
+import type {PixelleEvent} from "@pixelle/agent";
 
 export function connectSseStream(
   url: string,

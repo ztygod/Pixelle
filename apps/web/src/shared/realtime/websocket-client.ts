@@ -1,4 +1,4 @@
-import type {PixelleEvent} from "@pixelle/events";
+import type {PixelleEvent} from "@pixelle/agent";
 
 export type RealtimeMessageHandler = (event: PixelleEvent) => void;
 

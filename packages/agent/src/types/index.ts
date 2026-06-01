@@ -16,13 +16,6 @@ export type ToolCallStatus =
   | "done"
   | "error";
 
-export type RuntimeConnectionStatus =
-  | "idle"
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "error";
-
 export type WorkspaceFile = {
   path: string;
   content: string;

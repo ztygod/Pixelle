@@ -11,11 +11,6 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -b tsconfig.json"
   },
-  "dependencies": {
-    "@pixelle/events": "workspace:*",
-    "@pixelle/prompt": "workspace:*",
-    "@pixelle/types": "workspace:*"
-  },
   "devDependencies": {
     "typescript": "^6.0.3"
   }

@@ -3,11 +3,6 @@
   "references": [
     {"path": "./apps/cli"},
     {"path": "./apps/server"},
-    {"path": "./packages/config"},
-    {"path": "./packages/agent"},
-    {"path": "./packages/events"},
-    {"path": "./packages/prompt"},
-    {"path": "./packages/sandbox"},
-    {"path": "./packages/types"}
+    {"path": "./packages/agent"}
   ]
 }

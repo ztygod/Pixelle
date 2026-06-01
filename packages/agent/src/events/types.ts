@@ -5,7 +5,7 @@ import type {
   SessionId,
   ToolCallId,
   ToolCallStatus,
-} from "@pixelle/types";
+} from "../types/index.js";
 
 export type EventMetadata = Readonly<{
   source?: string;

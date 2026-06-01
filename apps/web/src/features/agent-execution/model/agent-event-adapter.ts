@@ -1,4 +1,4 @@
-import type {PixelleEvent} from "@pixelle/events";
+import type {PixelleEvent} from "@pixelle/agent";
 import {useMessageStore} from "@/entities/message";
 
 export function applyAgentEvent(event: PixelleEvent) {
