@@ -13,8 +13,7 @@
   "scripts": {
     "dev": "tsx src/bin/pixelle.ts",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "start": "node dist/bin/pixelle.js"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@pixelle/agent": "workspace:*",
