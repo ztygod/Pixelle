@@ -1,21 +1,21 @@
-export type Brand<TValue, TBrand extends string> = TValue & {
+type Brand<TValue, TBrand extends string> = TValue & {
   readonly __brand: TBrand;
 };
 
-export type SessionId = Brand<string, "SessionId">;
-export type MessageId = Brand<string, "MessageId">;
-export type ToolCallId = Brand<string, "ToolCallId">;
+type SessionId = Brand<string, "SessionId">;
+type MessageId = Brand<string, "MessageId">;
+type ToolCallId = Brand<string, "ToolCallId">;
 
-export type AgentStage = "thinking" | "planning" | "executing" | "complete";
+type AgentStage = "thinking" | "planning" | "executing" | "complete";
 
-export type ToolCallStatus =
+type ToolCallStatus =
   | "pending"
   | "running"
   | "success"
   | "done"
   | "error";
 
-export type PatchSummary = {
+type PatchSummary = {
   id: string;
   title: string;
   filesChanged: number;
@@ -23,7 +23,7 @@ export type PatchSummary = {
   deletions?: number;
 };
 
-export type EventMetadata = Readonly<{
+type EventMetadata = Readonly<{
   source?: string;
   traceId?: string;
   correlationId?: string;
@@ -33,6 +33,7 @@ export type EventMetadata = Readonly<{
   [key: string]: unknown;
 }>;
 
+/** Shared shape for every event emitted through Pixelle event buses. */
 export type BaseEvent<
   TType extends string = string,
   TMetadata extends EventMetadata = EventMetadata,
@@ -42,26 +43,26 @@ export type BaseEvent<
   metadata?: TMetadata;
 };
 
-export type PublishedEvent<TEvent extends BaseEvent> = TEvent & {
+type PublishedEvent<TEvent extends BaseEvent> = TEvent & {
   createdAt: number;
 };
 
-export type EventType<TEvent extends BaseEvent> = TEvent["type"] | "*";
+type EventType<TEvent extends BaseEvent> = TEvent["type"] | "*";
 
-export type EventListener<TEvent extends BaseEvent> = (
+type EventListener<TEvent extends BaseEvent> = (
   event: PublishedEvent<TEvent>,
 ) => void;
 
-export type EventMiddleware<TEvent extends BaseEvent> = (
+type EventMiddleware<TEvent extends BaseEvent> = (
   event: PublishedEvent<TEvent>,
 ) => PublishedEvent<TEvent> | undefined;
 
-export type ReplayOptions<TEvent extends BaseEvent = BaseEvent> = {
+type ReplayOptions<TEvent extends BaseEvent = BaseEvent> = {
   limit?: number;
   type?: TEvent["type"];
 };
 
-export type AgentEvent =
+type AgentEvent =
   | (BaseEvent<"conversation.user_message"> & {
       id?: MessageId | string;
       content: string;
@@ -123,7 +124,7 @@ export type AgentEvent =
       diff: string;
     });
 
-export type RuntimeEvent =
+type RuntimeEvent =
   | (BaseEvent<"runtime.session_started"> & {sessionId: SessionId | string})
   | (BaseEvent<"runtime.session_stopped"> & {sessionId: SessionId | string})
   | (BaseEvent<"runtime.step_started"> & {id: string; label: string})
@@ -138,21 +139,21 @@ export type RuntimeEvent =
       files?: readonly string[];
     });
 
-export type UiEvent =
+type UiEvent =
   | BaseEvent<"ui.clear">
   | BaseEvent<"ui.debug_toggled">
   | BaseEvent<"ui.help_toggled">;
 
+/** Event union shared by Pixelle runtime producers and UI adapters. */
 export type PixelleEvent = AgentEvent | RuntimeEvent | UiEvent;
 
-
-
-export type EventBusOptions<TEvent extends BaseEvent> = {
+type EventBusOptions<TEvent extends BaseEvent> = {
   maxHistorySize?: number;
   middleware?: readonly EventMiddleware<TEvent>[];
   now?: () => number;
 };
 
+/** In-memory typed pub/sub bus with bounded history and optional middleware. */
 export class EventBus<TEvent extends BaseEvent> {
   private readonly listenersByType = new Map<
     string,
@@ -169,6 +170,7 @@ export class EventBus<TEvent extends BaseEvent> {
     this.now = options.now ?? Date.now;
   }
 
+  /** Subscribe to one concrete event type, or "*" for all events. */
   on(type: EventType<TEvent>, listener: EventListener<TEvent>): () => void {
     const eventType = String(type);
     const listeners =
@@ -181,10 +183,12 @@ export class EventBus<TEvent extends BaseEvent> {
     };
   }
 
+  /** Remove a listener previously registered with `on`. */
   off(type: EventType<TEvent>, listener: EventListener<TEvent>): void {
     this.listenersByType.get(String(type))?.delete(listener);
   }
 
+  /** Subscribe to the next matching event, then unsubscribe automatically. */
   once(type: EventType<TEvent>, listener: EventListener<TEvent>): () => void {
     const unsubscribe = this.on(type, (event) => {
       unsubscribe();
@@ -194,6 +198,7 @@ export class EventBus<TEvent extends BaseEvent> {
     return unsubscribe;
   }
 
+  /** Publish an event, applying middleware and assigning `createdAt` if absent. */
   emit(event: TEvent): PublishedEvent<TEvent> | undefined {
     let publishedEvent: PublishedEvent<TEvent> = {
       ...event,
@@ -227,6 +232,7 @@ export class EventBus<TEvent extends BaseEvent> {
     return publishedEvent;
   }
 
+  /** Add middleware that can transform or drop events before listeners see them. */
   use(middleware: EventMiddleware<TEvent>): () => void {
     this.middleware.push(middleware);
 
@@ -238,14 +244,17 @@ export class EventBus<TEvent extends BaseEvent> {
     };
   }
 
+  /** Drop all retained history without changing active subscriptions. */
   clear(): void {
     this.historyBuffer.length = 0;
   }
 
+  /** Return a snapshot of retained published events. */
   history(): PublishedEvent<TEvent>[] {
     return [...this.historyBuffer];
   }
 
+  /** Replay retained events to a listener, optionally filtered by type and limit. */
   replay(
     listener: EventListener<TEvent>,
     options: ReplayOptions<TEvent> = {},
@@ -263,6 +272,7 @@ export class EventBus<TEvent extends BaseEvent> {
     }
   }
 
+  /** Subscribe to every event emitted by this bus. */
   subscribe(listener: EventListener<TEvent>): () => void {
     return this.on("*", listener);
   }
