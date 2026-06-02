@@ -9,5 +9,5 @@
     "disableSourceOfProjectReferenceRedirect": true
   },
   "include": ["src"],
-  "references": [{"path": "../../packages/config"}, {"path": "../../packages/events"}]
+  "references": [{"path": "../../packages/agent"}]
 }

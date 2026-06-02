@@ -6,9 +6,8 @@
     "jsx": "react-jsx",
     "types": ["node"],
     "declaration": true,
-    "declarationMap": true,
-    "disableSourceOfProjectReferenceRedirect": true
+    "declarationMap": true
   },
   "include": ["src"],
-  "references": [{"path": "../../packages/core"}, {"path": "../../packages/events"}]
+  "references": [{"path": "../../packages/agent"}]
 }

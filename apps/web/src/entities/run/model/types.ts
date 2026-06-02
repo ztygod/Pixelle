@@ -1,4 +1,4 @@
-import type {AgentStage, SessionId} from "@pixelle/types";
+import type {AgentStage, SessionId} from "@/shared/types/agent-types";
 
 export interface Run {
   id: string;

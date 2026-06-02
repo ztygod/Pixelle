@@ -13,8 +13,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@pixelle/config": "workspace:*",
-    "@pixelle/events": "workspace:*",
+    "@pixelle/agent": "workspace:*",
     "fastify": "^5.6.2"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 import { render } from "ink";
 import { App } from "./app/App.js";
-import { EventBus } from "@pixelle/events";
+import { EventBus } from "@pixelle/agent";
 import type {
   CliEvent,
   CliEventBus,

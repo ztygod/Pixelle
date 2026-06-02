@@ -9,12 +9,7 @@
     "resolveJsonModule": true,
     "ignoreDeprecations": "6.0",
     "paths": {
-      "@pixelle/types": ["./packages/types/src/index.ts"],
-      "@pixelle/events": ["./packages/events/src/index.ts"],
-      "@pixelle/core": ["./packages/core/src/index.ts"],
-      "@pixelle/sandbox": ["./packages/sandbox/src/index.ts"],
-      "@pixelle/config": ["./packages/config/src/index.ts"],
-      "@pixelle/prompt": ["./packages/prompt/src/index.ts"]
+      "@pixelle/agent": ["./packages/agent/src/index.ts"]
     }
   }
 }

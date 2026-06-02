@@ -1,4 +1,4 @@
-import type {BaseEvent, EventBus} from "@pixelle/events";
+import type {BaseEvent, EventBus} from "@pixelle/agent";
 
 export type RuntimeCommandEvent = BaseEvent<"runtime_command"> & {
   command: string;

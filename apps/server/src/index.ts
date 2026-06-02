@@ -1,4 +1,4 @@
-import {defaultPixelleConfig} from "@pixelle/config";
+import {defaultPixelleConfig} from "./config.js";
 import {createServer} from "./http/create-server.js";
 
 const port = Number(process.env.PORT ?? defaultPixelleConfig.serverPort);

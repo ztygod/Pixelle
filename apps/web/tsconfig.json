@@ -13,5 +13,5 @@
     "disableSourceOfProjectReferenceRedirect": true
   },
   "include": ["src", "vite.config.ts"],
-  "references": [{"path": "../../packages/events"}, {"path": "../../packages/types"}]
+  "references": [{"path": "../../packages/agent"}]
 }

@@ -8,7 +8,7 @@ The CLI owns terminal layout, Markdown, code and diff rendering, assistant strea
 
 The CLI does not call models, run agents, execute tools, scan files, write files, use RAG, start MCP servers, or orchestrate runtime decisions.
 
-Slash command parsing and shared command definitions live in `packages/core`. The CLI maps UI command intents into terminal events. Runtime-facing commands emit a runtime command intent that an agent runtime can subscribe to through the CLI handle.
+Slash command parsing and shared command definitions live in `packages/agent`. The CLI maps UI command intents into terminal events. Runtime-facing commands emit a runtime command intent that an agent runtime can subscribe to through the CLI handle.
 
 `apps/cli/src/cli/index.ts` is a side-effect-free public API entry. The executable CLI entry lives in `apps/cli/src/bin/pixelle.ts`. Demo programs live under `demos/` and consume the CLI through the public API.
 

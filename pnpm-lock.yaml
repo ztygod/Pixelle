@@ -57,12 +57,9 @@ importers:
 
   apps/cli:
     dependencies:
-      '@pixelle/core':
+      '@pixelle/agent':
         specifier: workspace:*
-        version: link:../../packages/core
-      '@pixelle/events':
-        specifier: workspace:*
-        version: link:../../packages/events
+        version: link:../../packages/agent
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -91,12 +88,9 @@ importers:
 
   apps/server:
     dependencies:
-      '@pixelle/config':
+      '@pixelle/agent':
         specifier: workspace:*
-        version: link:../../packages/config
-      '@pixelle/events':
-        specifier: workspace:*
-        version: link:../../packages/events
+        version: link:../../packages/agent
       fastify:
         specifier: ^5.6.2
         version: 5.8.5
@@ -113,12 +107,9 @@ importers:
 
   apps/web:
     dependencies:
-      '@pixelle/events':
+      '@pixelle/agent':
         specifier: workspace:*
-        version: link:../../packages/events
-      '@pixelle/types':
-        specifier: workspace:*
-        version: link:../../packages/types
+        version: link:../../packages/agent
       '@tailwindcss/vite':
         specifier: ^4.3.0
         version: 4.3.0(vite@7.3.3(@types/node@25.8.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.1))
@@ -166,52 +157,7 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  packages/config:
-    devDependencies:
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-
-  packages/core:
-    dependencies:
-      '@pixelle/events':
-        specifier: workspace:*
-        version: link:../events
-      '@pixelle/types':
-        specifier: workspace:*
-        version: link:../types
-    devDependencies:
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-
-  packages/events:
-    dependencies:
-      '@pixelle/types':
-        specifier: workspace:*
-        version: link:../types
-    devDependencies:
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-
-  packages/prompt:
-    devDependencies:
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-
-  packages/sandbox:
-    dependencies:
-      '@pixelle/types':
-        specifier: workspace:*
-        version: link:../types
-    devDependencies:
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-
-  packages/types:
+  packages/agent:
     devDependencies:
       typescript:
         specifier: ^6.0.3
