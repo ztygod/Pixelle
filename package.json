@@ -4,14 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev:cli": "pnpm --filter @pixelle/cli dev",
+    "dev:agent": "pnpm --filter @pixelle/agent dev",
+    "dev:cli": "pnpm --filter @pixelle/agent build && pnpm -r --parallel --filter @pixelle/agent --filter @pixelle/cli dev",
     "build:cli": "pnpm --filter @pixelle/cli build",
-    "dev:web": "pnpm --filter @pixelle/web dev",
+    "dev:web": "pnpm --filter @pixelle/agent build && pnpm -r --parallel --filter @pixelle/agent --filter @pixelle/web dev",
     "build:web": "pnpm --filter @pixelle/web build",
-    "dev:server": "pnpm --filter @pixelle/server dev",
+    "dev:server": "pnpm --filter @pixelle/agent build && pnpm -r --parallel --filter @pixelle/agent --filter @pixelle/server dev",
     "build:server": "pnpm --filter @pixelle/server build",
-    "build:workspace": "pnpm -r --filter \"@pixelle/*\" build",
-    "typecheck": "pnpm -r --filter \"@pixelle/*\" typecheck"
+    "build:workspace": "tsc -b",
+    "typecheck": "tsc -b --pretty false"
   },
   "keywords": [],
   "author": "tianyi zhou",
