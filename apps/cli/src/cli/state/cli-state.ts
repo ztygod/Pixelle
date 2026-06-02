@@ -32,10 +32,7 @@ export function reduceCliState(
   state: CliViewState,
   action: CliAction,
 ): CliViewState {
-  switch (action.type) {
-    case "event":
-      return reduceCliEvent(state, action.event);
-  }
+  return reduceCliEvent(state, action.event);
 }
 
 function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {

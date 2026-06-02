@@ -1,5 +1,5 @@
 import {useCallback, useMemo} from "react";
-import {createCommandRegistry, parseCommandIntent} from "@pixelle/agent";
+import {createCommandRegistry, parseCommandIntent} from "../commands/index.js";
 import type {CliEvent, CliEventBus, UserInputBus} from "../types.js";
 import {useTerminalSize} from "../hooks/useTerminalSize.js";
 import {useCliState} from "../state/useCliState.js";

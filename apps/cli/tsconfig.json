@@ -6,8 +6,7 @@
     "jsx": "react-jsx",
     "types": ["node"],
     "declaration": true,
-    "declarationMap": true,
-    "disableSourceOfProjectReferenceRedirect": true
+    "declarationMap": true
   },
   "include": ["src"],
   "references": [{"path": "../../packages/agent"}]
