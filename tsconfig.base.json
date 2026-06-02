@@ -7,9 +7,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "ignoreDeprecations": "6.0",
-    "paths": {
-      "@pixelle/agent": ["./packages/agent/src/index.ts"]
-    }
+    "ignoreDeprecations": "6.0"
   }
 }
