@@ -4,13 +4,13 @@ export type ModelProviderConfig = {
   apiKeyEnv?: string;
 };
 
-export type PixelleConfig = {
+export type PixelleAgentConfig = {
   serverPort: number;
   webOrigin: string;
   model: ModelProviderConfig;
 };
 
-export const defaultPixelleConfig: PixelleConfig = {
+export const defaultPixelleConfig: PixelleAgentConfig = {
   serverPort: 4317,
   webOrigin: "http://localhost:5173",
   model: {
