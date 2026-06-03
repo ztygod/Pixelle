@@ -4,6 +4,7 @@ export const LLMConfigSchema = z.object({
   provider: z.enum(["openai", "anthropic"]),
   model: z.string().min(1),
   temperature: z.number().min(0).max(2),
+  timeoutMs: z.number().int().positive(),
   apiKey: z.string().min(1).optional(),
   baseUrl: z.string().url().optional(),
 });

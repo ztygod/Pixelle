@@ -4,6 +4,7 @@ export type LLMClientConfig = {
   provider: LLMProvider;
   model: string;
   temperature: number;
+  timeoutMs: number;
   apiKey?: string;
   baseUrl?: string;
 };
@@ -52,6 +53,7 @@ export type ToolCall = {
 export type GenerateInput = {
   messages: readonly PixelleMessage[];
   tools?: readonly PixelleTool[];
+  timeoutMs?: number;
 };
 
 /**

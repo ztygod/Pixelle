@@ -38,14 +38,23 @@ export class AnthropicClient extends BaseLLMClient {
 
   async generate(input: GenerateInput): Promise<GenerateResult> {
     const convertedMessages = this.convertMessages(input.messages);
-    const response = await this.client.messages.create({
-      model: this.config.model,
-      max_tokens: 4096,
-      temperature: this.config.temperature,
-      system: convertedMessages.system,
-      messages: convertedMessages.messages,
-      tools: input.tools?.length ? this.convertTools(input.tools) : undefined,
-    });
+    const response = await this.withTimeout(
+      (signal) =>
+        this.client.messages.create(
+          {
+            model: this.config.model,
+            max_tokens: 4096,
+            temperature: this.config.temperature,
+            system: convertedMessages.system,
+            messages: convertedMessages.messages,
+            tools: input.tools?.length
+              ? this.convertTools(input.tools)
+              : undefined,
+          },
+          {signal},
+        ),
+      input.timeoutMs ?? this.config.timeoutMs,
+    );
 
     return this.parseResponse(response);
   }

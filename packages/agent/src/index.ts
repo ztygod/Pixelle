@@ -3,7 +3,7 @@ export type {
   BaseEvent,
   PixelleEvent,
 } from "./eventsbus/index.js";
-export {BaseLLMClient, LLMClient} from "./llm/index.js";
+export {BaseLLMClient, LLMClient, LLMTimeoutError} from "./llm/index.js";
 export type {
   GenerateInput,
   GenerateResult,

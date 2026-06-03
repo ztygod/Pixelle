@@ -1,4 +1,4 @@
-import type {AgentConfigValues} from "./types.js";
+import type {AgentConfigValues} from "../types.js";
 
 export class AgentConfig {
   readonly maxIterations: number;

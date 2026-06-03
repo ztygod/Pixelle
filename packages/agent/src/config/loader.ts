@@ -125,6 +125,11 @@ function buildEnvConfig(env: EnvRecord): PixelleConfigInput {
     llm.temperature = Number(env.OPENAI_TEMPERATURE);
   }
 
+  const timeoutMs = env.PIXELLE_LLM_TIMEOUT_MS ?? env.OPENAI_TIMEOUT_MS;
+  if (timeoutMs !== undefined && timeoutMs !== "") {
+    llm.timeoutMs = Number(timeoutMs);
+  }
+
   return Object.keys(llm).length > 0 ? {llm} : {};
 }
 

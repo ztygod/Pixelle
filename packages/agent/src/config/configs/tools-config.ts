@@ -1,4 +1,4 @@
-import type {ToolsConfigValues} from "./types.js";
+import type {ToolsConfigValues} from "../types.js";
 
 export class ToolsConfig {
   readonly enabledTools: readonly string[];

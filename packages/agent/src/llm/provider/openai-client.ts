@@ -29,12 +29,21 @@ export class OpenAIClient extends BaseLLMClient {
   }
 
   async generate(input: GenerateInput): Promise<GenerateResult> {
-    const response = await this.client.chat.completions.create({
-      model: this.config.model,
-      temperature: this.config.temperature,
-      messages: this.convertMessages(input.messages),
-      tools: input.tools?.length ? this.convertTools(input.tools) : undefined,
-    });
+    const response = await this.withTimeout(
+      (signal) =>
+        this.client.chat.completions.create(
+          {
+            model: this.config.model,
+            temperature: this.config.temperature,
+            messages: this.convertMessages(input.messages),
+            tools: input.tools?.length
+              ? this.convertTools(input.tools)
+              : undefined,
+          },
+          {signal},
+        ),
+      input.timeoutMs ?? this.config.timeoutMs,
+    );
 
     return this.parseResponse(response);
   }

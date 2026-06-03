@@ -1,9 +1,10 @@
-import type {LLMConfigValues} from "./types.js";
+import type {LLMConfigValues} from "../types.js";
 
 export class LLMConfig {
   readonly provider: LLMConfigValues["provider"];
   readonly model: string;
   readonly temperature: number;
+  readonly timeoutMs: number;
   readonly apiKey?: string;
   readonly baseUrl?: string;
 
@@ -14,6 +15,7 @@ export class LLMConfig {
     this.provider = values.provider;
     this.model = values.model;
     this.temperature = values.temperature;
+    this.timeoutMs = values.timeoutMs;
     this.apiKey = values.apiKey;
     this.baseUrl = values.baseUrl;
   }
@@ -23,6 +25,7 @@ export class LLMConfig {
       provider: this.provider,
       model: this.model,
       temperature: this.temperature,
+      timeoutMs: this.timeoutMs,
       apiKey: this.apiKey,
       baseUrl: this.baseUrl,
     };

@@ -1,7 +1,7 @@
-import {AgentConfig} from "./agent-config.js";
-import {LLMConfig} from "./llm-config.js";
+import { AgentConfig } from "./configs/agent-config.js";
+import { LLMConfig } from "./configs/llm-config.js";
+import { ToolsConfig } from "./configs/tools-config.js";
 import {PixelleConfigSchema} from "./schemas.js";
-import {ToolsConfig} from "./tools-config.js";
 import type {PixelleConfigValues} from "./types.js";
 
 export class PixelleAgentConfig {

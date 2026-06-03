@@ -1,6 +1,7 @@
-export {AgentConfig} from "./agent-config.js";
 export {DEFAULT_PIXELLE_CONFIG} from "./defaults.js";
-export {LLMConfig} from "./llm-config.js";
+export {AgentConfig} from "./configs/agent-config.js";
+export {LLMConfig} from "./configs/llm-config.js";
+export {ToolsConfig} from "./configs/tools-config.js";
 export {loadPixelleConfig} from "./loader.js";
 export {PixelleAgentConfig} from "./pixelle-config.js";
 export {
@@ -13,7 +14,6 @@ export {
   ToolsConfigInputSchema,
   ToolsConfigSchema,
 } from "./schemas.js";
-export {ToolsConfig} from "./tools-config.js";
 export type {
   AgentConfigValues,
   LLMConfigValues,

@@ -5,6 +5,7 @@ export const DEFAULT_PIXELLE_CONFIG: PixelleConfigValues = {
     provider: "openai",
     model: "gpt-4.1",
     temperature: 0.2,
+    timeoutMs: 120_000,
   },
   agent: {
     maxIterations: 10,

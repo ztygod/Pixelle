@@ -1,4 +1,4 @@
-export {BaseLLMClient} from "./llm-base.js";
+export {BaseLLMClient, LLMTimeoutError} from "./llm-base.js";
 export {LLMClient} from "./llm-client.js";
 export type {
   GenerateInput,
