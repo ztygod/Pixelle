@@ -1,43 +1,28 @@
-import type {GenerateInput, GenerateResult} from "./types.js";
+import type {
+  LLMGenerateInput,
+  LLMResponse,
+  LLMStreamChunk,
+  LLMStreamInput,
+} from "./types.js";
 
-/**
- * BaseLLMClient defines the smallest shared contract every provider must obey.
- *
- * It deliberately does not expose convertMessages(), convertTools(), or
- * parseResponse() as abstract methods. Those steps are provider implementation
- * details, and forcing every SDK into the same conversion lifecycle would make
- * this base class an early over-abstraction. Runtime only needs generate().
- */
+/** Base contract for all Pixelle LLM clients. */
 export abstract class BaseLLMClient {
-  abstract generate(input: GenerateInput): Promise<GenerateResult>;
+  abstract generate(input: LLMGenerateInput): Promise<LLMResponse>;
 
-  protected async withTimeout<T>(
-    operation: (signal: AbortSignal) => Promise<T>,
-    timeoutMs: number,
-  ): Promise<T> {
-    const controller = new AbortController();
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeout = setTimeout(() => {
-        controller.abort();
-        reject(new LLMTimeoutError(timeoutMs));
-      }, timeoutMs);
-    });
-
-    try {
-      return await Promise.race([operation(controller.signal), timeoutPromise]);
-    } finally {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
+  async *stream(input: LLMStreamInput): AsyncIterable<LLMStreamChunk> {
+    const response = await this.generate(input);
+    if (response.content) {
+      yield {
+        type: "content_delta",
+        content: response.content,
+        raw: response.raw,
+      };
     }
-  }
-}
 
-export class LLMTimeoutError extends Error {
-  constructor(timeoutMs: number) {
-    super(`LLM request timed out after ${timeoutMs}ms.`);
-    this.name = "LLMTimeoutError";
+    yield {
+      type: "done",
+      response,
+      raw: response.raw,
+    };
   }
 }
