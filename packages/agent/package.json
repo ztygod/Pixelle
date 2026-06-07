@@ -21,6 +21,10 @@
       "types": "./dist/llm/index.d.ts",
       "import": "./dist/llm/index.js"
     },
+    "./tool": {
+      "types": "./dist/tool/index.d.ts",
+      "import": "./dist/tool/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
