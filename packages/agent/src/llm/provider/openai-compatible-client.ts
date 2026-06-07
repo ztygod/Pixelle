@@ -7,7 +7,6 @@ import {BaseLLMClient} from "../llm-base.js";
 import {LLMResponseFormatError} from "../errors.js";
 import {classifyLLMError, requestWithRetry} from "../../utils/llm-utils.js";
 import type {
-  LLMClientConfig,
   LLMGenerateInput,
   LLMMessage,
   LLMResponse,
@@ -17,6 +16,7 @@ import type {
   LLMToolCall,
   LLMUsage,
 } from "../types.js";
+import { LLMClientConfig } from "../../config/index.js";
 
 type StreamingToolCall = {
   id?: string;

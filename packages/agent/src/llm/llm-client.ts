@@ -1,22 +1,19 @@
-import type {LLMConfig} from "../config/index.js";
+import type {LLMClientConfig} from "../config/index.js";
 import {BaseLLMClient} from "./llm-base.js";
 import {AnthropicLLMClient} from "./provider/anthropic-compatible-client.js";
 import {OpenAICompatibleLLMClient} from "./provider/openai-compatible-client.js";
 import type {
-  LLMClientConfig,
   LLMGenerateInput,
   LLMResponse,
   LLMStreamChunk,
   LLMStreamInput,
 } from "./types.js";
 
-type LLMConfigLike = LLMClientConfig | LLMConfig;
-
 /** Public LLM facade that selects the configured provider adapter. */
 export class LLMClient extends BaseLLMClient {
   private readonly providerClient: BaseLLMClient;
 
-  constructor(config: LLMConfigLike) {
+  constructor(config: LLMClientConfig) {
     super();
 
     switch (config.provider) {

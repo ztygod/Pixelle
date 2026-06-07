@@ -8,8 +8,7 @@ export {
 export type {
   AgentConfig,
   AgentConfigInput,
-  LLMConfig,
-  LLMProvider,
+  LLMClientConfig,
   LoadAgentConfigOptions,
   LoadPixelleConfigOptions,
   RuntimeConfig,

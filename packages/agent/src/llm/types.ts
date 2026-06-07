@@ -1,17 +1,3 @@
-/** Provider identifiers accepted by LLMClient. */
-export type LLMProvider = "openai-compatible" | "anthropic";
-
-/** Shared configuration used to construct provider-specific LLM clients. */
-export type LLMClientConfig = {
-  provider: LLMProvider;
-  model: string;
-  temperature: number;
-  timeoutMs: number;
-  maxRetries: number;
-  apiKey?: string;
-  baseUrl?: string;
-};
-
 /** Provider-neutral chat message format used by Pixelle runtime code. */
 export type LLMMessage =
   | {

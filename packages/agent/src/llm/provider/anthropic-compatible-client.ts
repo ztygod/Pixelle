@@ -8,7 +8,6 @@ import type {
 import {BaseLLMClient} from "../llm-base.js";
 import {classifyLLMError, requestWithRetry} from "../../utils/llm-utils.js";
 import type {
-  LLMClientConfig,
   LLMGenerateInput,
   LLMMessage,
   LLMResponse,
@@ -18,6 +17,7 @@ import type {
   LLMToolCall,
   LLMUsage,
 } from "../types.js";
+import { LLMClientConfig } from "../../config/index.js";
 
 type ConvertedAnthropicMessages = {
   system?: string;

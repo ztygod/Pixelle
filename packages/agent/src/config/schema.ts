@@ -14,8 +14,9 @@ export const LLMConfigSchema = z.object({
 /** Validates runtime controls for agent execution. */
 export const RuntimeConfigSchema = z.object({
   maxIterations: z.number().int().positive(),
-  enablePlanning: z.boolean(),
-  enableReflection: z.boolean(),
+  tokensLimit: z.number().int().positive(),
+  systemPrompt: z.string().min(1),
+  workspaceDir: z.string().min(1)
 });
 
 /** Validates the complete agent configuration returned to callers. */

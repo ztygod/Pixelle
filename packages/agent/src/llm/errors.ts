@@ -1,4 +1,4 @@
-import type {LLMProvider} from "./types.js";
+import { LLMProvider } from "../config/types.js";
 
 /** Stable error code values for LLM failures. */
 export type LLMErrorCode =
