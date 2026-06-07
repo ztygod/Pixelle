@@ -1,23 +1,5 @@
-export type LLMProvider = "openai" | "anthropic";
-
-export type LLMClientConfig = {
-  provider: LLMProvider;
-  model: string;
-  temperature: number;
-  timeoutMs: number;
-  apiKey?: string;
-  baseUrl?: string;
-};
-
-/**
- * PixelleMessage is the only message protocol the Agent Runtime should know.
- *
- * Runtime should not depend directly on OpenAI or Anthropic message formats
- * because each provider represents tool calls, tool results, and system prompts
- * differently. Keeping one Pixelle protocol lets Runtime implement the ReAct
- * loop once while provider adapters handle SDK-specific conversion internally.
- */
-export type PixelleMessage =
+/** Provider-neutral chat message format used by Pixelle runtime code. */
+export type LLMMessage =
   | {
       role: "system";
       content: string;
@@ -29,7 +11,7 @@ export type PixelleMessage =
   | {
       role: "assistant";
       content?: string;
-      toolCalls?: readonly ToolCall[];
+      toolCalls?: readonly LLMToolCall[];
     }
   | {
       role: "tool";
@@ -38,46 +20,68 @@ export type PixelleMessage =
       content: string;
     };
 
-export type PixelleTool = {
+/** Provider-neutral tool declaration sent with an LLM request. */
+export type LLMTool = {
   name: string;
   description?: string;
   inputSchema: Record<string, unknown>;
 };
 
-export type ToolCall = {
+/** Normalized tool call requested by an assistant response. */
+export type LLMToolCall = {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
 };
 
-export type GenerateInput = {
-  messages: readonly PixelleMessage[];
-  tools?: readonly PixelleTool[];
+/** Input accepted by non-streaming LLM generation. */
+export type LLMGenerateInput = {
+  messages: readonly LLMMessage[];
+  tools?: readonly LLMTool[];
   timeoutMs?: number;
+  maxRetries?: number;
 };
 
-/**
- * GenerateResult is intentionally provider-neutral.
- *
- * OpenAI puts text and tool_calls on a chat message, while Anthropic represents
- * them as text/tool_use content blocks. Runtime only needs normalized assistant
- * text and the next tool calls to execute, so providers collapse raw SDK
- * responses into this stable shape.
- */
-export type GenerateResult = {
+export type LLMStreamInput = LLMGenerateInput;
+
+/** Normalized non-streaming LLM response. */
+export type LLMResponse = {
   content: string;
-  toolCalls: ToolCall[];
+  toolCalls: LLMToolCall[];
   usage?: LLMUsage;
   raw?: unknown;
 };
 
+/** Incremental chunk emitted by streaming LLM generation. */
+export type LLMStreamChunk =
+  | {
+      type: "content_delta";
+      content: string;
+      raw?: unknown;
+    }
+  | {
+      type: "tool_call_delta";
+      toolCall: Partial<LLMToolCall> & {index: number};
+      raw?: unknown;
+    }
+  | {
+      type: "done";
+      response: LLMResponse;
+      raw?: unknown;
+    };
+
+/** Token usage normalized across providers when available. */
 export type LLMUsage = {
   inputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
 };
 
-export type LLMGenerateOptions = GenerateInput;
-export type LLMGenerateResult = GenerateResult;
-export type LLMMessage = PixelleMessage;
-export type LLMMessageRole = PixelleMessage["role"];
+export type GenerateInput = LLMGenerateInput;
+export type GenerateResult = LLMResponse;
+export type LLMGenerateOptions = LLMGenerateInput;
+export type LLMGenerateResult = LLMResponse;
+export type PixelleMessage = LLMMessage;
+export type PixelleTool = LLMTool;
+export type ToolCall = LLMToolCall;
+export type LLMMessageRole = LLMMessage["role"];

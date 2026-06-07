@@ -1,22 +1,41 @@
-import type {
-  AgentConfigValues,
-  LLMConfigValues,
-  PixelleConfigInput,
-  PixelleConfigValues,
-  ToolsConfigValues,
-} from "./schemas.js";
-
-export type {
-  AgentConfigValues,
-  LLMConfigValues,
-  PixelleConfigInput,
-  PixelleConfigValues,
-  ToolsConfigValues,
+/** Complete Pixelle agent configuration exposed by the config loader. */
+export type AgentConfig = {
+  llm: LLMClientConfig;
+  runtime: RuntimeConfig;
 };
 
-export type LoadPixelleConfigOptions = {
+/** Runtime-ready LLM configuration after TOML and env overrides are merged. */
+export type LLMClientConfig = {
+  provider: LLMProvider;
+  model: string;
+  temperature: number;
+  timeoutMs: number;
+  maxRetries: number;
+  apiKey?: string;
+  baseUrl?: string;
+};
+
+/** Agent loop options consumed by runtime code. */
+export type RuntimeConfig = {
+  maxIterations: number;
+  tokensLimit: number;
+  systemPrompt: string;
+  workspaceDir: string;
+};
+
+/** Partial config shape accepted from pixelle.toml before validation. */
+export type AgentConfigInput = {
+  llm?: Partial<LLMClientConfig>;
+  runtime?: Partial<RuntimeConfig>;
+};
+
+/** Options for locating pixelle.toml*/
+export type LoadAgentConfigOptions = {
   cwd?: string;
   configFile?: string;
-  envFile?: string;
-  env?: Record<string, string | undefined>;
 };
+
+/** LLM provier */
+export type LLMProvider = "openai-compatible" | "anthropic";
+
+export type LoadPixelleConfigOptions = LoadAgentConfigOptions;

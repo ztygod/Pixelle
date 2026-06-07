@@ -13,6 +13,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
+    },
+    "./llm": {
+      "types": "./dist/llm/index.d.ts",
+      "import": "./dist/llm/index.js"
+    },
+    "./tool": {
+      "types": "./dist/tool/index.d.ts",
+      "import": "./dist/tool/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -22,7 +34,9 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
+    "dotenv": "^17.4.2",
     "openai": "^6.38.0",
+    "smol-toml": "^1.6.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
