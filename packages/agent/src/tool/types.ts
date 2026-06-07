@@ -29,6 +29,7 @@ export type ToolPermissions = {
   readFile?: boolean;
   writeFile?: boolean;
   network?: boolean;
+  shell?: boolean;
 };
 
 export type ToolContext = {
