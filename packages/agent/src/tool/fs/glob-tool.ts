@@ -1,7 +1,8 @@
 import {readdir} from "node:fs/promises";
 import path from "node:path";
+import {z} from "zod";
 
-import {ToolError} from "../tool-error.js";
+import {okToolResult} from "../tool-result.js";
 import type {Tool} from "../types.js";
 import {resolveWorkspacePath, toPosixPath} from "../../utils/path-safety.js";
 
@@ -13,49 +14,40 @@ const DEFAULT_IGNORED_DIRECTORIES = new Set([
   "coverage",
 ]);
 
-type GlobInput = {
-  pattern?: unknown;
-  maxResults?: unknown;
-};
+const globParameters = z.object({
+  reason: z
+    .string()
+    .describe(
+      "Explain why you are calling this tool and what you expect to learn or change.",
+    ),
+  pattern: z
+    .string()
+    .optional()
+    .describe(
+      "Optional file path or filename pattern to locate candidate files. This first version reserves pattern support and still lists workspace files.",
+    ),
+  maxResults: z
+    .number()
+    .positive()
+    .optional()
+    .describe("Maximum number of workspace-relative file paths to return."),
+});
 
-export const globTool: Tool<GlobInput, {paths: string[]}> = {
+export const globTool: Tool<typeof globParameters, {paths: string[]}> = {
   definition: {
     name: "glob",
-    description: "List files under the workspace, with basic pattern support reserved for future versions.",
-    parameters: {
-      type: "object",
-      properties: {
-        pattern: {
-          type: "string",
-          description: "Reserved glob pattern. The first version lists workspace files.",
-        },
-        maxResults: {
-          type: "number",
-          description: "Maximum number of paths to return.",
-        },
-      },
-      additionalProperties: false,
-    },
+    description:
+      "Find files by path or filename inside workspaceRoot. Use this to explore project structure or locate candidate files before read_file or write_file. This does not search file contents; use grep when you need to find text inside files. Returns workspace-relative file paths and skips common generated directories.",
+    parameters: globParameters,
   },
   async execute(input, context) {
-    if (
-      input?.pattern !== undefined &&
-      typeof input.pattern !== "string"
-    ) {
-      throw new ToolError({
-        code: "TOOL_INVALID_INPUT",
-        message: "glob pattern must be a string when provided.",
-        toolName: "glob",
-      });
-    }
-
     const maxResults =
       typeof input?.maxResults === "number" && input.maxResults > 0
         ? Math.floor(input.maxResults)
         : 1000;
     const paths = await listWorkspaceFiles(context.workspaceRoot, maxResults);
 
-    return {paths};
+    return okToolResult("Listed workspace files.", {paths});
   },
 };
 

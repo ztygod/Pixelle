@@ -1,30 +1,47 @@
-import {ToolError, toToolError} from "./tool-error.js";
-import type {ToolContext} from "./types.js";
+import {ToolError} from "./tool-error.js";
+import {errorToolResult} from "./tool-result.js";
+import type {ToolContext, ToolResult} from "./types.js";
 import type {ToolRegistry} from "./tool-registry.js";
 
 export class ToolRunner {
   constructor(private readonly registry: ToolRegistry) {}
 
-  async run(name: string, input: unknown, context: ToolContext): Promise<unknown> {
+  async run(
+    name: string,
+    input: unknown,
+    context: ToolContext,
+  ): Promise<ToolResult> {
     const tool = this.registry.get(name);
 
     if (!tool) {
-      throw new ToolError({
-        code: "TOOL_NOT_FOUND",
-        message: `Tool "${name}" is not registered.`,
-        toolName: name,
-      });
+      return errorToolResult(
+        `Tool "${name}" is not registered.`,
+        "TOOL_NOT_FOUND",
+      );
+    }
+
+    const parsedInput = tool.definition.parameters.safeParse(input);
+
+    if (!parsedInput.success) {
+      return errorToolResult(
+        `Invalid input for tool "${name}".`,
+        "TOOL_INVALID_INPUT",
+        {issues: parsedInput.error.issues},
+      );
     }
 
     try {
-      // Future extension point: parameter validation, timeout, and lifecycle events.
-      return await tool.execute(input, context);
+      // Future extension point: timeout and lifecycle events.
+      return await tool.execute(parsedInput.data, context);
     } catch (error) {
-      throw toToolError(error, {
-        code: "TOOL_EXECUTION_FAILED",
-        message: `Tool "${name}" failed.`,
-        toolName: name,
-      });
+      if (error instanceof ToolError) {
+        return errorToolResult(error.message, error.code, error.details);
+      }
+
+      return errorToolResult(
+        error instanceof Error ? error.message : `Tool "${name}" failed.`,
+        "TOOL_EXECUTION_FAILED",
+      );
     }
   }
 }

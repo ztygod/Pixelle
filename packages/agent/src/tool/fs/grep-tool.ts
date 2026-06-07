@@ -1,14 +1,11 @@
 import {readFile} from "node:fs/promises";
+import {z} from "zod";
 
 import {ToolError} from "../tool-error.js";
+import {okToolResult} from "../tool-result.js";
 import type {Tool, ToolContext} from "../types.js";
 import {resolveWorkspacePath} from "../../utils/path-safety.js";
 import {listWorkspaceFiles} from "./glob-tool.js";
-
-type GrepInput = {
-  pattern?: unknown;
-  maxResults?: unknown;
-};
 
 type GrepMatch = {
   path: string;
@@ -16,36 +13,34 @@ type GrepMatch = {
   text: string;
 };
 
-export const grepTool: Tool<GrepInput, {matches: GrepMatch[]}> = {
+const grepParameters = z.object({
+  reason: z
+    .string()
+    .describe(
+      "Explain why you are calling this tool and what you expect to learn or change.",
+    ),
+  pattern: z
+    .string()
+    .min(1)
+    .describe(
+      "Literal text to search for inside workspace files. Use glob instead when you only need to find files by name or path.",
+    ),
+  maxResults: z
+    .number()
+    .positive()
+    .optional()
+    .describe("Maximum number of content matches to return."),
+});
+
+export const grepTool: Tool<typeof grepParameters, {matches: GrepMatch[]}> = {
   definition: {
     name: "grep",
-    description: "Search text files inside the workspace for a literal pattern.",
-    parameters: {
-      type: "object",
-      properties: {
-        pattern: {
-          type: "string",
-          description: "Literal text pattern to search for.",
-        },
-        maxResults: {
-          type: "number",
-          description: "Maximum number of matches to return.",
-        },
-      },
-      required: ["pattern"],
-      additionalProperties: false,
-    },
+    description:
+      "Search file contents inside workspaceRoot for literal text. Use this when you need to find where code, config, or prose appears in files. Do not use this to find files by filename or path; use glob for that. Returns matching workspace-relative file paths, line numbers, and matching line text, with results capped to avoid large context.",
+    parameters: grepParameters,
   },
   async execute(input, context) {
     requireReadPermission(context, "grep");
-
-    if (typeof input?.pattern !== "string" || input.pattern.length === 0) {
-      throw new ToolError({
-        code: "TOOL_INVALID_INPUT",
-        message: "grep requires a non-empty string pattern.",
-        toolName: "grep",
-      });
-    }
 
     const maxResults =
       typeof input.maxResults === "number" && input.maxResults > 0
@@ -83,7 +78,7 @@ export const grepTool: Tool<GrepInput, {matches: GrepMatch[]}> = {
       }
     }
 
-    return {matches};
+    return okToolResult("Searched workspace file contents.", {matches});
   },
 };
 

@@ -1,57 +1,52 @@
 import {mkdir, writeFile} from "node:fs/promises";
 import path from "node:path";
+import {z} from "zod";
 
 import {ToolError} from "../tool-error.js";
+import {okToolResult} from "../tool-result.js";
 import type {Tool, ToolContext} from "../types.js";
 import {resolveWorkspacePath} from "../../utils/path-safety.js";
 
-type WriteFileInput = {
-  path?: unknown;
-  content?: unknown;
-};
+const writeFileParameters = z.object({
+  reason: z
+    .string()
+    .describe(
+      "Explain why you are calling this tool and what you expect to learn or change.",
+    ),
+  path: z
+    .string()
+    .min(1)
+    .describe(
+      "Workspace-relative path to write. The path must stay inside workspaceRoot.",
+    ),
+  content: z
+    .string()
+    .describe(
+      "Complete UTF-8 file content to write. This replaces the whole file, so read the current file first when preserving existing content matters.",
+    ),
+});
 
 export const writeFileTool: Tool<
-  WriteFileInput,
+  typeof writeFileParameters,
   {path: string; bytesWritten: number}
 > = {
   definition: {
     name: "write_file",
-    description: "Write a complete UTF-8 text file inside the workspace.",
-    parameters: {
-      type: "object",
-      properties: {
-        path: {
-          type: "string",
-          description: "Relative path inside the workspace.",
-        },
-        content: {
-          type: "string",
-          description: "Complete file content to write.",
-        },
-      },
-      required: ["path", "content"],
-      additionalProperties: false,
-    },
+    description:
+      "Write complete UTF-8 content to a file inside workspaceRoot, creating parent directories when needed. Use this only when you intend to create or replace a whole file. Before changing an existing file, read_file should usually be called first to understand the current content. This tool cannot write outside workspaceRoot. Returns the normalized path and byte count written.",
+    parameters: writeFileParameters,
   },
   async execute(input, context) {
     requireWritePermission(context, "write_file");
-
-    if (typeof input?.path !== "string" || typeof input.content !== "string") {
-      throw new ToolError({
-        code: "TOOL_INVALID_INPUT",
-        message: "write_file requires string path and content.",
-        toolName: "write_file",
-      });
-    }
 
     const safePath = resolveWorkspacePath(context.workspaceRoot, input.path);
     await mkdir(path.dirname(safePath.absolutePath), {recursive: true});
     await writeFile(safePath.absolutePath, input.content, "utf8");
 
-    return {
+    return okToolResult("Wrote file content.", {
       path: safePath.relativePath,
       bytesWritten: Buffer.byteLength(input.content, "utf8"),
-    };
+    });
   },
 };
 

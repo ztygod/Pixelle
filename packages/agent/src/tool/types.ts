@@ -1,7 +1,28 @@
+import type {z} from "zod";
+
+export type ToolSuccessResult<TData = unknown> = {
+  ok: true;
+  message: string;
+  data: TData;
+};
+
+export type ToolErrorResult<TData = unknown> = {
+  ok: false;
+  message: string;
+  code: string;
+  data?: TData;
+};
+
+export type ToolResult<TData = unknown> =
+  | ToolSuccessResult<TData>
+  | ToolErrorResult;
+
+export type ToolParameterSchema = z.ZodTypeAny;
+
 export type ToolDefinition = {
   name: string;
   description: string;
-  parameters: Record<string, unknown>;
+  parameters: ToolParameterSchema;
 };
 
 export type ToolPermissions = {
@@ -16,12 +37,18 @@ export type ToolContext = {
   permissions?: ToolPermissions;
 };
 
-export type ToolExecute<TInput = unknown, TResult = unknown> = (
-  input: TInput,
+export type ToolExecute<
+  TParameters extends ToolParameterSchema = ToolParameterSchema,
+  TResult = unknown,
+> = (
+  input: z.infer<TParameters>,
   context: ToolContext,
-) => Promise<TResult> | TResult;
+) => Promise<ToolResult<TResult>> | ToolResult<TResult>;
 
-export type Tool<TInput = unknown, TResult = unknown> = {
-  definition: ToolDefinition;
-  execute: ToolExecute<TInput, TResult>;
+export type Tool<
+  TParameters extends ToolParameterSchema = ToolParameterSchema,
+  TResult = unknown,
+> = {
+  definition: ToolDefinition & {parameters: TParameters};
+  execute: ToolExecute<TParameters, TResult>;
 };

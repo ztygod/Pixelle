@@ -1,41 +1,40 @@
+import {z} from "zod";
+
 import {ToolError} from "../tool-error.js";
+import {okToolResult} from "../tool-result.js";
 import type {Tool, ToolContext} from "../types.js";
 
-type WebFetchInput = {
-  url?: unknown;
-  maxLength?: unknown;
-};
+const webFetchParameters = z.object({
+  reason: z
+    .string()
+    .describe(
+      "Explain why you are calling this tool and what you expect to learn or change.",
+    ),
+  url: z
+    .string()
+    .url()
+    .describe(
+      "Specific HTTP or HTTPS URL to fetch. Use web_search first when you do not know the URL.",
+    ),
+  maxLength: z
+    .number()
+    .positive()
+    .optional()
+    .describe("Maximum number of characters of response text to return."),
+});
 
-export const webFetchTool: Tool<WebFetchInput, {url: string; text: string}> = {
+export const webFetchTool: Tool<
+  typeof webFetchParameters,
+  {url: string; text: string}
+> = {
   definition: {
     name: "web_fetch",
-    description: "Fetch a URL and return response text with a maximum length.",
-    parameters: {
-      type: "object",
-      properties: {
-        url: {
-          type: "string",
-          description: "HTTP or HTTPS URL to fetch.",
-        },
-        maxLength: {
-          type: "number",
-          description: "Maximum number of characters to return.",
-        },
-      },
-      required: ["url"],
-      additionalProperties: false,
-    },
+    description:
+      "Fetch text from a specific known URL. Use this when you already have the exact webpage URL and need its page text. Do not use this to search for unknown pages or discover sources; use web_search first for external information discovery. Returns the final URL string and capped response text. This is a network tool and does not access workspace files.",
+    parameters: webFetchParameters,
   },
   async execute(input, context) {
     requireNetworkPermission(context, "web_fetch");
-
-    if (typeof input?.url !== "string") {
-      throw new ToolError({
-        code: "TOOL_INVALID_INPUT",
-        message: "web_fetch requires a string url.",
-        toolName: "web_fetch",
-      });
-    }
 
     const url = parseHttpUrl(input.url, "web_fetch");
     const maxLength =
@@ -55,10 +54,10 @@ export const webFetchTool: Tool<WebFetchInput, {url: string; text: string}> = {
 
     const text = await response.text();
 
-    return {
+    return okToolResult("Fetched webpage text.", {
       url,
       text: text.slice(0, maxLength),
-    };
+    });
   },
 };
 
