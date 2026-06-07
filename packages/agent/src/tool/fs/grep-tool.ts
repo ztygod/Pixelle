@@ -6,6 +6,7 @@ import {okToolResult} from "../tool-result.js";
 import type {Tool, ToolContext} from "../types.js";
 import {resolveWorkspacePath} from "../../utils/path-safety.js";
 import {listWorkspaceFiles} from "./glob-tool.js";
+import {createIgnoredDirectoryArgs, isRgAvailable, runRg} from "../../utils/rg.js";
 
 type GrepMatch = {
   path: string;
@@ -46,41 +47,133 @@ export const grepTool: Tool<typeof grepParameters, {matches: GrepMatch[]}> = {
       typeof input.maxResults === "number" && input.maxResults > 0
         ? Math.floor(input.maxResults)
         : 100;
-    const files = await listWorkspaceFiles(context.workspaceRoot, 5000);
-    const matches: GrepMatch[] = [];
-
-    for (const file of files) {
-      if (matches.length >= maxResults) {
-        break;
-      }
-
-      const safePath = resolveWorkspacePath(context.workspaceRoot, file);
-      const content = await readTextFileIfSearchable(safePath.absolutePath);
-
-      if (content === undefined) {
-        continue;
-      }
-
-      const lines = content.split(/\r?\n/);
-
-      for (const [index, text] of lines.entries()) {
-        if (text.includes(input.pattern)) {
-          matches.push({
-            path: safePath.relativePath,
-            line: index + 1,
-            text,
-          });
-        }
-
-        if (matches.length >= maxResults) {
-          break;
-        }
-      }
-    }
+    // rg handles the common case; the Node scanner preserves behavior when rg is absent.
+    const matches =
+      (await searchWorkspaceWithRg(
+        context.workspaceRoot,
+        input.pattern,
+        maxResults,
+        context.signal,
+      )) ??
+      (await searchWorkspaceWithNode(
+        context.workspaceRoot,
+        input.pattern,
+        maxResults,
+      ));
 
     return okToolResult("Searched workspace file contents.", {matches});
   },
 };
+
+async function searchWorkspaceWithRg(
+  workspaceRoot: string,
+  pattern: string,
+  maxResults: number,
+  signal: AbortSignal | undefined,
+): Promise<GrepMatch[] | undefined> {
+  if (!(await isRgAvailable(workspaceRoot))) {
+    return undefined;
+  }
+
+  try {
+    const result = await runRg(
+      [
+        "--fixed-strings",
+        "--line-number",
+        "--no-heading",
+        "--color",
+        "never",
+        "--hidden",
+        "--no-ignore",
+        ...createIgnoredDirectoryArgs(),
+        "--",
+        pattern,
+      ],
+      {
+        cwd: workspaceRoot,
+        signal,
+      },
+    );
+
+    // rg exits with 1 for "no matches", which is a successful empty result.
+    if (result.timedOut || (result.exitCode !== 0 && result.exitCode !== 1)) {
+      return undefined;
+    }
+
+    return parseRgMatches(result.stdout, maxResults);
+  } catch {
+    return undefined;
+  }
+}
+
+async function searchWorkspaceWithNode(
+  workspaceRoot: string,
+  pattern: string,
+  maxResults: number,
+): Promise<GrepMatch[]> {
+  const files = await listWorkspaceFiles(workspaceRoot, 5000);
+  const matches: GrepMatch[] = [];
+
+  for (const file of files) {
+    if (matches.length >= maxResults) {
+      break;
+    }
+
+    const safePath = resolveWorkspacePath(workspaceRoot, file);
+    const content = await readTextFileIfSearchable(safePath.absolutePath);
+
+    if (content === undefined) {
+      continue;
+    }
+
+    const lines = content.split(/\r?\n/);
+
+    for (const [index, text] of lines.entries()) {
+      if (text.includes(pattern)) {
+        matches.push({
+          path: safePath.relativePath,
+          line: index + 1,
+          text,
+        });
+      }
+
+      if (matches.length >= maxResults) {
+        break;
+      }
+    }
+  }
+
+  return matches;
+}
+
+function parseRgMatches(stdout: string, maxResults: number): GrepMatch[] {
+  const matches: GrepMatch[] = [];
+
+  for (const line of stdout.split(/\r?\n/)) {
+    if (!line) {
+      continue;
+    }
+
+    // Parse `path:line:text`; the final capture keeps additional colons in the text.
+    const match = /^(.*?):(\d+):(.*)$/.exec(line);
+
+    if (!match) {
+      continue;
+    }
+
+    matches.push({
+      path: match[1].replaceAll("\\", "/"),
+      line: Number(match[2]),
+      text: match[3],
+    });
+
+    if (matches.length >= maxResults) {
+      break;
+    }
+  }
+
+  return matches;
+}
 
 function requireReadPermission(context: ToolContext, toolName: string): void {
   if (!context.permissions?.readFile) {

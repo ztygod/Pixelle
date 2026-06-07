@@ -4,7 +4,7 @@ import {ToolRegistry} from "./tool-registry.js";
 import {webFetchTool, webSearchTool} from "./web/index.js";
 
 export {bashTool} from "./bash/index.js";
-export {globTool, grepTool, listWorkspaceFiles, readFileTool, writeFileTool} from "./fs/index.js";
+export {globTool, grepTool, readFileTool, writeFileTool} from "./fs/index.js";
 export {toLLMToolParametersSchema} from "./tool-parameters.js";
 export {ToolError, toToolError} from "./tool-error.js";
 export {ToolRegistry} from "./tool-registry.js";

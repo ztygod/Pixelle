@@ -5,6 +5,12 @@ import {z} from "zod";
 import {okToolResult} from "../tool-result.js";
 import type {Tool} from "../types.js";
 import {resolveWorkspacePath, toPosixPath} from "../../utils/path-safety.js";
+import {
+  createIgnoredDirectoryArgs,
+  isRgAvailable,
+  parseRgFileLines,
+  runRg,
+} from "../../utils/rg.js";
 
 const DEFAULT_IGNORED_DIRECTORIES = new Set([
   "node_modules",
@@ -45,7 +51,12 @@ export const globTool: Tool<typeof globParameters, {paths: string[]}> = {
       typeof input?.maxResults === "number" && input.maxResults > 0
         ? Math.floor(input.maxResults)
         : 1000;
-    const paths = await listWorkspaceFiles(context.workspaceRoot, maxResults);
+    const paths = await listWorkspaceFiles(
+      context.workspaceRoot,
+      maxResults,
+      input.pattern,
+      context.signal,
+    );
 
     return okToolResult("Listed workspace files.", {paths});
   },
@@ -54,11 +65,73 @@ export const globTool: Tool<typeof globParameters, {paths: string[]}> = {
 export async function listWorkspaceFiles(
   workspaceRoot: string,
   maxResults = 1000,
+  pattern?: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  // Prefer rg for fast path listing, but keep the Node walker as a portability fallback.
+  const rgPaths = await listWorkspaceFilesWithRg(
+    workspaceRoot,
+    maxResults,
+    pattern,
+    signal,
+  );
+
+  if (rgPaths) {
+    return rgPaths;
+  }
+
+  return listWorkspaceFilesWithNode(workspaceRoot, maxResults, pattern);
+}
+
+async function listWorkspaceFilesWithRg(
+  workspaceRoot: string,
+  maxResults: number,
+  pattern: string | undefined,
+  signal: AbortSignal | undefined,
+): Promise<string[] | undefined> {
+  if (!(await isRgAvailable(workspaceRoot))) {
+    return undefined;
+  }
+
+  try {
+    const result = await runRg(
+      ["--files", "--hidden", "--no-ignore", ...createIgnoredDirectoryArgs()],
+      {
+        cwd: workspaceRoot,
+        signal,
+      },
+    );
+
+    // Any rg failure falls back to the Node implementation instead of failing the tool.
+    if (result.exitCode !== 0 || result.timedOut) {
+      return undefined;
+    }
+
+    return filterPathResults(
+      parseRgFileLines(result.stdout),
+      maxResults,
+      pattern,
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+async function listWorkspaceFilesWithNode(
+  workspaceRoot: string,
+  maxResults: number,
+  pattern: string | undefined,
 ): Promise<string[]> {
   const root = resolveWorkspacePath(workspaceRoot, ".");
   const paths: string[] = [];
 
-  await walkDirectory(root.absolutePath, root.absolutePath, paths, maxResults);
+  await walkDirectory(
+    root.absolutePath,
+    root.absolutePath,
+    paths,
+    maxResults,
+    pattern,
+  );
 
   return paths;
 }
@@ -68,6 +141,7 @@ async function walkDirectory(
   currentDirectory: string,
   paths: string[],
   maxResults: number,
+  pattern: string | undefined,
 ): Promise<void> {
   if (paths.length >= maxResults) {
     return;
@@ -87,12 +161,37 @@ async function walkDirectory(
     const absolutePath = path.join(currentDirectory, entry.name);
 
     if (entry.isDirectory()) {
-      await walkDirectory(workspaceRoot, absolutePath, paths, maxResults);
+      await walkDirectory(
+        workspaceRoot,
+        absolutePath,
+        paths,
+        maxResults,
+        pattern,
+      );
       continue;
     }
 
     if (entry.isFile()) {
-      paths.push(toPosixPath(path.relative(workspaceRoot, absolutePath)));
+      const relativePath = toPosixPath(
+        path.relative(workspaceRoot, absolutePath),
+      );
+
+      if (!pattern || relativePath.includes(pattern)) {
+        paths.push(relativePath);
+      }
     }
   }
+}
+
+function filterPathResults(
+  paths: readonly string[],
+  maxResults: number,
+  pattern: string | undefined,
+): string[] {
+  // The first version treats pattern as a simple path substring, not full glob syntax.
+  const filteredPaths = pattern
+    ? paths.filter((filePath) => filePath.includes(pattern))
+    : paths;
+
+  return filteredPaths.slice(0, maxResults);
 }

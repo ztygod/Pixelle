@@ -37,6 +37,7 @@ export async function requestWithRetry<T>(
         throw llmError;
       }
 
+      // Exponential backoff with jitter avoids retrying every provider failure at once.
       await delay(backoffMs(attempt));
       attempt += 1;
     }
@@ -100,6 +101,7 @@ async function requestWithTimeout<T>(
   let timeout: ReturnType<typeof setTimeout> | undefined;
 
   const timeoutPromise = new Promise<never>((_, reject) => {
+    // Abort the provider request and surface a normalized Pixelle timeout error.
     timeout = setTimeout(() => {
       controller.abort();
       reject(new LLMTimeoutError(timeoutMs, config));
@@ -155,4 +157,3 @@ function delay(ms: number): Promise<void> {
     setTimeout(resolveDelay, ms);
   });
 }
-

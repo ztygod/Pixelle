@@ -23,6 +23,7 @@ export class ToolRunner {
     const parsedInput = tool.definition.parameters.safeParse(input);
 
     if (!parsedInput.success) {
+      // Validation errors are returned to the agent loop as structured tool results.
       return errorToolResult(
         `Invalid input for tool "${name}".`,
         "TOOL_INVALID_INPUT",

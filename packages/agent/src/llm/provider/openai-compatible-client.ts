@@ -110,6 +110,7 @@ export class OpenAICompatibleLLMClient extends BaseLLMClient {
         }
 
         for (const toolCallDelta of delta?.tool_calls ?? []) {
+          // Tool call arguments stream as JSON fragments keyed by tool-call index.
           const index = toolCallDelta.index;
           const current = toolCalls.get(index) ?? {arguments: ""};
           current.id = toolCallDelta.id ?? current.id;

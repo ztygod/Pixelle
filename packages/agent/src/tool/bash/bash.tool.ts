@@ -96,6 +96,7 @@ async function runShellCommand(
     let timedOut = false;
     let settled = false;
 
+    // Run through the platform shell so users can execute normal project commands.
     const child = spawn(input.command, {
       cwd: input.cwd,
       shell: true,
@@ -118,6 +119,7 @@ async function runShellCommand(
     child.stderr?.setEncoding("utf8");
 
     child.stdout?.on("data", (chunk: string) => {
+      // Bound output so a noisy command cannot flood the model context.
       stdout = appendLimited(stdout, chunk, input.maxOutputLength);
     });
 
