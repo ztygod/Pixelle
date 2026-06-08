@@ -3,10 +3,6 @@ import type {ToolParameterSchema} from "./types.js";
 
 export type LLMToolParametersSchema = Record<string, unknown>;
 
-export type ToolParametersSchemaConverter = (
-  parameters: ToolParameterSchema,
-) => LLMToolParametersSchema;
-
 export function toLLMToolParametersSchema(
   parameters: ToolParameterSchema,
 ): LLMToolParametersSchema {

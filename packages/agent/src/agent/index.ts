@@ -1,5 +1,4 @@
-export {Agent} from "./agent.js";
-export {createAgentRuntime} from "./factory.js";
+export {Agent, createAgentRuntime} from "./agent.js";
 export type {
   AgentContextProvider,
   AgentContextValue,

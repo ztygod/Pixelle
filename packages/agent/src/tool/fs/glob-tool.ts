@@ -4,13 +4,13 @@ import {z} from "zod";
 
 import {okToolResult} from "../tool-result.js";
 import type {Tool} from "../types.js";
-import {resolveWorkspacePath, toPosixPath} from "../../utils/path-safety.js";
+import {resolveWorkspacePath, toPosixPath} from "../../workspace/path-safety.js";
 import {
   createIgnoredDirectoryArgs,
   isRgAvailable,
   parseRgFileLines,
   runRg,
-} from "../../utils/rg.js";
+} from "./rg.js";
 
 const DEFAULT_IGNORED_DIRECTORIES = new Set([
   "node_modules",

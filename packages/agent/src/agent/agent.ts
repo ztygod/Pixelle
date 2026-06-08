@@ -1,6 +1,7 @@
 import {randomUUID} from "node:crypto";
 
-import {EventBus, type PixelleEvent} from "../eventsbus/index.js";
+import type {AgentConfig} from "../config/index.js";
+import {EventBus, type PixelleEvent} from "../events/index.js";
 import {LLMClient, type BaseLLMClient} from "../llm/index.js";
 import type {LLMMessage, LLMUsage} from "../llm/types.js";
 import {
@@ -10,11 +11,19 @@ import {
   type ToolPermissions,
 } from "../tool/index.js";
 import {buildRuntimeContext, buildSystemPrompt} from "./context.js";
-import {DEFAULT_MAX_ITERATIONS, missingLLMClient, normalizeConfig} from "./defaults.js";
-import {createEventMetadata, emitAgentEvent} from "./events.js";
 import {AgentMiddlewarePipeline} from "./middleware.js";
-import {buildLLMTools, createToolContext, mergePermissions, stringifyToolResult} from "./tools.js";
-import {mergeUsage} from "./usage.js";
+import {
+  buildLLMTools,
+  createEventMetadata,
+  createToolContext,
+  DEFAULT_MAX_ITERATIONS,
+  emitAgentEvent,
+  mergePermissions,
+  mergeUsage,
+  missingLLMClient,
+  normalizeConfig,
+  stringifyToolResult,
+} from "./runtime-utils.js";
 import type {
   AgentContextProvider,
   AgentMiddleware,
@@ -159,7 +168,6 @@ export class Agent {
         }
 
         context.iteration = iteration;
-        await this.middlewarePipeline.beforeIteration(context);
         this.emitAssistantStage(context, iteration, options);
 
         const response = await this.generateModelResponse({
@@ -177,7 +185,6 @@ export class Agent {
           content: response.content,
           toolCalls: response.toolCalls,
         });
-        await this.middlewarePipeline.afterIteration(context, response);
 
         if (!response.toolCalls.length) {
           stopReason = "completed";
@@ -223,7 +230,6 @@ export class Agent {
       return result;
     } catch (error) {
       stopReason = input.signal?.aborted ? "aborted" : "error";
-      await this.middlewarePipeline.onAgentError(error, context);
       this.emitRunFailed(input, sessionId, traceId, stopReason, error, options);
 
       return {
@@ -266,7 +272,6 @@ export class Agent {
   ): Promise<void> {
     const contextText = await buildRuntimeContext({
       context,
-      middleware: this.middlewarePipeline,
       contextProviders: this.contextProviders,
       eventBus: this.eventBus,
       options,
@@ -362,7 +367,6 @@ export class Agent {
         options,
       );
     } else {
-      await this.middlewarePipeline.onToolError(toolResult, context);
       emitAgentEvent(
         this.eventBus,
         {
@@ -519,4 +523,15 @@ export class Agent {
       options,
     );
   }
+}
+
+/** Creates a default agent runtime from either full options or loaded config. */
+export function createAgentRuntime(options: AgentOptions): Agent;
+export function createAgentRuntime(config: AgentConfig): Agent;
+export function createAgentRuntime(input: AgentOptions | AgentConfig): Agent {
+  if ("runtime" in input && "llm" in input) {
+    return new Agent({config: input});
+  }
+
+  return new Agent(input as AgentOptions);
 }

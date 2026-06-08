@@ -1,4 +1,4 @@
-import type {PixelleEvent} from "@pixelle/agent";
+import type {PixelleEvent} from "@pixelle/agent/events";
 import type {CliEvent} from "./types.js";
 
 export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined {
@@ -56,14 +56,6 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         id: String(event.id),
         name: event.name,
         error: event.error,
-        createdAt: event.createdAt,
-      };
-    case "artifact.image_added":
-      return {
-        type: "image_preview",
-        id: event.id ? String(event.id) : undefined,
-        path: event.path,
-        alt: event.alt,
         createdAt: event.createdAt,
       };
     case "runtime.error":

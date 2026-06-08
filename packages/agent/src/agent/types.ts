@@ -1,5 +1,5 @@
 import type {AgentConfig, RuntimeConfig} from "../config/index.js";
-import type {PixelleEvent} from "../eventsbus/index.js";
+import type {PixelleEvent} from "../events/index.js";
 import type {BaseLLMClient} from "../llm/index.js";
 import type {
   LLMGenerateInput,
@@ -14,7 +14,7 @@ import type {
   ToolResult,
   ToolRunner,
 } from "../tool/index.js";
-import type {EventBus} from "../eventsbus/index.js";
+import type {EventBus} from "../events/index.js";
 import type {Agent} from "./agent.js";
 
 /** Reason why an agent run stopped. */
@@ -109,17 +109,6 @@ export type AgentMiddleware = {
     result: AgentRunResult,
     context: AgentRunContext,
   ): AgentRunResult | void | Promise<AgentRunResult | void>;
-  onAgentError?(error: unknown, context: AgentRunContext): void | Promise<void>;
-  beforeContextBuild?(context: AgentRunContext): void | Promise<void>;
-  afterContextBuild?(
-    contextText: string,
-    context: AgentRunContext,
-  ): string | void | Promise<string | void>;
-  beforeIteration?(context: AgentRunContext): void | Promise<void>;
-  afterIteration?(
-    context: AgentRunContext,
-    response: AgentModelResponse,
-  ): void | Promise<void>;
   beforeModel?(
     request: AgentModelRequest,
     context: AgentRunContext,
@@ -136,10 +125,6 @@ export type AgentMiddleware = {
     toolResult: AgentToolResult,
     context: AgentRunContext,
   ): AgentToolResult | void | Promise<AgentToolResult | void>;
-  onToolError?(
-    toolResult: AgentToolResult,
-    context: AgentRunContext,
-  ): void | Promise<void>;
 };
 
 /** Runtime config accepted by the agent after config loading. */

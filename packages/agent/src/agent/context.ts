@@ -4,21 +4,21 @@ import type {
   AgentRunContext,
   RunInternalOptions,
 } from "./types.js";
-import type {EventBus, PixelleEvent} from "../eventsbus/index.js";
-import {createEventMetadata, emitAgentEvent} from "./events.js";
-import {DEFAULT_SYSTEM_PROMPT} from "./defaults.js";
-import {AgentMiddlewarePipeline} from "./middleware.js";
+import type {EventBus, PixelleEvent} from "../events/index.js";
+import {
+  createEventMetadata,
+  DEFAULT_SYSTEM_PROMPT,
+  emitAgentEvent,
+} from "./runtime-utils.js";
 
 /** Builds the reserved runtime context section injected into the system prompt. */
 export async function buildRuntimeContext(input: {
   context: AgentRunContext;
-  middleware: AgentMiddlewarePipeline;
   contextProviders: readonly AgentContextProvider[];
   eventBus: EventBus<PixelleEvent>;
   options: RunInternalOptions;
 }): Promise<string> {
-  const {context, middleware} = input;
-  await middleware.beforeContextBuild(context);
+  const {context} = input;
 
   const providers = [
     ...input.contextProviders,
@@ -39,16 +39,11 @@ export async function buildRuntimeContext(input: {
     values.sort(compareContextValue).map(formatContextValue).filter(Boolean),
     context.config.runtime.tokensLimit,
   );
-  const nextContextText = await middleware.afterContextBuild(
-    contextText,
-    context,
-  );
-
   emitAgentEvent(
     input.eventBus,
     {
       type: "runtime.context_built",
-      tokenEstimate: estimateTokens(nextContextText),
+      tokenEstimate: estimateTokens(contextText),
       metadata: createEventMetadata(
         context.input,
         context.sessionId,
@@ -58,7 +53,7 @@ export async function buildRuntimeContext(input: {
     input.options,
   );
 
-  return nextContextText;
+  return contextText;
 }
 
 /** Combines the configured system prompt with the reserved runtime context. */

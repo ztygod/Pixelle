@@ -14,8 +14,3 @@ export type {
   AgentToolCall,
   AgentToolResult,
 } from "./agent/index.js";
-export {EventBus} from "./eventsbus/index.js";
-export type {
-  BaseEvent,
-  PixelleEvent,
-} from "./eventsbus/index.js";

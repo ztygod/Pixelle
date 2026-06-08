@@ -30,49 +30,6 @@ export class AgentMiddlewarePipeline {
     return nextResult;
   }
 
-  async onAgentError(
-    error: unknown,
-    context: AgentRunContext,
-  ): Promise<void> {
-    for (const middleware of this.middleware) {
-      await middleware.onAgentError?.(error, context);
-    }
-  }
-
-  async beforeContextBuild(context: AgentRunContext): Promise<void> {
-    for (const middleware of this.middleware) {
-      await middleware.beforeContextBuild?.(context);
-    }
-  }
-
-  async afterContextBuild(
-    contextText: string,
-    context: AgentRunContext,
-  ): Promise<string> {
-    let nextContextText = contextText;
-    for (const middleware of this.middleware) {
-      nextContextText =
-        (await middleware.afterContextBuild?.(nextContextText, context)) ??
-        nextContextText;
-    }
-    return nextContextText;
-  }
-
-  async beforeIteration(context: AgentRunContext): Promise<void> {
-    for (const middleware of this.middleware) {
-      await middleware.beforeIteration?.(context);
-    }
-  }
-
-  async afterIteration(
-    context: AgentRunContext,
-    response: AgentModelResponse,
-  ): Promise<void> {
-    for (const middleware of this.middleware) {
-      await middleware.afterIteration?.(context, response);
-    }
-  }
-
   async beforeModel(
     request: AgentModelRequest,
     context: AgentRunContext,
@@ -119,14 +76,5 @@ export class AgentMiddlewarePipeline {
         nextToolResult;
     }
     return nextToolResult;
-  }
-
-  async onToolError(
-    toolResult: AgentToolResult,
-    context: AgentRunContext,
-  ): Promise<void> {
-    for (const middleware of this.middleware) {
-      await middleware.onToolError?.(toolResult, context);
-    }
   }
 }

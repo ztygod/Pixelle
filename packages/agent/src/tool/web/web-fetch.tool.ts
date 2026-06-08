@@ -14,7 +14,7 @@ const webFetchParameters = z.object({
     .string()
     .url()
     .describe(
-      "Specific HTTP or HTTPS URL to fetch. Use web_search first when you do not know the URL.",
+      "Specific HTTP or HTTPS URL to fetch. The caller must already know the URL.",
     ),
   maxLength: z
     .number()
@@ -30,7 +30,7 @@ export const webFetchTool: Tool<
   definition: {
     name: "web_fetch",
     description:
-      "Fetch text from a specific known URL. Use this when you already have the exact webpage URL and need its page text. Do not use this to search for unknown pages or discover sources; use web_search first for external information discovery. Returns the final URL string and capped response text. This is a network tool and does not access workspace files.",
+      "Fetch text from a specific known URL. Use this when you already have the exact webpage URL and need its page text. This tool does not discover unknown pages. Returns the final URL string and capped response text. This is a network tool and does not access workspace files.",
     parameters: webFetchParameters,
   },
   async execute(input, context) {
