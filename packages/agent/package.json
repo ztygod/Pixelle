@@ -25,6 +25,10 @@
       "types": "./dist/tool/index.d.ts",
       "import": "./dist/tool/index.js"
     },
+    "./agent": {
+      "types": "./dist/agent/index.d.ts",
+      "import": "./dist/agent/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
