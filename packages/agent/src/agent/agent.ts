@@ -5,6 +5,17 @@ import {EventBus, type PixelleEvent} from "../events/index.js";
 import {LLMClient, type BaseLLMClient} from "../llm/index.js";
 import type {LLMMessage, LLMUsage} from "../llm/types.js";
 import {
+  ChangeTracker,
+  JsonCheckpointStore,
+  JsonTraceStore,
+  Verifier,
+  WorkspaceScanner,
+  type ChangeSet,
+  type TaskRun,
+  type VerificationResult,
+  type WorkspaceProfile,
+} from "../runtime/index.js";
+import {
   createDefaultToolRegistry,
   ToolRegistry,
   ToolRunner,
@@ -52,6 +63,10 @@ export class Agent {
   private readonly middlewarePipeline: AgentMiddlewarePipeline;
   private readonly contextProviders: AgentContextProvider[];
   private readonly permissions: ToolPermissions;
+  private readonly traceStore?: AgentOptions["traceStore"];
+  private readonly checkpointStore?: AgentOptions["checkpointStore"];
+  private readonly workspaceScanner: WorkspaceScanner;
+  private readonly verifier: Verifier;
 
   constructor(options: AgentOptions) {
     this.config = normalizeConfig(options.config);
@@ -67,6 +82,10 @@ export class Agent {
     this.middlewarePipeline = new AgentMiddlewarePipeline(this.middleware);
     this.contextProviders = [...(options.contextProviders ?? [])];
     this.permissions = mergePermissions(options.permissions);
+    this.traceStore = options.traceStore;
+    this.checkpointStore = options.checkpointStore;
+    this.workspaceScanner = options.workspaceScanner ?? new WorkspaceScanner();
+    this.verifier = options.verifier ?? new Verifier();
   }
 
   /** Registers middleware and returns a disposer for removing it. */
@@ -148,13 +167,61 @@ export class Agent {
     });
     const messages: LLMMessage[] = [];
     const toolResults: AgentToolResult[] = [];
+    const changes: ChangeSet[] = [];
+    const verification: VerificationResult[] = [];
+    const task = createTaskRun(runId);
+    const traceStore =
+      this.traceStore ?? new JsonTraceStore(this.config.runtime.workspaceDir, runId);
+    const checkpointStore =
+      this.checkpointStore ??
+      new JsonCheckpointStore(this.config.runtime.workspaceDir, runId);
+    const changeTracker = new ChangeTracker({
+      runId,
+      workspaceRoot: this.config.runtime.workspaceDir,
+      checkpointStore,
+    });
+    let checkpointPath: string | undefined;
+    let workspaceProfile: WorkspaceProfile | undefined;
     let content = "";
     let stopReason: AgentStopReason = "completed";
     let usage: LLMUsage | undefined;
 
     try {
+      context.traceStore = traceStore;
+      context.fileWriter = changeTracker;
+      await traceStore.start({
+        runId,
+        sessionId,
+        traceId,
+        prompt: input.prompt,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        events: [],
+        modelCalls: [],
+        toolCalls: [],
+        changeSets: changes,
+        verificationResults: verification,
+      });
       this.emitRunStarted(input, sessionId, traceId, options);
+      this.emitTaskStarted(task, input, sessionId, traceId, options);
       await this.middlewarePipeline.beforeAgentRun(context);
+
+      workspaceProfile = await this.workspaceScanner.scan(
+        this.config.runtime.workspaceDir,
+        input.signal,
+      );
+      context.workspaceProfile = workspaceProfile;
+      context.input.context = [
+        ...(context.input.context ?? []),
+        {
+          title: "Workspace Profile",
+          priority: 100,
+          content: JSON.stringify(workspaceProfile, null, 2),
+        },
+      ];
+      await traceStore.update((trace) => {
+        trace.workspaceProfile = workspaceProfile;
+      });
 
       await this.addInitialMessages(messages, context, options);
       const tools = buildLLMTools(this.toolRegistry);
@@ -206,10 +273,152 @@ export class Agent {
           });
         }
 
+        const checkpoint = await changeTracker.checkpoint();
+        if (checkpoint.changeSet) {
+          changes.push(checkpoint.changeSet);
+          checkpointPath = checkpoint.path ?? checkpointPath;
+          this.emitChangeSetApplied(
+            checkpoint.changeSet,
+            checkpoint.path,
+            context,
+            options,
+          );
+          await traceStore.update((trace) => {
+            trace.changeSets = changes;
+          });
+        }
+
         if (iteration === maxIterations) {
           stopReason = "max_iterations";
         }
       }
+
+      const verificationEnabled = input.verification?.enabled ?? input.mode !== "ask";
+      if (verificationEnabled && workspaceProfile) {
+        task.status = "verifying";
+        const selectedCommands = this.verifier.selectCommands(
+          workspaceProfile,
+          input.verification?.commands,
+        );
+        this.emitVerificationStarted(selectedCommands, input, sessionId, traceId, options);
+        verification.push(
+          ...(await this.verifier.verify(this.config.runtime.workspaceDir, workspaceProfile, {
+            commands: input.verification?.commands,
+            signal: input.signal,
+          })),
+        );
+        this.emitVerificationCompleted(verification, input, sessionId, traceId, options);
+        await traceStore.update((trace) => {
+          trace.verificationResults = verification;
+        });
+
+        let failedVerification = verification.find((result) => !result.passed);
+        const maxRepairAttempts = input.maxRepairAttempts ?? 2;
+        for (
+          let repairAttempt = 1;
+          failedVerification && repairAttempt <= maxRepairAttempts;
+          repairAttempt += 1
+        ) {
+          if (context.iteration >= maxIterations || input.signal?.aborted) {
+            break;
+          }
+
+          task.status = "repairing";
+          messages.push({
+            role: "user",
+            content: buildRepairPrompt(failedVerification, repairAttempt),
+          });
+
+          context.iteration += 1;
+          this.emitAssistantStage(context, context.iteration, options);
+          const repairResponse = await this.generateModelResponse({
+            context,
+            iteration: context.iteration,
+            messages,
+            tools,
+          });
+          usage = mergeUsage(usage, repairResponse.usage);
+          content = repairResponse.content || content;
+          this.emitAssistantContent(repairResponse, context, options);
+          messages.push({
+            role: "assistant",
+            content: repairResponse.content,
+            toolCalls: repairResponse.toolCalls,
+          });
+
+          for (const toolCall of repairResponse.toolCalls) {
+            const toolResult = await this.runTool(
+              {...toolCall, iteration: context.iteration},
+              context,
+              options,
+            );
+            toolResults.push(toolResult);
+            messages.push({
+              role: "tool",
+              toolCallId: toolResult.call.id,
+              name: toolResult.call.name,
+              content: stringifyToolResult(toolResult.result),
+            });
+          }
+
+          const checkpoint = await changeTracker.checkpoint();
+          if (checkpoint.changeSet) {
+            changes.push(checkpoint.changeSet);
+            checkpointPath = checkpoint.path ?? checkpointPath;
+            this.emitChangeSetApplied(
+              checkpoint.changeSet,
+              checkpoint.path,
+              context,
+              options,
+            );
+          }
+
+          const repairVerification = await this.verifier.verify(
+            this.config.runtime.workspaceDir,
+            workspaceProfile,
+            {
+              commands: input.verification?.commands,
+              signal: input.signal,
+            },
+          );
+          verification.push(...repairVerification);
+          this.emitVerificationCompleted(
+            repairVerification,
+            input,
+            sessionId,
+            traceId,
+            options,
+          );
+          await traceStore.update((trace) => {
+            trace.changeSets = changes;
+            trace.verificationResults = verification;
+          });
+          failedVerification = repairVerification.find((result) => !result.passed);
+        }
+
+        if (failedVerification) {
+          stopReason = "error";
+          content = `${content}\n\nVerification failed: ${failedVerification.command}`.trim();
+        } else {
+          stopReason = "completed";
+        }
+      }
+
+      if (
+        stopReason !== "completed" &&
+        input.rollbackOnFailure &&
+        changes.length > 0
+      ) {
+        task.status = "rolled_back";
+        for (const changeSet of [...changes].reverse()) {
+          this.emitChangeSetRollbackStarted(changeSet, context, options);
+          await changeTracker.rollback(changeSet);
+          this.emitChangeSetRollbackCompleted(changeSet, context, options);
+        }
+      } else {
+        task.status = stopReason === "completed" ? "completed" : "failed";
+      }
+      task.updatedAt = Date.now();
 
       const result = await this.middlewarePipeline.afterAgentRun(
         {
@@ -222,15 +431,36 @@ export class Agent {
           usage,
           iterations: context.iteration,
           stopReason,
+          task,
+          changes,
+          verification,
+          workspaceProfile,
+          tracePath: traceStore.tracePath,
+          checkpointPath,
         },
         context,
       );
 
       this.emitRunStopped(input, runId, sessionId, traceId, stopReason, options);
+      await traceStore.update((trace) => {
+        const {messages: resultMessages, ...serializableResult} = result;
+        trace.events = this.eventsForTrace(traceId);
+        trace.finalResult = {
+          ...serializableResult,
+          messageCount: resultMessages.length,
+        };
+      });
+      this.emitTracePersisted(traceStore.tracePath, input, sessionId, traceId, options);
       return result;
     } catch (error) {
       stopReason = input.signal?.aborted ? "aborted" : "error";
+      task.status = "failed";
+      task.updatedAt = Date.now();
       this.emitRunFailed(input, sessionId, traceId, stopReason, error, options);
+      await traceStore.update((trace) => {
+        trace.events = this.eventsForTrace(traceId);
+        trace.error = error instanceof Error ? error.message : "Agent run failed.";
+      });
 
       return {
         runId,
@@ -242,6 +472,12 @@ export class Agent {
         usage,
         iterations: context.iteration,
         stopReason,
+        task,
+        changes,
+        verification,
+        workspaceProfile,
+        tracePath: traceStore.tracePath,
+        checkpointPath,
         error,
       };
     }
@@ -301,6 +537,17 @@ export class Agent {
       input.context,
     );
     const rawResponse = await this.llm.generate(request);
+    await input.context.traceStore?.update((trace) => {
+      trace.modelCalls.push({
+        request,
+        response: {
+          ...rawResponse,
+          iteration: input.iteration,
+          runId: input.context.runId,
+        },
+        createdAt: Date.now(),
+      });
+    });
 
     return this.middlewarePipeline.afterModel(
       {
@@ -346,12 +593,16 @@ export class Agent {
         signal: context.input.signal,
         basePermissions: this.permissions,
         runPermissions: context.input.permissions,
+        fileWriter: context.fileWriter,
       }),
     );
     const toolResult = await this.middlewarePipeline.afterTool(
       {call: toolCall, result},
       context,
     );
+    await context.traceStore?.update((trace) => {
+      trace.toolCalls.push(toolResult);
+    });
 
     if (toolResult.result.ok) {
       emitAgentEvent(
@@ -523,6 +774,161 @@ export class Agent {
       options,
     );
   }
+
+  private emitTaskStarted(
+    task: TaskRun,
+    input: AgentRunInput,
+    sessionId: string,
+    traceId: string,
+    options: RunInternalOptions,
+  ): void {
+    emitAgentEvent(
+      this.eventBus,
+      {
+        type: "task.started",
+        taskId: task.id,
+        prompt: input.prompt,
+        metadata: createEventMetadata(input, sessionId, traceId),
+      },
+      options,
+    );
+  }
+
+  private emitChangeSetApplied(
+    changeSet: ChangeSet,
+    checkpointPath: string | undefined,
+    context: AgentRunContext,
+    options: RunInternalOptions,
+  ): void {
+    const files = changeSet.files.map((file) => file.path);
+    const metadata = createEventMetadata(
+      context.input,
+      context.sessionId,
+      context.traceId,
+    );
+
+    emitAgentEvent(
+      this.eventBus,
+      {type: "change_set.created", id: changeSet.id, files, metadata},
+      options,
+    );
+    emitAgentEvent(
+      this.eventBus,
+      {
+        type: "change_set.applied",
+        id: changeSet.id,
+        files,
+        checkpointPath,
+        metadata,
+      },
+      options,
+    );
+  }
+
+  private emitChangeSetRollbackStarted(
+    changeSet: ChangeSet,
+    context: AgentRunContext,
+    options: RunInternalOptions,
+  ): void {
+    emitAgentEvent(
+      this.eventBus,
+      {
+        type: "change_set.rollback_started",
+        id: changeSet.id,
+        metadata: createEventMetadata(
+          context.input,
+          context.sessionId,
+          context.traceId,
+        ),
+      },
+      options,
+    );
+  }
+
+  private emitChangeSetRollbackCompleted(
+    changeSet: ChangeSet,
+    context: AgentRunContext,
+    options: RunInternalOptions,
+  ): void {
+    emitAgentEvent(
+      this.eventBus,
+      {
+        type: "change_set.rollback_completed",
+        id: changeSet.id,
+        metadata: createEventMetadata(
+          context.input,
+          context.sessionId,
+          context.traceId,
+        ),
+      },
+      options,
+    );
+  }
+
+  private emitVerificationStarted(
+    commands: readonly string[],
+    input: AgentRunInput,
+    sessionId: string,
+    traceId: string,
+    options: RunInternalOptions,
+  ): void {
+    emitAgentEvent(
+      this.eventBus,
+      {
+        type: "verification.started",
+        commands,
+        metadata: createEventMetadata(input, sessionId, traceId),
+      },
+      options,
+    );
+  }
+
+  private emitVerificationCompleted(
+    results: readonly VerificationResult[],
+    input: AgentRunInput,
+    sessionId: string,
+    traceId: string,
+    options: RunInternalOptions,
+  ): void {
+    emitAgentEvent(
+      this.eventBus,
+      {
+        type: "verification.completed",
+        passed: results.every((result) => result.passed),
+        commands: results.map((result) => result.command),
+        metadata: createEventMetadata(input, sessionId, traceId),
+      },
+      options,
+    );
+  }
+
+  private emitTracePersisted(
+    tracePath: string | undefined,
+    input: AgentRunInput,
+    sessionId: string,
+    traceId: string,
+    options: RunInternalOptions,
+  ): void {
+    if (!tracePath) {
+      return;
+    }
+
+    emitAgentEvent(
+      this.eventBus,
+      {
+        type: "trace.persisted",
+        path: tracePath,
+        metadata: createEventMetadata(input, sessionId, traceId),
+      },
+      options,
+    );
+  }
+
+  private eventsForTrace(traceId: string): PixelleEvent[] {
+    return this.eventBus
+      .history()
+      .filter((event) => event.metadata?.traceId === traceId);
+  }
 }
 
 /** Creates a default agent runtime from either full options or loaded config. */
@@ -534,4 +940,37 @@ export function createAgentRuntime(input: AgentOptions | AgentConfig): Agent {
   }
 
   return new Agent(input as AgentOptions);
+}
+
+function createTaskRun(runId: string): TaskRun {
+  const now = Date.now();
+
+  return {
+    id: runId,
+    runId,
+    status: "created",
+    createdAt: now,
+    updatedAt: now,
+    steps: [
+      {id: "scan", title: "Scan workspace", status: "pending"},
+      {id: "execute", title: "Execute agent loop", status: "pending"},
+      {id: "verify", title: "Verify result", status: "pending"},
+    ],
+  };
+}
+
+function buildRepairPrompt(
+  failure: VerificationResult,
+  repairAttempt: number,
+): string {
+  const output = [failure.stderr, failure.stdout].filter(Boolean).join("\n\n");
+
+  return [
+    `Verification failed on repair attempt ${repairAttempt}.`,
+    `Command: ${failure.command}`,
+    `Exit code: ${failure.exitCode ?? "none"}`,
+    "Fix the issue using the available tools, then stop when the change is ready for verification.",
+    "Verification output:",
+    output.slice(0, 12_000),
+  ].join("\n\n");
 }

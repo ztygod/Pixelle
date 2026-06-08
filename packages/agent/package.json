@@ -33,6 +33,10 @@
       "types": "./dist/events/index.d.ts",
       "import": "./dist/events/index.js"
     },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

@@ -1,10 +1,10 @@
 import {bashTool} from "./bash/index.js";
-import {globTool, grepTool, readFileTool, writeFileTool} from "./fs/index.js";
+import {editFileTool, globTool, grepTool, readFileTool, writeFileTool} from "./fs/index.js";
 import {ToolRegistry} from "./tool-registry.js";
 import {webFetchTool} from "./web/index.js";
 
 export {bashTool} from "./bash/index.js";
-export {globTool, grepTool, readFileTool, writeFileTool} from "./fs/index.js";
+export {editFileTool, globTool, grepTool, readFileTool, writeFileTool} from "./fs/index.js";
 export {toLLMToolParametersSchema} from "./tool-parameters.js";
 export {ToolError, toToolError} from "./tool-error.js";
 export {ToolRegistry} from "./tool-registry.js";
@@ -19,6 +19,7 @@ export type {
   ToolContext,
   ToolDefinition,
   ToolExecute,
+  ToolFileWriter,
   ToolParameterSchema,
   ToolPermissions,
 } from "./types.js";
@@ -28,6 +29,7 @@ export function createDefaultToolRegistry(): ToolRegistry {
 
   registry.register(bashTool);
   registry.register(readFileTool);
+  registry.register(editFileTool);
   registry.register(writeFileTool);
   registry.register(globTool);
   registry.register(grepTool);

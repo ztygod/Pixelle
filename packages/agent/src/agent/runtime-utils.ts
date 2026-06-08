@@ -5,6 +5,7 @@ import type {LLMTool, LLMUsage} from "../llm/types.js";
 import {
   toLLMToolParametersSchema,
   type ToolContext,
+  type ToolFileWriter,
   type ToolPermissions,
   type ToolRegistry,
   type ToolResult,
@@ -97,11 +98,13 @@ export function createToolContext(input: {
   signal?: AbortSignal;
   basePermissions?: ToolPermissions;
   runPermissions?: ToolPermissions;
+  fileWriter?: ToolFileWriter;
 }): ToolContext {
   return {
     workspaceRoot: input.workspaceRoot,
     signal: input.signal,
     permissions: mergePermissions(input.basePermissions, input.runPermissions),
+    fileWriter: input.fileWriter,
   };
 }
 

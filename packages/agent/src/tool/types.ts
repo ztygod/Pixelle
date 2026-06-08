@@ -32,10 +32,18 @@ export type ToolPermissions = {
   shell?: boolean;
 };
 
+export type ToolFileWriter = {
+  writeFile(
+    relativePath: string,
+    content: string,
+  ): Promise<{path: string; bytesWritten: number}>;
+};
+
 export type ToolContext = {
   workspaceRoot: string;
   signal?: AbortSignal;
   permissions?: ToolPermissions;
+  fileWriter?: ToolFileWriter;
 };
 
 export type ToolExecute<

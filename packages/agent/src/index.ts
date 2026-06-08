@@ -1,4 +1,12 @@
 export {Agent, createAgentRuntime} from "./agent/index.js";
+export {
+  ChangeTracker,
+  CommandPolicy,
+  JsonCheckpointStore,
+  JsonTraceStore,
+  Verifier,
+  WorkspaceScanner,
+} from "./runtime/index.js";
 export type {
   AgentContextProvider,
   AgentContextValue,
@@ -14,3 +22,20 @@ export type {
   AgentToolCall,
   AgentToolResult,
 } from "./agent/index.js";
+export type {
+  AgentModelTrace,
+  ChangedFile,
+  ChangedFileStatus,
+  ChangeSet,
+  CheckpointStore,
+  CommandPolicyDecision,
+  ExecutionTrace,
+  TaskRun,
+  TaskRunStatus,
+  TaskStep,
+  TaskStepStatus,
+  TraceStore,
+  VerificationOptions,
+  VerificationResult,
+  WorkspaceProfile,
+} from "./runtime/index.js";

@@ -9,11 +9,22 @@ import type {
   LLMUsage,
 } from "../llm/types.js";
 import type {
+  ToolFileWriter,
   ToolPermissions,
   ToolRegistry,
   ToolResult,
   ToolRunner,
 } from "../tool/index.js";
+import type {
+  ChangeSet,
+  CheckpointStore,
+  TaskRun,
+  TraceStore,
+  VerificationResult,
+  Verifier,
+  WorkspaceProfile,
+  WorkspaceScanner,
+} from "../runtime/index.js";
 import type {EventBus} from "../events/index.js";
 import type {Agent} from "./agent.js";
 
@@ -43,11 +54,18 @@ export type AgentContextProvider = {
 /** User-facing input for one agent run. */
 export type AgentRunInput = {
   prompt: string;
+  mode?: "ask" | "edit";
   messages?: readonly LLMMessage[];
   systemPrompt?: string;
   context?: readonly AgentContextValue[];
   contextProviders?: readonly AgentContextProvider[];
   maxIterations?: number;
+  maxRepairAttempts?: number;
+  verification?: {
+    enabled?: boolean;
+    commands?: readonly string[];
+  };
+  rollbackOnFailure?: boolean;
   permissions?: ToolPermissions;
   metadata?: Record<string, unknown>;
   signal?: AbortSignal;
@@ -63,6 +81,9 @@ export type AgentRunContext = {
   traceId: string;
   iteration: number;
   signal?: AbortSignal;
+  fileWriter?: ToolFileWriter;
+  traceStore?: TraceStore;
+  workspaceProfile?: WorkspaceProfile;
 };
 
 /** Model request enriched with agent trace data. */
@@ -99,6 +120,12 @@ export type AgentRunResult = {
   usage?: LLMUsage;
   iterations: number;
   stopReason: AgentStopReason;
+  task?: TaskRun;
+  changes?: ChangeSet[];
+  verification?: VerificationResult[];
+  workspaceProfile?: WorkspaceProfile;
+  tracePath?: string;
+  checkpointPath?: string;
   error?: unknown;
 };
 
@@ -143,6 +170,10 @@ export type AgentOptions = {
   middleware?: readonly AgentMiddleware[];
   contextProviders?: readonly AgentContextProvider[];
   permissions?: ToolPermissions;
+  traceStore?: TraceStore;
+  checkpointStore?: CheckpointStore;
+  workspaceScanner?: WorkspaceScanner;
+  verifier?: Verifier;
 };
 
 export type RunInternalOptions = {

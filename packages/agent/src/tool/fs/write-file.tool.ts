@@ -39,6 +39,12 @@ export const writeFileTool: Tool<
   async execute(input, context) {
     requireWritePermission(context, "write_file");
 
+    if (context.fileWriter) {
+      const result = await context.fileWriter.writeFile(input.path, input.content);
+
+      return okToolResult("Wrote file content.", result);
+    }
+
     const safePath = resolveWorkspacePath(context.workspaceRoot, input.path);
     await mkdir(path.dirname(safePath.absolutePath), {recursive: true});
     await writeFile(safePath.absolutePath, input.content, "utf8");

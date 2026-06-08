@@ -119,6 +119,33 @@ type RuntimeEvent =
   | (BaseEvent<"runtime.context_built"> & {
       tokenEstimate?: number;
       files?: readonly string[];
+    })
+  | (BaseEvent<"task.started"> & {taskId: string; prompt: string})
+  | (BaseEvent<"task.plan_created"> & {taskId: string; steps: readonly string[]})
+  | (BaseEvent<"change_set.created"> & {
+      id: string;
+      files: readonly string[];
+    })
+  | (BaseEvent<"change_set.applied"> & {
+      id: string;
+      files: readonly string[];
+      checkpointPath?: string;
+    })
+  | (BaseEvent<"change_set.rollback_started"> & {
+      id: string;
+    })
+  | (BaseEvent<"change_set.rollback_completed"> & {
+      id: string;
+    })
+  | (BaseEvent<"verification.started"> & {
+      commands: readonly string[];
+    })
+  | (BaseEvent<"verification.completed"> & {
+      passed: boolean;
+      commands: readonly string[];
+    })
+  | (BaseEvent<"trace.persisted"> & {
+      path: string;
     });
 
 /** Event union produced by the agent runtime. */

@@ -1,3 +1,4 @@
+export {editFileTool} from "./edit-file.tool.js";
 export {globTool} from "./glob-tool.js";
 export {grepTool} from "./grep-tool.js";
 export {readFileTool} from "./read-file.tool.js";
