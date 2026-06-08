@@ -76,12 +76,3 @@ export type LLMUsage = {
   outputTokens?: number;
   totalTokens?: number;
 };
-
-export type GenerateInput = LLMGenerateInput;
-export type GenerateResult = LLMResponse;
-export type LLMGenerateOptions = LLMGenerateInput;
-export type LLMGenerateResult = LLMResponse;
-export type PixelleMessage = LLMMessage;
-export type PixelleTool = LLMTool;
-export type ToolCall = LLMToolCall;
-export type LLMMessageRole = LLMMessage["role"];

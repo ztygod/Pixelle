@@ -4,9 +4,9 @@ import {z} from "zod";
 import {ToolError} from "../tool-error.js";
 import {okToolResult} from "../tool-result.js";
 import type {Tool, ToolContext} from "../types.js";
-import {resolveWorkspacePath} from "../../utils/path-safety.js";
+import {resolveWorkspacePath} from "../../workspace/path-safety.js";
 import {listWorkspaceFiles} from "./glob-tool.js";
-import {createIgnoredDirectoryArgs, isRgAvailable, runRg} from "../../utils/rg.js";
+import {createIgnoredDirectoryArgs, isRgAvailable, runRg} from "./rg.js";
 
 type GrepMatch = {
   path: string;

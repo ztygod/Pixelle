@@ -97,11 +97,6 @@ type AgentEvent =
       name: string;
       error: string;
     })
-  | (BaseEvent<"runtime.command_received"> & {
-      command: string;
-      args: readonly string[];
-      raw: string;
-    })
   | (BaseEvent<"runtime.status_changed"> & {
       status: "idle" | "running" | "waiting" | "complete" | "error";
       detail?: string;
@@ -109,19 +104,6 @@ type AgentEvent =
   | (BaseEvent<"runtime.error"> & {
       message: string;
       detail?: unknown;
-    })
-  | (BaseEvent<"artifact.image_added"> & {
-      id?: string;
-      path: string;
-      alt?: string;
-    })
-  | (BaseEvent<"artifact.patch_created"> & {
-      patch: PatchSummary;
-    })
-  | (BaseEvent<"artifact.diff_created"> & {
-      id: string;
-      title: string;
-      diff: string;
     });
 
 type RuntimeEvent =
@@ -139,13 +121,8 @@ type RuntimeEvent =
       files?: readonly string[];
     });
 
-type UiEvent =
-  | BaseEvent<"ui.clear">
-  | BaseEvent<"ui.debug_toggled">
-  | BaseEvent<"ui.help_toggled">;
-
-/** Event union shared by Pixelle runtime producers and UI adapters. */
-export type PixelleEvent = AgentEvent | RuntimeEvent | UiEvent;
+/** Event union produced by the agent runtime. */
+export type PixelleEvent = AgentEvent | RuntimeEvent;
 
 type EventBusOptions<TEvent extends BaseEvent> = {
   maxHistorySize?: number;

@@ -1,14 +1,17 @@
+import {z} from "zod";
 import type {ToolParameterSchema} from "./types.js";
 
 export type LLMToolParametersSchema = Record<string, unknown>;
 
-export type ToolParametersSchemaConverter = (
-  parameters: ToolParameterSchema,
-) => LLMToolParametersSchema;
-
 export function toLLMToolParametersSchema(
-  _parameters: ToolParameterSchema,
+  parameters: ToolParameterSchema,
 ): LLMToolParametersSchema {
-  // Placeholder for a future zod-to-JSON-schema adapter used by LLM providers.
-  return {};
+  const schema = z.toJSONSchema(parameters, {
+    target: "draft-7",
+  }) as Record<string, unknown>;
+
+  delete schema.$schema;
+  delete schema.id;
+
+  return schema;
 }

@@ -6,7 +6,7 @@ import type { AgentConfig, AgentConfigInput, LoadAgentConfigOptions } from "./ty
 
 const DEFAULT_CONFIG_FILE = "pixelle.toml";
 
-/** Loads pixelle.toml, applies environment overrides, and returns AgentConfig. */
+/** Loads pixelle.toml and validates it as a complete AgentConfig. */
 export async function loadAgentConfig(
   options: LoadAgentConfigOptions = {},
 ): Promise<AgentConfig> {
@@ -16,9 +16,5 @@ export async function loadAgentConfig(
   const toml = await readFile(configPath, "utf8");
   const fileConfig = parseToml(toml) as AgentConfigInput;
 
-  const mergedConfig = {
-    ...fileConfig,
-  };
-
-  return AgentConfigSchema.parse(mergedConfig);
+  return AgentConfigSchema.parse(fileConfig);
 }

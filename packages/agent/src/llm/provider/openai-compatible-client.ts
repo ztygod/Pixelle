@@ -5,7 +5,7 @@ import type {
 } from "openai/resources/chat/completions";
 import {BaseLLMClient} from "../llm-base.js";
 import {LLMResponseFormatError} from "../errors.js";
-import {classifyLLMError, requestWithRetry} from "../../utils/llm-utils.js";
+import {classifyLLMError, requestWithRetry} from "../request.js";
 import type {
   LLMGenerateInput,
   LLMMessage,

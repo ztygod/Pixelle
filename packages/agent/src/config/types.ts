@@ -4,7 +4,7 @@ export type AgentConfig = {
   runtime: RuntimeConfig;
 };
 
-/** Runtime-ready LLM configuration after TOML and env overrides are merged. */
+/** Runtime-ready LLM configuration loaded from pixelle.toml. */
 export type LLMClientConfig = {
   provider: LLMProvider;
   model: string;
@@ -35,7 +35,7 @@ export type LoadAgentConfigOptions = {
   configFile?: string;
 };
 
-/** LLM provier */
+/** LLM provider. */
 export type LLMProvider = "openai-compatible" | "anthropic";
 
 export type LoadPixelleConfigOptions = LoadAgentConfigOptions;

@@ -6,7 +6,7 @@ import type {
   ToolResultBlockParam,
 } from "@anthropic-ai/sdk/resources/messages/messages";
 import {BaseLLMClient} from "../llm-base.js";
-import {classifyLLMError, requestWithRetry} from "../../utils/llm-utils.js";
+import {classifyLLMError, requestWithRetry} from "../request.js";
 import type {
   LLMGenerateInput,
   LLMMessage,

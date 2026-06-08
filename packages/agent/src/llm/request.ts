@@ -1,4 +1,4 @@
-import { LLMClientConfig } from "../config/index.js";
+import type {LLMClientConfig} from "../config/index.js";
 import {
   LLMAuthError,
   LLMError,
@@ -6,7 +6,7 @@ import {
   LLMNetworkError,
   LLMRateLimitError,
   LLMTimeoutError,
-} from "../llm/errors.js";
+} from "./errors.js";
 
 type RequestOptions = {
   config: LLMClientConfig;

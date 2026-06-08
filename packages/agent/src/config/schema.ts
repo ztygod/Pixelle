@@ -1,6 +1,6 @@
 import {z} from "zod";
 
-/** Validates the LLM section of pixelle.toml after env overrides. */
+/** Validates the LLM section of pixelle.toml. */
 export const LLMConfigSchema = z.object({
   provider: z.enum(["openai-compatible", "anthropic"]),
   model: z.string().min(1),

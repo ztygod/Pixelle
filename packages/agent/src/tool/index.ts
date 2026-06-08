@@ -1,7 +1,7 @@
 import {bashTool} from "./bash/index.js";
 import {globTool, grepTool, readFileTool, writeFileTool} from "./fs/index.js";
 import {ToolRegistry} from "./tool-registry.js";
-import {webFetchTool, webSearchTool} from "./web/index.js";
+import {webFetchTool} from "./web/index.js";
 
 export {bashTool} from "./bash/index.js";
 export {globTool, grepTool, readFileTool, writeFileTool} from "./fs/index.js";
@@ -10,14 +10,9 @@ export {ToolError, toToolError} from "./tool-error.js";
 export {ToolRegistry} from "./tool-registry.js";
 export {errorToolResult, okToolResult} from "./tool-result.js";
 export {ToolRunner} from "./tool-runner.js";
-export {resolveWorkspacePath, toPosixPath} from "../utils/path-safety.js";
-export {webFetchTool, webSearchTool} from "./web/index.js";
-export type {SafeWorkspacePath} from "../utils/path-safety.js";
+export {webFetchTool} from "./web/index.js";
 export type {ToolErrorCode, ToolErrorOptions} from "./tool-error.js";
-export type {
-  LLMToolParametersSchema,
-  ToolParametersSchemaConverter,
-} from "./tool-parameters.js";
+export type {LLMToolParametersSchema} from "./tool-parameters.js";
 export type {ToolErrorResult, ToolResult, ToolSuccessResult} from "./tool-result.js";
 export type {
   Tool,
@@ -37,7 +32,6 @@ export function createDefaultToolRegistry(): ToolRegistry {
   registry.register(globTool);
   registry.register(grepTool);
   registry.register(webFetchTool);
-  registry.register(webSearchTool);
 
   return registry;
 }
