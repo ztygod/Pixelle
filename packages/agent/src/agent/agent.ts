@@ -1,6 +1,6 @@
 import {randomUUID} from "node:crypto";
 
-import type {AgentConfig} from "../config/index.js";
+import {loadAgentConfig, type AgentConfig} from "../config/index.js";
 import {EventBus, type PixelleEvent} from "../events/index.js";
 import {LLMClient, type BaseLLMClient} from "../llm/index.js";
 import type {LLMMessage, LLMUsage} from "../llm/types.js";
@@ -47,6 +47,7 @@ import type {
   AgentStopReason,
   AgentToolCall,
   AgentToolResult,
+  CreateAgentRuntimeFromConfigOptions,
   RunInternalOptions,
   StreamQueueItem,
 } from "./types.js";
@@ -81,7 +82,7 @@ export class Agent {
     this.middleware = [...(options.middleware ?? [])];
     this.middlewarePipeline = new AgentMiddlewarePipeline(this.middleware);
     this.contextProviders = [...(options.contextProviders ?? [])];
-    this.permissions = mergePermissions(options.permissions);
+    this.permissions = mergePermissions(this.config.permissions, options.permissions);
     this.traceStore = options.traceStore;
     this.checkpointStore = options.checkpointStore;
     this.workspaceScanner = options.workspaceScanner ?? new WorkspaceScanner();
@@ -171,10 +172,19 @@ export class Agent {
     const verification: VerificationResult[] = [];
     const task = createTaskRun(runId);
     const traceStore =
-      this.traceStore ?? new JsonTraceStore(this.config.runtime.workspaceDir, runId);
+      this.config.trace?.enabled === false
+        ? this.traceStore
+        : (this.traceStore ??
+          new JsonTraceStore(
+            this.config.trace?.directory ?? this.config.runtime.workspaceDir,
+            runId,
+          ));
     const checkpointStore =
       this.checkpointStore ??
-      new JsonCheckpointStore(this.config.runtime.workspaceDir, runId);
+      new JsonCheckpointStore(
+        this.config.trace?.directory ?? this.config.runtime.workspaceDir,
+        runId,
+      );
     const changeTracker = new ChangeTracker({
       runId,
       workspaceRoot: this.config.runtime.workspaceDir,
@@ -189,7 +199,7 @@ export class Agent {
     try {
       context.traceStore = traceStore;
       context.fileWriter = changeTracker;
-      await traceStore.start({
+      await traceStore?.start({
         runId,
         sessionId,
         traceId,
@@ -219,7 +229,7 @@ export class Agent {
           content: JSON.stringify(workspaceProfile, null, 2),
         },
       ];
-      await traceStore.update((trace) => {
+      await traceStore?.update((trace) => {
         trace.workspaceProfile = workspaceProfile;
       });
 
@@ -283,7 +293,7 @@ export class Agent {
             context,
             options,
           );
-          await traceStore.update((trace) => {
+          await traceStore?.update((trace) => {
             trace.changeSets = changes;
           });
         }
@@ -293,27 +303,35 @@ export class Agent {
         }
       }
 
-      const verificationEnabled = input.verification?.enabled ?? input.mode !== "ask";
+      const verificationEnabled =
+        input.verification?.enabled ??
+        this.config.verification?.enabled ??
+        input.mode !== "ask";
       if (verificationEnabled && workspaceProfile) {
         task.status = "verifying";
         const selectedCommands = this.verifier.selectCommands(
           workspaceProfile,
-          input.verification?.commands,
+          input.verification?.commands?.length
+            ? input.verification.commands
+            : this.config.verification?.commands,
         );
         this.emitVerificationStarted(selectedCommands, input, sessionId, traceId, options);
         verification.push(
           ...(await this.verifier.verify(this.config.runtime.workspaceDir, workspaceProfile, {
-            commands: input.verification?.commands,
+            commands: input.verification?.commands?.length
+              ? input.verification.commands
+              : this.config.verification?.commands,
             signal: input.signal,
           })),
         );
         this.emitVerificationCompleted(verification, input, sessionId, traceId, options);
-        await traceStore.update((trace) => {
+        await traceStore?.update((trace) => {
           trace.verificationResults = verification;
         });
 
         let failedVerification = verification.find((result) => !result.passed);
-        const maxRepairAttempts = input.maxRepairAttempts ?? 2;
+        const maxRepairAttempts =
+          input.maxRepairAttempts ?? this.config.runtime.maxRepairAttempts;
         for (
           let repairAttempt = 1;
           failedVerification && repairAttempt <= maxRepairAttempts;
@@ -377,7 +395,9 @@ export class Agent {
             this.config.runtime.workspaceDir,
             workspaceProfile,
             {
-              commands: input.verification?.commands,
+              commands: input.verification?.commands?.length
+                ? input.verification.commands
+                : this.config.verification?.commands,
               signal: input.signal,
             },
           );
@@ -389,7 +409,7 @@ export class Agent {
             traceId,
             options,
           );
-          await traceStore.update((trace) => {
+          await traceStore?.update((trace) => {
             trace.changeSets = changes;
             trace.verificationResults = verification;
           });
@@ -406,7 +426,7 @@ export class Agent {
 
       if (
         stopReason !== "completed" &&
-        input.rollbackOnFailure &&
+        (input.rollbackOnFailure ?? this.config.runtime.rollbackOnFailure) &&
         changes.length > 0
       ) {
         task.status = "rolled_back";
@@ -435,14 +455,14 @@ export class Agent {
           changes,
           verification,
           workspaceProfile,
-          tracePath: traceStore.tracePath,
+          tracePath: traceStore?.tracePath,
           checkpointPath,
         },
         context,
       );
 
       this.emitRunStopped(input, runId, sessionId, traceId, stopReason, options);
-      await traceStore.update((trace) => {
+      await traceStore?.update((trace) => {
         const {messages: resultMessages, ...serializableResult} = result;
         trace.events = this.eventsForTrace(traceId);
         trace.finalResult = {
@@ -450,14 +470,14 @@ export class Agent {
           messageCount: resultMessages.length,
         };
       });
-      this.emitTracePersisted(traceStore.tracePath, input, sessionId, traceId, options);
+      this.emitTracePersisted(traceStore?.tracePath, input, sessionId, traceId, options);
       return result;
     } catch (error) {
       stopReason = input.signal?.aborted ? "aborted" : "error";
       task.status = "failed";
       task.updatedAt = Date.now();
       this.emitRunFailed(input, sessionId, traceId, stopReason, error, options);
-      await traceStore.update((trace) => {
+      await traceStore?.update((trace) => {
         trace.events = this.eventsForTrace(traceId);
         trace.error = error instanceof Error ? error.message : "Agent run failed.";
       });
@@ -476,7 +496,7 @@ export class Agent {
         changes,
         verification,
         workspaceProfile,
-        tracePath: traceStore.tracePath,
+        tracePath: traceStore?.tracePath,
         checkpointPath,
         error,
       };
@@ -940,6 +960,19 @@ export function createAgentRuntime(input: AgentOptions | AgentConfig): Agent {
   }
 
   return new Agent(input as AgentOptions);
+}
+
+/** Creates the product runtime by loading Pixelle config from pixelle.toml. */
+export async function createAgentRuntimeFromConfig(
+  options: CreateAgentRuntimeFromConfigOptions = {},
+): Promise<Agent> {
+  const {cwd, configFile, ...injections} = options;
+  const config = await loadAgentConfig({cwd, configFile});
+
+  return new Agent({
+    ...injections,
+    config,
+  });
 }
 
 function createTaskRun(runId: string): TaskRun {

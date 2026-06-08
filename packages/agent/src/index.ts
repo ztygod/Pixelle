@@ -1,4 +1,8 @@
-export {Agent, createAgentRuntime} from "./agent/index.js";
+export {
+  Agent,
+  createAgentRuntime,
+  createAgentRuntimeFromConfig,
+} from "./agent/index.js";
 export {
   ChangeTracker,
   CommandPolicy,
@@ -18,9 +22,11 @@ export type {
   AgentRunInput,
   AgentRunResult,
   AgentRuntimeConfig,
+  AgentRuntimeInjectionOptions,
   AgentStopReason,
   AgentToolCall,
   AgentToolResult,
+  CreateAgentRuntimeFromConfigOptions,
 } from "./agent/index.js";
 export type {
   AgentModelTrace,

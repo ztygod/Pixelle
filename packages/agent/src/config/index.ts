@@ -3,7 +3,10 @@ export {
   AgentConfigInputSchema,
   AgentConfigSchema,
   LLMConfigSchema,
+  PermissionConfigSchema,
   RuntimeConfigSchema,
+  TraceConfigSchema,
+  VerificationConfigSchema,
 } from "./schema.js";
 export type {
   AgentConfig,
@@ -11,5 +14,8 @@ export type {
   LLMClientConfig,
   LoadAgentConfigOptions,
   LoadPixelleConfigOptions,
+  PermissionConfig,
   RuntimeConfig,
+  TraceConfig,
+  VerificationConfig,
 } from "./types.js";

@@ -1,4 +1,4 @@
-export {Agent, createAgentRuntime} from "./agent.js";
+export {Agent, createAgentRuntime, createAgentRuntimeFromConfig} from "./agent.js";
 export type {
   AgentContextProvider,
   AgentContextValue,
@@ -10,7 +10,9 @@ export type {
   AgentRunInput,
   AgentRunResult,
   AgentRuntimeConfig,
+  AgentRuntimeInjectionOptions,
   AgentStopReason,
   AgentToolCall,
   AgentToolResult,
+  CreateAgentRuntimeFromConfigOptions,
 } from "./types.js";

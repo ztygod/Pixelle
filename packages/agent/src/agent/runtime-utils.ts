@@ -24,6 +24,7 @@ export const DEFAULT_PERMISSIONS: Required<ToolPermissions> = {
 };
 
 export const DEFAULT_MAX_ITERATIONS = 12;
+export const DEFAULT_MAX_REPAIR_ATTEMPTS = 2;
 export const DEFAULT_TOKEN_LIMIT = 32_000;
 export const DEFAULT_SYSTEM_PROMPT =
   "You are Pixelle, an autonomous coding agent. Solve the user's request by reasoning carefully, using tools when needed, and explaining the final outcome clearly.";
@@ -36,9 +37,24 @@ export function normalizeConfig(
     ...config,
     runtime: {
       maxIterations: config.runtime.maxIterations ?? DEFAULT_MAX_ITERATIONS,
+      maxRepairAttempts:
+        config.runtime.maxRepairAttempts ?? DEFAULT_MAX_REPAIR_ATTEMPTS,
       tokensLimit: config.runtime.tokensLimit ?? DEFAULT_TOKEN_LIMIT,
       systemPrompt: config.runtime.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
       workspaceDir: config.runtime.workspaceDir,
+      rollbackOnFailure: config.runtime.rollbackOnFailure ?? true,
+    },
+    permissions: {
+      ...DEFAULT_PERMISSIONS,
+      ...config.permissions,
+    },
+    verification: {
+      enabled: config.verification?.enabled ?? true,
+      commands: [...(config.verification?.commands ?? [])],
+    },
+    trace: {
+      enabled: config.trace?.enabled ?? true,
+      directory: config.trace?.directory ?? config.runtime.workspaceDir,
     },
   };
 }

@@ -7,8 +7,8 @@ export class JsonTraceStore implements TraceStore {
   readonly tracePath: string;
   private trace: ExecutionTrace | undefined;
 
-  constructor(workspaceRoot: string, runId: string) {
-    this.tracePath = path.join(workspaceRoot, ".pixelle", "runs", `${runId}.json`);
+  constructor(storageRoot: string, runId: string) {
+    this.tracePath = path.join(storageRoot, "runs", `${runId}.json`);
   }
 
   async start(trace: ExecutionTrace): Promise<void> {
@@ -39,8 +39,8 @@ export class JsonTraceStore implements TraceStore {
 export class JsonCheckpointStore implements CheckpointStore {
   readonly checkpointRoot: string;
 
-  constructor(workspaceRoot: string, runId: string) {
-    this.checkpointRoot = path.join(workspaceRoot, ".pixelle", "checkpoints", runId);
+  constructor(storageRoot: string, runId: string) {
+    this.checkpointRoot = path.join(storageRoot, "checkpoints", runId);
   }
 
   async save(changeSet: ChangeSet): Promise<string> {
@@ -52,4 +52,3 @@ export class JsonCheckpointStore implements CheckpointStore {
     return checkpointPath;
   }
 }
-

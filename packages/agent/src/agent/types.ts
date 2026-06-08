@@ -1,4 +1,11 @@
-import type {AgentConfig, RuntimeConfig} from "../config/index.js";
+import type {
+  AgentConfig,
+  LoadAgentConfigOptions,
+  PermissionConfig,
+  RuntimeConfig,
+  TraceConfig,
+  VerificationConfig,
+} from "../config/index.js";
 import type {PixelleEvent} from "../events/index.js";
 import type {BaseLLMClient} from "../llm/index.js";
 import type {
@@ -158,6 +165,9 @@ export type AgentMiddleware = {
 export type AgentRuntimeConfig = {
   llm?: AgentConfig["llm"];
   runtime: RuntimeConfig;
+  permissions?: PermissionConfig;
+  verification?: VerificationConfig;
+  trace?: TraceConfig;
 };
 
 /** Constructor options for wiring the agent to LLM, tools, events, and hooks. */
@@ -175,6 +185,14 @@ export type AgentOptions = {
   workspaceScanner?: WorkspaceScanner;
   verifier?: Verifier;
 };
+
+export type AgentRuntimeInjectionOptions = Omit<
+  AgentOptions,
+  "config" | "permissions"
+>;
+
+export type CreateAgentRuntimeFromConfigOptions = LoadAgentConfigOptions &
+  AgentRuntimeInjectionOptions;
 
 export type RunInternalOptions = {
   eventSink?: (event: PixelleEvent) => void;
