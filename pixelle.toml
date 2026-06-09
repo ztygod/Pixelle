@@ -3,14 +3,27 @@ provider = "openai-compatible"
 model = "gpt-4.1"
 temperature = 0.2
 timeoutMs = 120000
-maxRetries = 2
+maxRetries = 50
+apiKeyEnv = "OPENAI_API_KEY"
 
 [runtime]
+workspaceDir = "."
 maxIterations = 10
-enablePlanning = true
-enableReflection = false
+maxRepairAttempts = 2
+tokensLimit = 32000
+systemPrompt = "You are Pixelle, an autonomous coding agent. Solve the user's request by reasoning carefully, using tools when needed, and explaining the final outcome clearly."
+rollbackOnFailure = true
 
-[server]
-port = 4317
-webOrigin = "http://localhost:5173"
+[permissions]
+readFile = true
+writeFile = false
+shell = false
+network = false
 
+[verification]
+enabled = true
+commands = ["pnpm typecheck"]
+
+[trace]
+enabled = true
+directory = ".pixelle"

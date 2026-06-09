@@ -1,33 +1,44 @@
 {
-  "name": "pixelle",
-  "version": "1.0.0",
+  "name": "@pixelle/agent",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "pixelle-agent": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
-    "dev:agent": "pnpm --filter @pixelle/agent dev",
-    "dev:cli": "pnpm --filter @pixelle/agent build && pnpm -r --parallel --filter @pixelle/agent --filter @pixelle/cli dev",
-    "build:cli": "pnpm --filter @pixelle/cli build",
-    "dev:web": "pnpm --filter @pixelle/agent build && pnpm -r --parallel --filter @pixelle/agent --filter @pixelle/web dev",
-    "build:web": "pnpm --filter @pixelle/web build",
-    "dev:server": "pnpm --filter @pixelle/agent build && pnpm -r --parallel --filter @pixelle/agent --filter @pixelle/server dev",
-    "build:server": "pnpm --filter @pixelle/server build",
-    "build:workspace": "tsc -b",
-    "typecheck": "tsc -b --pretty false"
+    "build": "tsc -b tsconfig.json",
+    "dev": "tsc -b tsconfig.json --watch --preserveWatchOutput",
+    "dev:cli": "tsx src/cli.ts",
+    "typecheck": "tsc -b tsconfig.json --pretty false"
   },
   "keywords": [],
   "author": "tianyi zhou",
   "license": "ISC",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "chalk": "^5.6.2",
-    "commander": "^14.0.3",
     "diff": "^9.0.0",
-    "execa": "^9.6.1",
-    "fast-glob": "^3.3.3",
     "ink": "^7.0.3",
     "openai": "^6.38.0",
-    "playwright": "^1.60.0",
-    "prompts": "^2.4.2",
     "react": "^19.2.6",
+    "smol-toml": "^1.6.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

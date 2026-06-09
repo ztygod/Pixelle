@@ -1,21 +1,20 @@
-# Pixelle
+# Pixelle Agent
 
 [中文](./README.zh-CN.md)
 
-Pixelle is evolving into a multi-entry AI Coding Workspace for frontend engineering. The current repository keeps the existing TypeScript and Ink CLI intact while adding the first monorepo skeleton for a Web workspace, a Server runtime backend, and shared packages.
+Pixelle Agent is the standalone Agent Runtime core for Pixelle. This repository now focuses on the runtime package only: LLM abstraction, tool registry, tool runner, runtime loop, event bus, config loading, workspace path safety, middleware, built-in tools, and a CLI debug entry.
 
-The existing CLI presentation layer still renders event streams, captures user input, and displays assistant messages, tool states, errors, Markdown, code blocks, diffs, and image preview fallbacks.
-
-The Pixelle CLI layer does not call models, execute tools, scan or edit files, or orchestrate agent decisions. A separate runtime can drive the UI by pushing events through the public API and subscribing to user input and runtime command intents.
+The Pixelle desktop product, Aegis, and the web site are maintained outside this repository.
 
 ## Features
 
-- Terminal UI rendering powered by Ink and React.
-- Streaming assistant message display.
-- Rendering for user messages, tool status, errors, image previews, and Markdown content.
-- Slash command support: `/help`, `/clear`, `/debug`, `/exit`, `/model`, `/mcp`, `/agent`, and `/tool`.
-- Shared event bus with typed listeners, wildcard listeners, once, replay, middleware, and bounded history.
-- Demo runtime for screenshots, visual checks, and local interaction testing.
+- Agent Runtime API for creating and running coding agents.
+- Provider-neutral LLM abstractions with OpenAI-compatible and Anthropic-compatible clients.
+- Tool registry and tool runner for built-in filesystem, shell, and web tools.
+- Runtime event bus with typed listeners, wildcard listeners, replay, middleware, and bounded history.
+- Config loading from `pixelle.toml`.
+- Workspace-safe path handling for file tools.
+- Ink-based CLI debug entry exposed as `pixelle-agent`.
 
 ## Requirements
 
@@ -32,59 +31,55 @@ pnpm install
 
 ```sh
 pnpm dev
-pnpm build
-pnpm start
-pnpm cli:demo
-pnpm dev:web
-pnpm dev:server
-pnpm build:workspace
+pnpm dev:cli
 pnpm typecheck
+pnpm build
 ```
 
-- `pnpm dev`: start the standalone Pixelle CLI from source.
+- `pnpm dev`: watch-build the Agent package.
+- `pnpm dev:cli`: run the CLI debug entry from source.
+- `pnpm typecheck`: typecheck the Agent package.
 - `pnpm build`: compile TypeScript into `dist/`.
-- `pnpm start`: run the compiled CLI entrypoint.
-- `pnpm cli:demo`: start the built-in demo runtime with simulated events.
-- `pnpm dev:web`: start the Vite Web workspace.
-- `pnpm dev:server`: start the Fastify runtime backend skeleton.
-- `pnpm build:workspace`: build the shared packages, Web app, and Server app.
-- `pnpm typecheck`: typecheck the workspace packages and apps.
+
+After building, the CLI bin is available at `dist/cli.js` and is published as `pixelle-agent`.
 
 ## API Usage
 
 ```ts
-import {renderCli} from "./apps/cli/src/cli/index.js";
+import {createAgentRuntimeFromConfig} from "@pixelle/agent";
 
-const cli = renderCli({title: "Pixelle"});
+const agent = await createAgentRuntimeFromConfig();
+
+const result = await agent.run({
+  input: "Inspect the current workspace and summarize the project.",
+});
+
+console.log(result);
+```
+
+CLI presentation APIs are available from the `./cli` export:
+
+```ts
+import {renderCli} from "@pixelle/agent/cli";
+
+const cli = renderCli({title: "Pixelle Agent"});
 
 cli.onUserInput((input) => {
   console.log(input.content);
-});
-
-cli.onRuntimeCommand((command) => {
-  console.log(command.raw);
-});
-
-cli.pushEvent({
-  type: "assistant_delta",
-  messageId: "msg_1",
-  delta: "Hello from a runtime event.",
-});
-
-cli.pushEvent({
-  type: "assistant_done",
-  messageId: "msg_1",
 });
 ```
 
 ## Project Structure
 
 ```text
-apps/cli/       CLI executable entrypoint and terminal presentation layer
-apps/web/       React Web workspace skeleton
-apps/server/    Fastify Agent Runtime backend skeleton
-packages/       Shared types, events, core contracts, sandbox, prompt, config
-demos/          Local demo runtime
+src/agent/       Agent runtime orchestration
+src/config/      Config loading, schema, and types
+src/events/      Runtime event bus and event types
+src/llm/         Provider-neutral LLM clients and request types
+src/runtime/     Runtime trace, verification, policy, and workspace scanning
+src/tool/        Tool registry, runner, and built-in tools
+src/workspace/   Workspace path safety helpers
+src/cli/         CLI presentation API
+src/index.ts     Agent Runtime public API
+src/cli.ts       pixelle-agent executable entry
 ```
-
-See `apps/cli/src/cli/README.md` for more details about the CLI internals.
