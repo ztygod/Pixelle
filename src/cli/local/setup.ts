@@ -1,10 +1,23 @@
-import {createInterface} from "node:readline/promises";
-import {stdin as input, stdout as output} from "node:process";
 import path from "node:path";
+
+import {
+  cancel,
+  confirm,
+  intro,
+  isCancel,
+  log,
+  outro,
+  password,
+  select,
+  spinner,
+  text,
+} from "@clack/prompts";
+import chalk from "chalk";
 
 import {
   assertWorkspaceDirectory,
   providerForPreset,
+  resolveLocalCliConfigPath,
   type LocalCliConfig,
   type LocalProviderPreset,
   LOCAL_CLI_CONFIG_VERSION,
@@ -43,73 +56,73 @@ const PROVIDERS: readonly ProviderChoice[] = [
 export async function runLocalCliSetup(
   existing?: LocalCliConfig,
 ): Promise<LocalCliConfig> {
-  let rl = createPromptInterface();
+  intro(chalk.cyan("Pixelle Agent setup"));
 
-  try {
-    output.write("\nPixelle Agent local setup\n\n");
-    const provider = await askProvider(rl, existing);
-    rl.close();
-    const apiKey = await askApiKey(provider, existing);
-    rl = createPromptInterface();
-    const baseUrl = normalizeOptional(
-      await askText(
-        rl,
-        "Base URL",
-        existing?.baseUrl ?? provider.defaultBaseUrl ?? "",
-        false,
-      ),
-    );
-    const model = await askText(
-      rl,
-      "Model",
-      existing?.model ?? provider.defaultModel,
-      true,
-    );
-    const workspaceDir = await askWorkspace(rl, existing);
+  const provider = await askProvider(existing);
+  const apiKey = await askApiKey(provider, existing);
+  const baseUrl = await askBaseUrl(provider, existing);
+  const model = await askModel(provider, existing);
+  const workspaceDir = await askWorkspace(existing);
 
-    return {
-      version: LOCAL_CLI_CONFIG_VERSION,
-      providerPreset: provider.preset,
-      provider: providerForPreset(provider.preset),
-      model,
-      apiKey,
-      baseUrl,
-      workspaceDir,
-    };
-  } finally {
-    rl.close();
+  const shouldSave = await confirm({
+    message: "Save this configuration?",
+    initialValue: true,
+  });
+  assertNotCancelled(shouldSave);
+  if (!shouldSave) {
+    throw new Error("Setup cancelled.");
   }
-}
 
-function createPromptInterface(): ReturnType<typeof createInterface> {
-  return createInterface({input, output});
+  const config: LocalCliConfig = {
+    version: LOCAL_CLI_CONFIG_VERSION,
+    providerPreset: provider.preset,
+    provider: providerForPreset(provider.preset),
+    model,
+    apiKey,
+    baseUrl,
+    workspaceDir,
+  };
+
+  const saveSpinner = spinner();
+  saveSpinner.start("Preparing local configuration");
+  saveSpinner.stop(`Configuration ready: ${resolveLocalCliConfigPath()}`);
+
+  outro(
+    [
+      chalk.green("Pixelle is ready."),
+      chalk.gray(`Provider: ${provider.label}`),
+      chalk.gray(`Model: ${model}`),
+      chalk.gray(`Workspace: ${workspaceDir}`),
+    ].join("\n"),
+  );
+
+  return config;
 }
 
 async function askProvider(
-  rl: ReturnType<typeof createInterface>,
   existing: LocalCliConfig | undefined,
 ): Promise<ProviderChoice> {
-  const currentIndex = Math.max(
-    0,
-    PROVIDERS.findIndex((provider) => provider.preset === existing?.providerPreset),
-  );
-
-  output.write("Provider:\n");
-  PROVIDERS.forEach((provider, index) => {
-    output.write(`  ${index + 1}. ${provider.label}\n`);
+  const current = existing?.providerPreset ?? PROVIDERS[0]?.preset;
+  const selected = await select({
+    message: "Choose an LLM provider",
+    initialValue: current,
+    options: PROVIDERS.map((provider) => ({
+      value: provider.preset,
+      label: provider.label,
+      hint:
+        provider.preset === "local-openai-compatible"
+          ? "Ollama, LM Studio, vLLM, or any OpenAI-compatible local server"
+          : undefined,
+    })),
   });
+  assertNotCancelled(selected);
 
-  while (true) {
-    const answer = await rl.question(`Choose provider [${currentIndex + 1}]: `);
-    const selected = answer.trim() ? Number(answer.trim()) - 1 : currentIndex;
-    const provider = PROVIDERS[selected];
-
-    if (provider) {
-      return provider;
-    }
-
-    output.write("Please choose a valid provider number.\n");
+  const provider = PROVIDERS.find((candidate) => candidate.preset === selected);
+  if (!provider) {
+    throw new Error("Invalid provider selection.");
   }
+
+  return provider;
 }
 
 async function askApiKey(
@@ -117,115 +130,96 @@ async function askApiKey(
   existing: LocalCliConfig | undefined,
 ): Promise<string | undefined> {
   const hasExistingKey = Boolean(existing?.apiKey);
-  const label = hasExistingKey
-    ? "API Key [press Enter to keep existing]"
-    : provider.apiKeyRequired
-      ? "API Key"
-      : "API Key [optional]";
+  const value = await password({
+    message: hasExistingKey
+      ? "API key (leave blank to keep existing)"
+      : provider.apiKeyRequired
+        ? "API key"
+        : "API key (optional for local providers)",
+    validate(inputValue) {
+      if (!provider.apiKeyRequired || hasExistingKey || (inputValue ?? "").trim()) {
+        return undefined;
+      }
 
-  while (true) {
-    const answer = await askSecret(`${label}: `);
-    const value = normalizeOptional(answer);
+      return "API key is required for this provider.";
+    },
+  });
+  assertNotCancelled(value);
 
-    if (value) {
-      return value;
-    }
-
-    if (hasExistingKey) {
-      return existing?.apiKey;
-    }
-
-    if (!provider.apiKeyRequired) {
-      return undefined;
-    }
-
-    output.write("API key is required for this provider.\n");
+  const normalized = value.trim();
+  if (normalized) {
+    return normalized;
   }
+
+  return hasExistingKey ? existing?.apiKey : undefined;
 }
 
-async function askWorkspace(
-  rl: ReturnType<typeof createInterface>,
+async function askBaseUrl(
+  provider: ProviderChoice,
+  existing: LocalCliConfig | undefined,
+): Promise<string | undefined> {
+  const value = await text({
+    message: "Base URL",
+    placeholder: provider.defaultBaseUrl ?? "Optional",
+    initialValue: existing?.baseUrl ?? provider.defaultBaseUrl,
+    validate(inputValue) {
+      const normalized = (inputValue ?? "").trim();
+      if (!normalized) {
+        return undefined;
+      }
+
+      try {
+        new URL(normalized);
+        return undefined;
+      } catch {
+        return "Enter a valid URL, or leave blank.";
+      }
+    },
+  });
+  assertNotCancelled(value);
+
+  const normalized = value.trim();
+  return normalized ? normalized : undefined;
+}
+
+async function askModel(
+  provider: ProviderChoice,
   existing: LocalCliConfig | undefined,
 ): Promise<string> {
-  const defaultWorkspace = existing?.workspaceDir ?? process.cwd();
+  const value = await text({
+    message: "Model",
+    initialValue: existing?.model ?? provider.defaultModel,
+    validate(inputValue) {
+      return (inputValue ?? "").trim() ? undefined : "Model is required.";
+    },
+  });
+  assertNotCancelled(value);
 
+  return value.trim();
+}
+
+async function askWorkspace(existing: LocalCliConfig | undefined): Promise<string> {
   while (true) {
-    const answer = await askText(rl, "Workspace", defaultWorkspace, true);
+    const value = await text({
+      message: "Workspace",
+      initialValue: existing?.workspaceDir ?? process.cwd(),
+      validate(inputValue) {
+        return (inputValue ?? "").trim() ? undefined : "Workspace is required.";
+      },
+    });
+    assertNotCancelled(value);
 
     try {
-      return await assertWorkspaceDirectory(path.resolve(answer));
+      return await assertWorkspaceDirectory(path.resolve(value.trim()));
     } catch (error) {
-      output.write(
-        `${error instanceof Error ? error.message : "Invalid workspace directory."}\n`,
-      );
+      log.error(error instanceof Error ? error.message : "Invalid workspace directory.");
     }
   }
 }
 
-async function askText(
-  rl: ReturnType<typeof createInterface>,
-  label: string,
-  defaultValue: string,
-  required: boolean,
-): Promise<string> {
-  while (true) {
-    const prompt = defaultValue ? `${label} [${defaultValue}]: ` : `${label}: `;
-    const answer = await rl.question(prompt);
-    const value = answer.trim() || defaultValue;
-
-    if (!required || value) {
-      return value;
-    }
-
-    output.write(`${label} is required.\n`);
+function assertNotCancelled<T>(value: T | symbol): asserts value is T {
+  if (isCancel(value)) {
+    cancel("Setup cancelled.");
+    throw new Error("Setup cancelled.");
   }
-}
-
-function askSecret(prompt: string): Promise<string> {
-  if (!input.isTTY || !output.isTTY) {
-    const rl = createInterface({input, output});
-    return rl.question(prompt).finally(() => rl.close());
-  }
-
-  return new Promise((resolve, reject) => {
-    const chunks: string[] = [];
-    const onData = (chunk: Buffer): void => {
-      const value = chunk.toString("utf8");
-
-      if (value === "\u0003") {
-        cleanup();
-        reject(new Error("Setup cancelled."));
-        return;
-      }
-
-      if (value === "\r" || value === "\n" || value === "\r\n") {
-        output.write("\n");
-        cleanup();
-        resolve(chunks.join(""));
-        return;
-      }
-
-      if (value === "\u007f" || value === "\b") {
-        chunks.pop();
-        return;
-      }
-
-      chunks.push(value);
-    };
-    const cleanup = (): void => {
-      input.off("data", onData);
-      input.setRawMode(false);
-      input.pause();
-    };
-
-    output.write(prompt);
-    input.resume();
-    input.setRawMode(true);
-    input.on("data", onData);
-  });
-}
-
-function normalizeOptional(value: string | undefined): string | undefined {
-  const normalized = value?.trim();
-  return normalized ? normalized : undefined;
 }

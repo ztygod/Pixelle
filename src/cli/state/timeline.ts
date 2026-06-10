@@ -1,4 +1,11 @@
-import type {CliMessage, ImagePreviewState, ToolCallState} from "../types.js";
+import type {
+  ChangeSetState,
+  CliMessage,
+  ImagePreviewState,
+  ToolCallState,
+  TraceState,
+  VerificationState,
+} from "../types.js";
 import type {CliViewState} from "./cli-state.js";
 
 export type CliTimelineItem =
@@ -22,6 +29,27 @@ export type CliTimelineItem =
       createdAt: number;
       order: number;
       image: ImagePreviewState;
+    }
+  | {
+      kind: "change_set";
+      key: string;
+      createdAt: number;
+      order: number;
+      changeSet: ChangeSetState;
+    }
+  | {
+      kind: "verification";
+      key: string;
+      createdAt: number;
+      order: number;
+      verification: VerificationState;
+    }
+  | {
+      kind: "trace";
+      key: string;
+      createdAt: number;
+      order: number;
+      trace: TraceState;
     };
 
 export function selectTimelineItems(state: CliViewState): CliTimelineItem[] {
@@ -46,6 +74,27 @@ export function selectTimelineItems(state: CliViewState): CliTimelineItem[] {
       createdAt: image.createdAt,
       order: image.order,
       image,
+    })),
+    ...state.changeSets.map((changeSet) => ({
+      kind: "change_set" as const,
+      key: `change_set:${changeSet.id}`,
+      createdAt: changeSet.createdAt,
+      order: changeSet.order,
+      changeSet,
+    })),
+    ...state.verifications.map((verification) => ({
+      kind: "verification" as const,
+      key: `verification:${verification.id}`,
+      createdAt: verification.createdAt,
+      order: verification.order,
+      verification,
+    })),
+    ...state.traces.map((trace) => ({
+      kind: "trace" as const,
+      key: `trace:${trace.id}`,
+      createdAt: trace.createdAt,
+      order: trace.order,
+      trace,
     })),
   ].sort(compareTimelineItems);
 }

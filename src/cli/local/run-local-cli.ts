@@ -10,6 +10,7 @@ import {
 } from "../../config/local-cli-config.js";
 import {agentEventToCliEvent} from "../runtime-events.js";
 import {renderCli, type CliEvent, type CliHandle} from "../index.js";
+import {readGitSummary} from "./git.js";
 import {runLocalCliSetup} from "./setup.js";
 
 type PendingEdit = {
@@ -19,6 +20,7 @@ type PendingEdit = {
 export async function runLocalCli(options: {reconfigure?: boolean} = {}): Promise<void> {
   let config = await ensureConfig(options.reconfigure);
   let agent = createAgent(config);
+  let gitSummary = await readGitSummary(config.workspaceDir);
   let cli: CliHandle | undefined;
   let running = false;
   let pendingEdit: PendingEdit | undefined;
@@ -28,6 +30,9 @@ export async function runLocalCli(options: {reconfigure?: boolean} = {}): Promis
       title: "Pixelle Agent",
       cwd: config.workspaceDir,
       model: config.model,
+      provider: formatProvider(config.providerPreset),
+      gitBranch: gitSummary.branch,
+      gitStatus: gitSummary.status,
       initialEvents,
     });
 
@@ -83,6 +88,7 @@ export async function runLocalCli(options: {reconfigure?: boolean} = {}): Promis
     try {
       config = await runLocalCliSetup(config);
       await saveLocalCliConfig(config);
+      gitSummary = await readGitSummary(config.workspaceDir);
       rebuildAgent();
       render(noticeEvents("Configuration updated."));
     } catch (error) {
@@ -116,6 +122,7 @@ export async function runLocalCli(options: {reconfigure?: boolean} = {}): Promis
       workspaceDir,
     };
     await saveLocalCliConfig(config);
+    gitSummary = await readGitSummary(config.workspaceDir);
     rebuildAgent();
     emitNotice(`Workspace set to ${workspaceDir}`);
   };
@@ -220,6 +227,17 @@ async function ensureConfig(reconfigure = false): Promise<LocalCliConfig> {
 
 function createAgent(config: LocalCliConfig): Agent {
   return createAgentRuntime(localCliConfigToAgentConfig(config));
+}
+
+function formatProvider(providerPreset: LocalCliConfig["providerPreset"]): string {
+  switch (providerPreset) {
+    case "openai-compatible":
+      return "OpenAI compatible";
+    case "anthropic-compatible":
+      return "Anthropic compatible";
+    case "local-openai-compatible":
+      return "Local";
+  }
 }
 
 function noticeEvents(content: string): CliEvent[] {

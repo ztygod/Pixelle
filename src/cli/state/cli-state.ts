@@ -1,10 +1,21 @@
-import type {CliEvent, CliMessage, ImagePreviewState, ToolCallState} from "../types.js";
+import type {
+  ChangeSetState,
+  CliEvent,
+  CliMessage,
+  ImagePreviewState,
+  ToolCallState,
+  TraceState,
+  VerificationState,
+} from "../types.js";
 import {createId} from "../utils/format.js";
 
 export type CliViewState = {
   messages: CliMessage[];
   tools: ToolCallState[];
   images: ImagePreviewState[];
+  changeSets: ChangeSetState[];
+  verifications: VerificationState[];
+  traces: TraceState[];
   lastError?: string;
   debug: boolean;
   showHelp: boolean;
@@ -16,6 +27,9 @@ export const initialCliState: CliViewState = {
   messages: [],
   tools: [],
   images: [],
+  changeSets: [],
+  verifications: [],
+  traces: [],
   debug: false,
   showHelp: false,
   eventCount: 0,
@@ -43,6 +57,9 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         messages: [],
         tools: [],
         images: [],
+        changeSets: [],
+        verifications: [],
+        traces: [],
         lastError: undefined,
         showHelp: false,
       };
@@ -115,6 +132,8 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             ? {
                 ...message,
                 content: message.content + event.delta,
+                createdAt: eventCreatedAt,
+                order: eventOrder,
                 streaming: true,
                 stage: event.stage ?? message.stage,
               }
@@ -241,6 +260,53 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             id: event.id ?? createId("image"),
             path: event.path,
             alt: event.alt,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
+          },
+        ],
+      };
+
+    case "change_set":
+      return {
+        ...state,
+        ...viewEventStats,
+        changeSets: [
+          ...state.changeSets,
+          {
+            id: event.id,
+            files: event.files,
+            checkpointPath: event.checkpointPath,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
+          },
+        ],
+      };
+
+    case "verification":
+      return {
+        ...state,
+        ...viewEventStats,
+        verifications: [
+          ...state.verifications,
+          {
+            id: createId("verification"),
+            status: event.status,
+            commands: event.commands,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
+          },
+        ],
+      };
+
+    case "trace":
+      return {
+        ...state,
+        ...viewEventStats,
+        traces: [
+          ...state.traces,
+          {
+            id: createId("trace"),
+            path: event.path,
             createdAt: eventCreatedAt,
             order: eventOrder,
           },

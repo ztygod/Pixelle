@@ -837,6 +837,7 @@ export class Agent {
         type: "change_set.applied",
         id: changeSet.id,
         files,
+        changes: changeSet.files,
         checkpointPath,
         metadata,
       },

@@ -50,6 +50,18 @@ export type CliEvent =
       path: string;
       alt?: string;
     })
+  | (BaseEvent<"change_set"> & {
+      id: string;
+      files: readonly ChangedFileState[];
+      checkpointPath?: string;
+    })
+  | (BaseEvent<"verification"> & {
+      status: "running" | "passed" | "failed";
+      commands: readonly string[];
+    })
+  | (BaseEvent<"trace"> & {
+      path: string;
+    })
   | (BaseEvent<"error"> & {
       message: string;
       detail?: unknown;
@@ -100,10 +112,43 @@ export type ImagePreviewState = {
   order: number;
 };
 
+export type ChangedFileState = {
+  path: string;
+  beforeContent?: string;
+  afterContent?: string;
+  status: "created" | "modified" | "deleted";
+};
+
+export type ChangeSetState = {
+  id: string;
+  files: readonly ChangedFileState[];
+  checkpointPath?: string;
+  createdAt: number;
+  order: number;
+};
+
+export type VerificationState = {
+  id: string;
+  status: "running" | "passed" | "failed";
+  commands: readonly string[];
+  createdAt: number;
+  order: number;
+};
+
+export type TraceState = {
+  id: string;
+  path: string;
+  createdAt: number;
+  order: number;
+};
+
 export type RenderCliOptions = {
   title?: string;
   cwd?: string;
   model?: string;
+  provider?: string;
+  gitBranch?: string;
+  gitStatus?: "clean" | "modified" | "unknown";
   initialEvents?: CliEvent[];
 };
 

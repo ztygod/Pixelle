@@ -10,6 +10,9 @@ type AppProps = {
   version: string;
   cwd: string;
   model?: string;
+  provider?: string;
+  gitBranch?: string;
+  gitStatus?: "clean" | "modified" | "unknown";
   eventBus: CliEventBus;
   userInputBus: UserInputBus;
   initialEvents?: CliEvent[];
@@ -21,6 +24,9 @@ export function App({
   version,
   cwd,
   model,
+  provider,
+  gitBranch,
+  gitStatus,
   eventBus,
   userInputBus,
   initialEvents,
@@ -73,6 +79,9 @@ export function App({
       version={version}
       cwd={cwd}
       model={model}
+      provider={provider}
+      gitBranch={gitBranch}
+      gitStatus={gitStatus}
       state={state}
       onSubmit={handleSubmit}
       width={width}

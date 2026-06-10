@@ -1,5 +1,4 @@
 import {Box, Text} from "ink";
-import {WelcomeLogo} from "./WelcomeLogo.js";
 import {theme} from "../../utils/theme.js";
 
 type GitStatus = "clean" | "modified" | "unknown";
@@ -8,6 +7,7 @@ type WelcomeScreenProps = {
   version: string;
   cwd: string;
   model?: string;
+  provider?: string;
   gitBranch?: string;
   gitStatus?: GitStatus;
 };
@@ -16,60 +16,43 @@ export function WelcomeScreen({
   version,
   cwd,
   model = "not configured",
-  gitBranch = "main",
+  provider = "provider",
+  gitBranch = "unknown",
   gitStatus = "unknown",
 }: WelcomeScreenProps) {
   const shortCwd = formatCwd(cwd);
 
   return (
-    <Box
-      borderStyle="round"
-      borderColor={theme.border}
-      flexDirection="column"
-      alignSelf="flex-start"
-      marginBottom={1}
-      paddingX={1}
-      paddingY={1}
-    >
+    <Box flexDirection="column" marginBottom={1}>
       <Box flexDirection="row">
-        <WelcomeLogo />
+        <Text color={theme.brand} bold>
+          Pixelle
+        </Text>
+        <Text color={theme.muted}> Agent </Text>
+        <Text color={theme.faint}>v{version}</Text>
       </Box>
 
-      <Box marginTop={1}>
-        <Text color={theme.rail}>{"─".repeat(44)}</Text>
-      </Box>
-
-      <Box marginTop={1} flexDirection="column">
-        <Box marginBottom={1}>
-          <Text color={theme.success}>░</Text>
-          <Text color={theme.muted}> runtime </Text>
-          <Text color={theme.text}>local agent ready</Text>
-        </Box>
-
-        <InfoRow label="version" value={`v${version}`} accent />
-
-        <InfoRow label="model" value={model} />
-
-        <InfoRow label="git" value={`${gitBranch} ${formatGitStatus(gitStatus)}`} />
-
-        <InfoRow label="directory" value={shortCwd} />
+      <Box marginTop={1} flexDirection="row" flexWrap="wrap">
+        <InfoPill label="workspace" value={shortCwd} />
+        <InfoPill label="model" value={model} />
+        <InfoPill label="provider" value={provider} />
+        <InfoPill label="git" value={`${gitBranch} ${formatGitStatus(gitStatus)}`} />
       </Box>
     </Box>
   );
 }
 
-type InfoRowProps = {
+type InfoPillProps = {
   label: string;
   value: string;
-  accent?: boolean;
 };
 
-function InfoRow({label, value, accent = false}: InfoRowProps) {
+function InfoPill({label, value}: InfoPillProps) {
   return (
-    <Box>
-      <Text color={theme.muted}> {label.padEnd(9)} </Text>
+    <Box marginRight={2}>
+      <Text color={theme.muted}>{label} </Text>
 
-      <Text color={accent ? theme.primary : theme.text}>{value}</Text>
+      <Text color={theme.text}>{value}</Text>
     </Box>
   );
 }

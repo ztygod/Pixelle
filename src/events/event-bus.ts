@@ -10,6 +10,17 @@ type AgentStage = "thinking" | "planning" | "executing" | "complete";
 
 type ToolCallStatus = "pending" | "running" | "success" | "done" | "error";
 
+type EventChangedFileStatus = "created" | "modified" | "deleted";
+
+type EventChangedFile = {
+  path: string;
+  beforeHash?: string;
+  afterHash?: string;
+  beforeContent?: string;
+  afterContent?: string;
+  status: EventChangedFileStatus;
+};
+
 type EventMetadata = Readonly<{
   source?: string;
   traceId?: string;
@@ -114,6 +125,7 @@ type RuntimeEvent =
   | (BaseEvent<"change_set.applied"> & {
       id: string;
       files: readonly string[];
+      changes?: readonly EventChangedFile[];
       checkpointPath?: string;
     })
   | (BaseEvent<"change_set.rollback_started"> & {

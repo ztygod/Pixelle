@@ -28,4 +28,7 @@ export const icons = {
   cursorFrames: ["▌", "▍"],
   inputIdle: "○",
   inputActive: "●",
+  file: "▣",
+  check: "✓",
+  trace: "·",
 } as const;

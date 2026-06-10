@@ -11,6 +11,9 @@ type LayoutProps = {
   version: string;
   cwd: string;
   model?: string;
+  provider?: string;
+  gitBranch?: string;
+  gitStatus?: "clean" | "modified" | "unknown";
   state: CliViewState;
   onSubmit(input: string): void;
   width: number;
@@ -21,6 +24,9 @@ export function Layout({
   version,
   cwd,
   model,
+  provider,
+  gitBranch,
+  gitStatus,
   state,
   onSubmit,
   width,
@@ -29,8 +35,15 @@ export function Layout({
 
   return (
     <Box flexDirection="column">
-      <WelcomeScreen version={version} cwd={cwd} model={model} />
-      <Timeline items={timelineItems} showHelp={state.showHelp} />
+      <WelcomeScreen
+        version={version}
+        cwd={cwd}
+        model={model}
+        provider={provider}
+        gitBranch={gitBranch}
+        gitStatus={gitStatus}
+      />
+      <Timeline items={timelineItems} showHelp={state.showHelp} debug={state.debug} />
       <StatusBar title={title} state={state} width={width} />
       <InputBox onSubmit={onSubmit} width={width} />
     </Box>

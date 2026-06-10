@@ -7,14 +7,16 @@ import {TimelineItem} from "./TimelineItem.js";
 type TimelineProps = {
   items: CliTimelineItem[];
   showHelp: boolean;
+  debug: boolean;
 };
 
-export function Timeline({items, showHelp}: TimelineProps) {
-  const itemCount = items.length + (showHelp ? 1 : 0);
+export function Timeline({items, showHelp, debug}: TimelineProps) {
+  const visibleItems = debug ? items : items.filter((item) => item.kind !== "trace");
+  const itemCount = visibleItems.length + (showHelp ? 1 : 0);
 
   return (
     <Box flexDirection="column" marginBottom={itemCount > 0 ? 1 : 0}>
-      {items.map((item, index) => (
+      {visibleItems.map((item, index) => (
         <Box key={item.key} flexDirection="row">
           <Box width={2} flexDirection="column" alignItems="center">
             <Text color={getMarkerColor(item)}>{getMarker(item)}</Text>
@@ -25,7 +27,7 @@ export function Timeline({items, showHelp}: TimelineProps) {
             )}
           </Box>
           <Box flexDirection="column" flexGrow={1}>
-            <TimelineItem item={item} />
+            <TimelineItem item={item} debug={debug} />
           </Box>
         </Box>
       ))}
@@ -57,6 +59,18 @@ function getMarker(item: CliTimelineItem): string {
     return item.tool.status === "error" ? icons.error : icons.tool;
   }
 
+  if (item.kind === "change_set") {
+    return icons.file;
+  }
+
+  if (item.kind === "verification") {
+    return icons.check;
+  }
+
+  if (item.kind === "trace") {
+    return icons.trace;
+  }
+
   return icons.image;
 }
 
@@ -75,6 +89,22 @@ function getMarkerColor(item: CliTimelineItem): string {
     }
 
     return theme.accent;
+  }
+
+  if (item.kind === "change_set") {
+    return theme.success;
+  }
+
+  if (item.kind === "verification") {
+    if (item.verification.status === "failed") {
+      return theme.danger;
+    }
+
+    return item.verification.status === "passed" ? theme.success : theme.accent;
+  }
+
+  if (item.kind === "trace") {
+    return theme.faint;
   }
 
   return theme.muted;

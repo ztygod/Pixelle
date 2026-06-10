@@ -5,24 +5,36 @@ import {icons, theme} from "../../utils/theme.js";
 
 type ToolStatusProps = {
   tool: ToolCallState;
+  debug: boolean;
 };
 
-export function ToolStatus({tool}: ToolStatusProps) {
+export function ToolStatus({tool, debug}: ToolStatusProps) {
   const color = getColor(tool.status);
   const icon = getIcon(tool.status);
   const detail = getInlineDetail(tool);
   const expanded =
-    hasLongDetail(tool.input) || hasLongDetail(tool.output) || hasLongDetail(tool.error);
+    debug &&
+    (hasLongDetail(tool.input) ||
+      hasLongDetail(tool.output) ||
+      hasLongDetail(tool.error));
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
+    <Box
+      borderStyle="round"
+      borderColor={tool.status === "error" ? theme.danger : theme.border}
+      flexDirection="column"
+      marginBottom={1}
+      paddingX={1}
+      paddingY={1}
+    >
       <Text>
-        <Text color={color}>{icon}</Text> <Text color={theme.text}>{tool.name}</Text>
-        <Text color={theme.muted}> / {formatStatus(tool.status)}</Text>
+        <Text color={color}>{icon}</Text>{" "}
+        <Text color={theme.text}>{formatToolName(tool.name)}</Text>
+        <Text color={theme.muted}> · {formatStatus(tool.status)}</Text>
         {formatDuration(tool) ? (
-          <Text color={theme.faint}> / {formatDuration(tool)}</Text>
+          <Text color={theme.faint}> · {formatDuration(tool)}</Text>
         ) : null}
-        {detail ? <Text color={theme.muted}> / {detail}</Text> : null}
+        {detail ? <Text color={theme.muted}> · {detail}</Text> : null}
       </Text>
       {expanded ? (
         <Box flexDirection="column" marginLeft={1} marginTop={1}>
@@ -40,19 +52,44 @@ export function ToolStatus({tool}: ToolStatusProps) {
 }
 
 function getInlineDetail(tool: ToolCallState): string {
+  const target = getToolTarget(tool.input);
+
   if (tool.status === "pending") {
-    return tool.description ?? "Queued";
+    return target ?? tool.description ?? "Queued";
   }
 
   if (tool.status === "running") {
-    return tool.description ?? "Running...";
+    return target ?? tool.description ?? "Running...";
   }
 
   if (tool.status === "success" || tool.status === "done") {
-    return tool.summary ?? formatUnknown(tool.output ?? "done", 80);
+    return target ?? tool.summary ?? formatUnknown(tool.output ?? "done", 80);
   }
 
   return tool.error ?? "Failed";
+}
+
+function getToolTarget(input: unknown): string | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return undefined;
+  }
+
+  const record = input as Record<string, unknown>;
+  for (const key of ["path", "pattern", "command", "url"]) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function formatToolName(name: string): string {
+  return name
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function getIcon(status: ToolCallState["status"]): string {

@@ -7,15 +7,15 @@ export function CommandHelp() {
       <Text color={theme.primary} bold>
         Commands
       </Text>
-      <Text color={theme.muted}>/help toggle help</Text>
-      <Text color={theme.muted}>/clear clear timeline</Text>
-      <Text color={theme.muted}>/debug toggle debug metadata</Text>
+      <Text color={theme.muted}>/help show or hide commands</Text>
+      <Text color={theme.muted}>/clear clear the conversation</Text>
+      <Text color={theme.muted}>/debug show runtime details</Text>
       <Text color={theme.muted}>/config reconfigure local provider and workspace</Text>
       <Text color={theme.muted}>/workspace [path] show or switch workspace</Text>
       <Text color={theme.muted}>
         /edit &lt;request&gt; allow file changes for one task
       </Text>
-      <Text color={theme.muted}>/exit close terminal UI</Text>
+      <Text color={theme.muted}>/exit quit Pixelle</Text>
     </Box>
   );
 }
