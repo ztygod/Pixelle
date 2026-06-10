@@ -8,9 +8,10 @@ type TimelineProps = {
   items: CliTimelineItem[];
   showHelp: boolean;
   debug: boolean;
+  width: number;
 };
 
-export function Timeline({items, showHelp, debug}: TimelineProps) {
+export function Timeline({items, showHelp, debug, width}: TimelineProps) {
   const visibleItems = debug ? items : items.filter((item) => item.kind !== "trace");
   const itemCount = visibleItems.length + (showHelp ? 1 : 0);
 
@@ -27,7 +28,7 @@ export function Timeline({items, showHelp, debug}: TimelineProps) {
             )}
           </Box>
           <Box flexDirection="column" flexGrow={1}>
-            <TimelineItem item={item} debug={debug} />
+            <TimelineItem item={item} debug={debug} width={Math.max(40, width - 4)} />
           </Box>
         </Box>
       ))}

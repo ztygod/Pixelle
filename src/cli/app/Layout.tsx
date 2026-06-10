@@ -43,7 +43,12 @@ export function Layout({
         gitBranch={gitBranch}
         gitStatus={gitStatus}
       />
-      <Timeline items={timelineItems} showHelp={state.showHelp} debug={state.debug} />
+      <Timeline
+        items={timelineItems}
+        showHelp={state.showHelp}
+        debug={state.debug}
+        width={width}
+      />
       <StatusBar title={title} state={state} width={width} />
       <InputBox onSubmit={onSubmit} width={width} />
     </Box>

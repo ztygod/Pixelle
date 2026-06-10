@@ -4,9 +4,10 @@ import {MessageItem} from "./MessageItem.js";
 
 type MessageListProps = {
   messages: CliMessage[];
+  width: number;
 };
 
-export function MessageList({messages}: MessageListProps) {
+export function MessageList({messages, width}: MessageListProps) {
   if (messages.length === 0) {
     return <Text color="gray"> </Text>;
   }
@@ -14,7 +15,7 @@ export function MessageList({messages}: MessageListProps) {
   return (
     <Box flexDirection="column">
       {messages.map((message) => (
-        <MessageItem key={message.id} message={message} />
+        <MessageItem key={message.id} message={message} width={width} />
       ))}
     </Box>
   );

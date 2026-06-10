@@ -23,7 +23,15 @@ export function WelcomeScreen({
   const shortCwd = formatCwd(cwd);
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
+    <Box
+      flexDirection="column"
+      marginBottom={1}
+      paddingX={2}
+      paddingY={1}
+      borderStyle="single"
+      borderColor={theme.faint}
+      alignSelf="flex-start"
+    >
       <Box flexDirection="row">
         <Text color={theme.brand} bold>
           Pixelle
@@ -32,25 +40,29 @@ export function WelcomeScreen({
         <Text color={theme.faint}>v{version}</Text>
       </Box>
 
-      <Box marginTop={1} flexDirection="row" flexWrap="wrap">
-        <InfoPill label="workspace" value={shortCwd} />
-        <InfoPill label="model" value={model} />
-        <InfoPill label="provider" value={provider} />
-        <InfoPill label="git" value={`${gitBranch} ${formatGitStatus(gitStatus)}`} />
+      <Box marginTop={1} flexDirection="column">
+        <InfoRow label="workspace" value={shortCwd} />
+        <InfoRow label="model" value={model} />
+        <InfoRow label="provider" value={provider} />
+        <InfoRow label="git" value={`${gitBranch} ${formatGitStatus(gitStatus)}`} />
       </Box>
     </Box>
   );
 }
 
-type InfoPillProps = {
+type InfoRowProps = {
   label: string;
   value: string;
 };
 
-function InfoPill({label, value}: InfoPillProps) {
+function InfoRow({label, value}: InfoRowProps) {
   return (
-    <Box marginRight={2}>
-      <Text color={theme.muted}>{label} </Text>
+    <Box flexDirection="row">
+      <Box width={12}>
+        <Text color={theme.muted}>{label}</Text>
+      </Box>
+
+      <Text color={theme.faint}>│ </Text>
 
       <Text color={theme.text}>{value}</Text>
     </Box>

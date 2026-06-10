@@ -26,6 +26,7 @@ export async function runLocalCli(options: {reconfigure?: boolean} = {}): Promis
   let pendingEdit: PendingEdit | undefined;
 
   const render = (initialEvents: CliEvent[] = []): void => {
+    clearTerminal();
     cli = renderCli({
       title: "Pixelle Agent",
       cwd: config.workspaceDir,
@@ -255,4 +256,12 @@ function noticeEvents(content: string): CliEvent[] {
 
 function createMessageId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function clearTerminal(): void {
+  if (!process.stdout.isTTY) {
+    return;
+  }
+
+  process.stdout.write("\u001B[2J\u001B[3J\u001B[H");
 }

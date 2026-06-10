@@ -248,11 +248,11 @@ export class Agent {
           iteration,
           messages,
           tools,
+          options,
         });
         usage = mergeUsage(usage, response.usage);
         content = response.content || content;
 
-        this.emitAssistantContent(response, context, options);
         messages.push({
           role: "assistant",
           content: response.content,
@@ -360,10 +360,10 @@ export class Agent {
             iteration: context.iteration,
             messages,
             tools,
+            options,
           });
           usage = mergeUsage(usage, repairResponse.usage);
           content = repairResponse.content || content;
-          this.emitAssistantContent(repairResponse, context, options);
           messages.push({
             role: "assistant",
             content: repairResponse.content,
@@ -551,6 +551,7 @@ export class Agent {
     iteration: number;
     messages: LLMMessage[];
     tools: ReturnType<typeof buildLLMTools>;
+    options: RunInternalOptions;
   }): Promise<AgentModelResponse> {
     const request = await this.middlewarePipeline.beforeModel(
       {
@@ -563,7 +564,11 @@ export class Agent {
       },
       input.context,
     );
-    const rawResponse = await this.llm.generate(request);
+    const rawResponse = await this.generateStreamingModelResponse(
+      request,
+      input.context,
+      input.options,
+    );
     await input.context.traceStore?.update((trace) => {
       trace.modelCalls.push({
         request,
@@ -584,6 +589,72 @@ export class Agent {
       },
       input.context,
     );
+  }
+
+  private async generateStreamingModelResponse(
+    request: Parameters<BaseLLMClient["stream"]>[0],
+    context: AgentRunContext,
+    options: RunInternalOptions,
+  ): Promise<AgentModelResponse> {
+    let streamedContent = "";
+    let emittedContent = false;
+    let finalResponse: AgentModelResponse | undefined;
+
+    try {
+      for await (const chunk of this.llm.stream(request)) {
+        if (chunk.type === "content_delta") {
+          streamedContent += chunk.content;
+          emittedContent = true;
+          emitAgentEvent(
+            this.eventBus,
+            {
+              type: "conversation.assistant_delta",
+              messageId: context.runId,
+              delta: chunk.content,
+              stage: "thinking",
+              metadata: createEventMetadata(
+                context.input,
+                context.sessionId,
+                context.traceId,
+              ),
+            },
+            options,
+          );
+          continue;
+        }
+
+        if (chunk.type === "done") {
+          finalResponse = {
+            ...chunk.response,
+            content: chunk.response.content || streamedContent,
+            iteration: context.iteration,
+            runId: context.runId,
+          };
+        }
+      }
+    } catch (error) {
+      if (emittedContent) {
+        throw error;
+      }
+
+      const response = await this.llm.generate(request);
+      return {
+        ...response,
+        iteration: context.iteration,
+        runId: context.runId,
+      };
+    }
+
+    if (!finalResponse) {
+      const response = await this.llm.generate(request);
+      return {
+        ...response,
+        iteration: context.iteration,
+        runId: context.runId,
+      };
+    }
+
+    return finalResponse;
   }
 
   private async runTool(
@@ -766,28 +837,6 @@ export class Agent {
         type: "conversation.assistant_stage",
         messageId: context.runId,
         stage: iteration === 1 ? "thinking" : "executing",
-        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
-      },
-      options,
-    );
-  }
-
-  private emitAssistantContent(
-    response: AgentModelResponse,
-    context: AgentRunContext,
-    options: RunInternalOptions,
-  ): void {
-    if (!response.content) {
-      return;
-    }
-
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "conversation.assistant_delta",
-        messageId: context.runId,
-        delta: response.content,
-        stage: response.toolCalls.length ? "planning" : "complete",
         metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
       },
       options,

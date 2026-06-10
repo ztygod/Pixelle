@@ -9,14 +9,15 @@ import {ToolStatus} from "./ToolStatus.js";
 type TimelineItemProps = {
   item: CliTimelineItem;
   debug: boolean;
+  width: number;
 };
 
-export function TimelineItem({item, debug}: TimelineItemProps) {
+export function TimelineItem({item, debug, width}: TimelineItemProps) {
   if (item.kind === "message") {
     return item.message.role === "error" ? (
       <ErrorBlock message={item.message.content} />
     ) : (
-      <MessageList messages={[item.message]} />
+      <MessageList messages={[item.message]} width={width} />
     );
   }
 

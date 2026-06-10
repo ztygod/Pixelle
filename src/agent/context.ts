@@ -6,6 +6,7 @@ import type {
 } from "./types.js";
 import type {EventBus, PixelleEvent} from "../events/index.js";
 import {
+  CLI_MARKDOWN_OUTPUT_INSTRUCTIONS,
   createEventMetadata,
   DEFAULT_SYSTEM_PROMPT,
   emitAgentEvent,
@@ -58,12 +59,13 @@ export function buildSystemPrompt(context: AgentRunContext, contextText: string)
     context.input.systemPrompt ??
     context.config.runtime.systemPrompt ??
     DEFAULT_SYSTEM_PROMPT;
+  const promptWithCliInstructions = `${systemPrompt}\n\n${CLI_MARKDOWN_OUTPUT_INSTRUCTIONS}`;
 
   if (!contextText) {
-    return systemPrompt;
+    return promptWithCliInstructions;
   }
 
-  return `${systemPrompt}\n\n# Runtime Context\n${contextText}`;
+  return `${promptWithCliInstructions}\n\n# Runtime Context\n${contextText}`;
 }
 
 export function estimateTokens(text: string): number {

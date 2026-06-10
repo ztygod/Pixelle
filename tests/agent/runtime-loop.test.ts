@@ -8,7 +8,12 @@ import {describe, expect, it} from "vitest";
 import {Agent} from "../../src/agent/index.js";
 import {EventBus, type PixelleEvent} from "../../src/events/index.js";
 import {BaseLLMClient} from "../../src/llm/index.js";
-import type {LLMGenerateInput, LLMResponse} from "../../src/llm/types.js";
+import type {
+  LLMGenerateInput,
+  LLMResponse,
+  LLMStreamChunk,
+  LLMStreamInput,
+} from "../../src/llm/types.js";
 import type {WorkspaceProfile} from "../../src/runtime/index.js";
 import {okToolResult, ToolRegistry, ToolRunner, type Tool} from "../../src/tool/index.js";
 
@@ -31,6 +36,21 @@ class QueueLLMClient extends BaseLLMClient {
     }
 
     return response;
+  }
+}
+
+class StreamingLLMClient extends BaseLLMClient {
+  override async generate(): Promise<LLMResponse> {
+    throw new Error("generate should not be called.");
+  }
+
+  override async *stream(_input: LLMStreamInput): AsyncIterable<LLMStreamChunk> {
+    yield {type: "content_delta", content: "Hello"};
+    yield {type: "content_delta", content: " world"};
+    yield {
+      type: "done",
+      response: {content: "Hello world", toolCalls: []},
+    };
   }
 }
 
@@ -151,6 +171,29 @@ describe("Agent runtime loop", () => {
     expect(events.map((event) => event.type)).toEqual(
       expect.arrayContaining(["tool.call_started", "tool.call_completed"]),
     );
+  });
+
+  it("emits assistant deltas while streaming model output", async () => {
+    const workspaceRoot = await createWorkspace();
+    const events: PixelleEvent[] = [];
+
+    const result = await new Agent({
+      config: createConfig(workspaceRoot),
+      llm: new StreamingLLMClient(),
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+    }).stream({prompt: "Say hello."});
+
+    for await (const event of result) {
+      events.push(event);
+    }
+
+    expect(
+      events
+        .filter((event) => event.type === "conversation.assistant_delta")
+        .map((event) =>
+          event.type === "conversation.assistant_delta" ? event.delta : "",
+        ),
+    ).toEqual(["Hello", " world"]);
   });
 
   it("stops at maxIterations when the model keeps requesting tools", async () => {

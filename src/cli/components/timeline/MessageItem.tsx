@@ -6,9 +6,10 @@ import {StreamMessage} from "./StreamMessage.js";
 
 type MessageItemProps = {
   message: CliMessage;
+  width: number;
 };
 
-export function MessageItem({message}: MessageItemProps) {
+export function MessageItem({message, width}: MessageItemProps) {
   const label = getLabel(message.role);
   const stage = message.role === "assistant" ? (message.stage ?? "thinking") : undefined;
   const stageMeta = stage ? getStageMeta(stage) : undefined;
@@ -29,11 +30,15 @@ export function MessageItem({message}: MessageItemProps) {
       </Text>
       <Box flexDirection="column">
         {message.role === "assistant" ? (
-          <StreamMessage content={message.content} streaming={message.streaming} />
+          <StreamMessage
+            content={message.content}
+            streaming={message.streaming}
+            width={width}
+          />
         ) : message.role === "error" ? (
           <Text color="red">{message.content}</Text>
         ) : (
-          <MarkdownRenderer content={message.content} />
+          <MarkdownRenderer content={message.content} width={width} />
         )}
       </Box>
     </Box>
