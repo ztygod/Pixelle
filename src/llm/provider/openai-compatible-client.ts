@@ -16,7 +16,7 @@ import type {
   LLMToolCall,
   LLMUsage,
 } from "../types.js";
-import { LLMClientConfig } from "../../config/index.js";
+import type {LLMClientConfig} from "../../config/index.js";
 
 type StreamingToolCall = {
   id?: string;
@@ -38,7 +38,7 @@ export class OpenAICompatibleLLMClient extends BaseLLMClient {
     });
   }
 
-  async generate(input: LLMGenerateInput): Promise<LLMResponse> {
+  override async generate(input: LLMGenerateInput): Promise<LLMResponse> {
     const response = await requestWithRetry(
       (signal) =>
         this.client.chat.completions.create(
@@ -46,9 +46,7 @@ export class OpenAICompatibleLLMClient extends BaseLLMClient {
             model: this.config.model,
             temperature: this.config.temperature,
             messages: this.convertMessages(input.messages),
-            tools: input.tools?.length
-              ? this.convertTools(input.tools)
-              : undefined,
+            tools: input.tools?.length ? this.convertTools(input.tools) : undefined,
           },
           {signal},
         ),
@@ -62,13 +60,11 @@ export class OpenAICompatibleLLMClient extends BaseLLMClient {
     return this.parseResponse(response);
   }
 
-  async *stream(input: LLMStreamInput): AsyncIterable<LLMStreamChunk> {
+  override async *stream(input: LLMStreamInput): AsyncIterable<LLMStreamChunk> {
     const toolCalls = new Map<number, StreamingToolCall>();
     const contentParts: string[] = [];
 
-    let stream: Awaited<
-      ReturnType<OpenAI["chat"]["completions"]["create"]>
-    >;
+    let stream: Awaited<ReturnType<OpenAI["chat"]["completions"]["create"]>>;
 
     try {
       stream = await requestWithRetry(
@@ -78,9 +74,7 @@ export class OpenAICompatibleLLMClient extends BaseLLMClient {
               model: this.config.model,
               temperature: this.config.temperature,
               messages: this.convertMessages(input.messages),
-              tools: input.tools?.length
-                ? this.convertTools(input.tools)
-                : undefined,
+              tools: input.tools?.length ? this.convertTools(input.tools) : undefined,
               stream: true,
             },
             {signal},
@@ -149,9 +143,7 @@ export class OpenAICompatibleLLMClient extends BaseLLMClient {
     };
   }
 
-  private convertMessages(
-    messages: readonly LLMMessage[],
-  ): ChatCompletionMessageParam[] {
+  private convertMessages(messages: readonly LLMMessage[]): ChatCompletionMessageParam[] {
     return messages.map((message) => {
       switch (message.role) {
         case "system":
@@ -198,9 +190,7 @@ export class OpenAICompatibleLLMClient extends BaseLLMClient {
     }));
   }
 
-  private parseResponse(
-    response: OpenAI.Chat.Completions.ChatCompletion,
-  ): LLMResponse {
+  private parseResponse(response: OpenAI.Chat.Completions.ChatCompletion): LLMResponse {
     const message = response.choices[0]?.message;
     if (!message) {
       throw new LLMResponseFormatError(
@@ -251,11 +241,7 @@ export class OpenAICompatibleLLMClient extends BaseLLMClient {
 function parseJsonObject(value: string): Record<string, unknown> {
   try {
     const parsedValue: unknown = JSON.parse(value);
-    if (
-      parsedValue &&
-      typeof parsedValue === "object" &&
-      !Array.isArray(parsedValue)
-    ) {
+    if (parsedValue && typeof parsedValue === "object" && !Array.isArray(parsedValue)) {
       return parsedValue as Record<string, unknown>;
     }
   } catch {

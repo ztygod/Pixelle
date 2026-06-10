@@ -87,9 +87,7 @@ type RunShellCommandInput = {
   timeoutMs: number;
 };
 
-async function runShellCommand(
-  input: RunShellCommandInput,
-): Promise<BashResult> {
+async function runShellCommand(input: RunShellCommandInput): Promise<BashResult> {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";

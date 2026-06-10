@@ -44,11 +44,7 @@ export async function buildRuntimeContext(input: {
     {
       type: "runtime.context_built",
       tokenEstimate: estimateTokens(contextText),
-      metadata: createEventMetadata(
-        context.input,
-        context.sessionId,
-        context.traceId,
-      ),
+      metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
     },
     input.options,
   );
@@ -57,10 +53,7 @@ export async function buildRuntimeContext(input: {
 }
 
 /** Combines the configured system prompt with the reserved runtime context. */
-export function buildSystemPrompt(
-  context: AgentRunContext,
-  contextText: string,
-): string {
+export function buildSystemPrompt(context: AgentRunContext, contextText: string): string {
   const systemPrompt =
     context.input.systemPrompt ??
     context.config.runtime.systemPrompt ??
@@ -90,10 +83,7 @@ function formatContextValue(value: AgentContextValue): string {
   return value.title ? `## ${value.title}\n${content}` : content;
 }
 
-function compareContextValue(
-  left: AgentContextValue,
-  right: AgentContextValue,
-): number {
+function compareContextValue(left: AgentContextValue, right: AgentContextValue): number {
   return getContextPriority(right) - getContextPriority(left);
 }
 
@@ -117,9 +107,7 @@ function truncateContext(blocks: string[], tokenLimit: number): string {
       break;
     }
 
-    selectedBlocks.push(
-      block.length > allowed ? block.slice(0, allowed) : block,
-    );
+    selectedBlocks.push(block.length > allowed ? block.slice(0, allowed) : block);
     remaining -= Math.min(block.length, allowed) + separatorLength;
   }
 

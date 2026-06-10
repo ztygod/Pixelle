@@ -1,8 +1,4 @@
-import type {
-  CliMessage,
-  ImagePreviewState,
-  ToolCallState,
-} from "../types.js";
+import type {CliMessage, ImagePreviewState, ToolCallState} from "../types.js";
 import type {CliViewState} from "./cli-state.js";
 
 export type CliTimelineItem =
@@ -54,9 +50,6 @@ export function selectTimelineItems(state: CliViewState): CliTimelineItem[] {
   ].sort(compareTimelineItems);
 }
 
-function compareTimelineItems(
-  left: CliTimelineItem,
-  right: CliTimelineItem,
-): number {
+function compareTimelineItems(left: CliTimelineItem, right: CliTimelineItem): number {
   return left.createdAt - right.createdAt || left.order - right.order;
 }

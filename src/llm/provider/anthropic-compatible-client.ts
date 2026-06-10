@@ -17,7 +17,7 @@ import type {
   LLMToolCall,
   LLMUsage,
 } from "../types.js";
-import { LLMClientConfig } from "../../config/index.js";
+import type {LLMClientConfig} from "../../config/index.js";
 
 type ConvertedAnthropicMessages = {
   system?: string;
@@ -44,7 +44,7 @@ export class AnthropicLLMClient extends BaseLLMClient {
     });
   }
 
-  async generate(input: LLMGenerateInput): Promise<LLMResponse> {
+  override async generate(input: LLMGenerateInput): Promise<LLMResponse> {
     const convertedMessages = this.convertMessages(input.messages);
     const response = await requestWithRetry(
       (signal) =>
@@ -55,9 +55,7 @@ export class AnthropicLLMClient extends BaseLLMClient {
             temperature: this.config.temperature,
             system: convertedMessages.system,
             messages: convertedMessages.messages,
-            tools: input.tools?.length
-              ? this.convertTools(input.tools)
-              : undefined,
+            tools: input.tools?.length ? this.convertTools(input.tools) : undefined,
           },
           {signal},
         ),
@@ -71,7 +69,7 @@ export class AnthropicLLMClient extends BaseLLMClient {
     return this.parseResponse(response);
   }
 
-  async *stream(input: LLMStreamInput): AsyncIterable<LLMStreamChunk> {
+  override async *stream(input: LLMStreamInput): AsyncIterable<LLMStreamChunk> {
     const convertedMessages = this.convertMessages(input.messages);
     const contentParts: string[] = [];
     const toolCalls = new Map<number, StreamingToolCall>();
@@ -86,9 +84,7 @@ export class AnthropicLLMClient extends BaseLLMClient {
               temperature: this.config.temperature,
               system: convertedMessages.system,
               messages: convertedMessages.messages,
-              tools: input.tools?.length
-                ? this.convertTools(input.tools)
-                : undefined,
+              tools: input.tools?.length ? this.convertTools(input.tools) : undefined,
             },
             {signal},
           ),
@@ -171,9 +167,7 @@ export class AnthropicLLMClient extends BaseLLMClient {
     };
   }
 
-  private convertMessages(
-    messages: readonly LLMMessage[],
-  ): ConvertedAnthropicMessages {
+  private convertMessages(messages: readonly LLMMessage[]): ConvertedAnthropicMessages {
     const systemMessages: string[] = [];
     const convertedMessages: MessageParam[] = [];
 
@@ -272,9 +266,7 @@ export class AnthropicLLMClient extends BaseLLMClient {
   }
 }
 
-function isContentBlockDeltaEvent(
-  event: unknown,
-): event is {
+function isContentBlockDeltaEvent(event: unknown): event is {
   type: "content_block_delta";
   index: number;
   delta:
@@ -290,14 +282,11 @@ function isContentBlockDeltaEvent(
     typeof event.index === "number" &&
     isRecord(delta) &&
     ((delta.type === "text_delta" && typeof delta.text === "string") ||
-      (delta.type === "input_json_delta" &&
-        typeof delta.partial_json === "string"))
+      (delta.type === "input_json_delta" && typeof delta.partial_json === "string"))
   );
 }
 
-function isToolUseStartEvent(
-  event: unknown,
-): event is {
+function isToolUseStartEvent(event: unknown): event is {
   type: "content_block_start";
   index: number;
   content_block: {type: "tool_use"; id: string; name: string};

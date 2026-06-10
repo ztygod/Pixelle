@@ -17,8 +17,7 @@ export function ToolStatus({tool}: ToolStatusProps) {
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Text>
-        <Text color={color}>{icon}</Text>{" "}
-        <Text color={theme.text}>{tool.name}</Text>
+        <Text color={color}>{icon}</Text> <Text color={theme.text}>{tool.name}</Text>
         <Text color={theme.muted}> / {formatStatus(tool.status)}</Text>
         {formatDuration(tool) ? (
           <Text color={theme.faint}> / {formatDuration(tool)}</Text>
@@ -28,14 +27,12 @@ export function ToolStatus({tool}: ToolStatusProps) {
       {expanded ? (
         <Box flexDirection="column" marginLeft={1} marginTop={1}>
           {tool.input !== undefined ? (
-            <Text color={theme.muted}>input  {formatUnknown(tool.input, 500)}</Text>
+            <Text color={theme.muted}>input {formatUnknown(tool.input, 500)}</Text>
           ) : null}
           {tool.output !== undefined ? (
             <Text color={theme.muted}>output {formatUnknown(tool.output, 500)}</Text>
           ) : null}
-          {tool.error ? (
-            <Text color={theme.danger}>error  {tool.error}</Text>
-          ) : null}
+          {tool.error ? <Text color={theme.danger}>error {tool.error}</Text> : null}
         </Box>
       ) : null}
     </Box>
@@ -101,4 +98,3 @@ function formatDuration(tool: ToolCallState): string | undefined {
 
   return undefined;
 }
-

@@ -51,7 +51,7 @@ import {createAgentRuntimeFromConfig} from "@pixelle/agent";
 const agent = await createAgentRuntimeFromConfig();
 
 const result = await agent.run({
-  input: "Inspect the current workspace and summarize the project.",
+  prompt: "Inspect the current workspace and summarize the project.",
 });
 
 console.log(result);

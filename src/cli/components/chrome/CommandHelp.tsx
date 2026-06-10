@@ -7,11 +7,10 @@ export function CommandHelp() {
       <Text color={theme.primary} bold>
         Commands
       </Text>
-      <Text color={theme.muted}>/help   toggle help</Text>
-      <Text color={theme.muted}>/clear  clear timeline</Text>
-      <Text color={theme.muted}>/debug  toggle debug metadata</Text>
-      <Text color={theme.muted}>/exit   close terminal UI</Text>
+      <Text color={theme.muted}>/help toggle help</Text>
+      <Text color={theme.muted}>/clear clear timeline</Text>
+      <Text color={theme.muted}>/debug toggle debug metadata</Text>
+      <Text color={theme.muted}>/exit close terminal UI</Text>
     </Box>
   );
 }
-

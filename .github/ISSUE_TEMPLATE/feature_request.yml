@@ -1,0 +1,32 @@
+name: Feature Request
+description: Propose a capability or API improvement.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What should Pixelle Agent make possible?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the API, behavior, or integration shape.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Agent Runtime
+        - Tool API
+        - LLM Provider
+        - Event Contract
+        - Config
+        - CLI
+    validations:
+      required: true

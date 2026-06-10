@@ -12,9 +12,7 @@ export function StreamMessage({content, streaming, revealCode}: StreamMessagePro
   return (
     <Box flexDirection="column">
       <MarkdownRenderer content={content} revealCode={revealCode} />
-      {streaming ? (
-        <Text color={theme.muted}>{icons.cursor}</Text>
-      ) : null}
+      {streaming ? <Text color={theme.muted}>{icons.cursor}</Text> : null}
     </Box>
   );
 }

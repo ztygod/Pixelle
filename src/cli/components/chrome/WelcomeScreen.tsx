@@ -1,6 +1,6 @@
-import { Box, Text } from "ink";
-import { WelcomeLogo } from "./WelcomeLogo.js";
-import { theme } from "../../utils/theme.js";
+import {Box, Text} from "ink";
+import {WelcomeLogo} from "./WelcomeLogo.js";
+import {theme} from "../../utils/theme.js";
 
 type GitStatus = "clean" | "modified" | "unknown";
 
@@ -50,10 +50,7 @@ export function WelcomeScreen({
 
         <InfoRow label="model" value={model} />
 
-        <InfoRow
-          label="git"
-          value={`${gitBranch} ${formatGitStatus(gitStatus)}`}
-        />
+        <InfoRow label="git" value={`${gitBranch} ${formatGitStatus(gitStatus)}`} />
 
         <InfoRow label="directory" value={shortCwd} />
       </Box>
@@ -67,7 +64,7 @@ type InfoRowProps = {
   accent?: boolean;
 };
 
-function InfoRow({ label, value, accent = false }: InfoRowProps) {
+function InfoRow({label, value, accent = false}: InfoRowProps) {
   return (
     <Box>
       <Text color={theme.muted}> {label.padEnd(9)} </Text>

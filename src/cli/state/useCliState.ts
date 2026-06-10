@@ -29,4 +29,3 @@ export function useCliState(
 
   return {state};
 }
-

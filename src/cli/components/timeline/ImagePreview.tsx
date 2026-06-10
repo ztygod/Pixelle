@@ -1,7 +1,7 @@
 import {Box, Text} from "ink";
 import type {ImagePreviewState} from "../../types.js";
 import {getImagePreviewLabel} from "../../utils/image.js";
-import {icons, theme} from "../../utils/theme.js";
+import {theme} from "../../utils/theme.js";
 
 type ImagePreviewProps = {
   image: ImagePreviewState;

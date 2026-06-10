@@ -31,30 +31,33 @@ export function InputBox({onSubmit, width}: InputBoxProps) {
     };
   }, [submitted]);
 
-  useInput((input, key) => {
-    if (key.return) {
-      const trimmed = value.trim();
-      if (trimmed.length > 0) {
-        onSubmit(trimmed);
-        setSubmitted(true);
+  useInput(
+    (input, key) => {
+      if (key.return) {
+        const trimmed = value.trim();
+        if (trimmed.length > 0) {
+          onSubmit(trimmed);
+          setSubmitted(true);
+        }
+        setValue("");
+        return;
       }
-      setValue("");
-      return;
-    }
 
-    if (key.backspace || key.delete) {
-      setValue((current) => current.slice(0, -1));
-      return;
-    }
+      if (key.backspace || key.delete) {
+        setValue((current) => current.slice(0, -1));
+        return;
+      }
 
-    if (key.ctrl || key.meta || input === "\u0003") {
-      return;
-    }
+      if (key.ctrl || key.meta || input === "\u0003") {
+        return;
+      }
 
-    if (input) {
-      setValue((current) => current + input);
-    }
-  }, {isActive: isInteractive});
+      if (input) {
+        setValue((current) => current + input);
+      }
+    },
+    {isActive: isInteractive},
+  );
 
   return (
     <Box
@@ -69,16 +72,17 @@ export function InputBox({onSubmit, width}: InputBoxProps) {
         {submitted ? icons.done : hasValue ? icons.inputActive : icons.inputIdle}
       </Text>
       <Text color={theme.brand}> Pixelle</Text>
-      <Text color={theme.muted}> {modeLabel} {icons.user} </Text>
+      <Text color={theme.muted}>
+        {" "}
+        {modeLabel} {icons.user}{" "}
+      </Text>
       <Box flexGrow={1}>
         {hasValue ? (
           <Text color={theme.text}>{value}</Text>
         ) : (
           <Text color={theme.muted}>Ask Pixelle or type /help</Text>
         )}
-        <Text color={hasValue ? theme.brand : theme.muted}>
-          {cursor}
-        </Text>
+        <Text color={hasValue ? theme.brand : theme.muted}>{cursor}</Text>
       </Box>
       {showSendHint ? <Text color={theme.faint}> Enter to send</Text> : null}
     </Box>

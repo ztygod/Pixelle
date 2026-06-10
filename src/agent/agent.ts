@@ -17,8 +17,8 @@ import {
 } from "../runtime/index.js";
 import {
   createDefaultToolRegistry,
-  ToolRegistry,
   ToolRunner,
+  type ToolRegistry,
   type ToolPermissions,
 } from "../tool/index.js";
 import {buildRuntimeContext, buildSystemPrompt} from "./context.js";
@@ -73,9 +73,7 @@ export class Agent {
     this.config = normalizeConfig(options.config);
     this.llm =
       options.llm ??
-      (this.config.llm
-        ? new LLMClient(this.config.llm)
-        : missingLLMClient());
+      (this.config.llm ? new LLMClient(this.config.llm) : missingLLMClient());
     this.toolRegistry = options.toolRegistry ?? createDefaultToolRegistry();
     this.toolRunner = options.toolRunner ?? new ToolRunner(this.toolRegistry);
     this.eventBus = options.eventBus ?? new EventBus<PixelleEvent>();
@@ -157,9 +155,7 @@ export class Agent {
     const sessionId = options.sessionId ?? runId;
     const traceId = options.traceId ?? randomUUID();
     const maxIterations =
-      input.maxIterations ??
-      this.config.runtime.maxIterations ??
-      DEFAULT_MAX_ITERATIONS;
+      input.maxIterations ?? this.config.runtime.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     const context = this.createRunContext({
       input,
       runId,
@@ -315,14 +311,24 @@ export class Agent {
             ? input.verification.commands
             : this.config.verification?.commands,
         );
-        this.emitVerificationStarted(selectedCommands, input, sessionId, traceId, options);
+        this.emitVerificationStarted(
+          selectedCommands,
+          input,
+          sessionId,
+          traceId,
+          options,
+        );
         verification.push(
-          ...(await this.verifier.verify(this.config.runtime.workspaceDir, workspaceProfile, {
-            commands: input.verification?.commands?.length
-              ? input.verification.commands
-              : this.config.verification?.commands,
-            signal: input.signal,
-          })),
+          ...(await this.verifier.verify(
+            this.config.runtime.workspaceDir,
+            workspaceProfile,
+            {
+              commands: input.verification?.commands?.length
+                ? input.verification.commands
+                : this.config.verification?.commands,
+              signal: input.signal,
+            },
+          )),
         );
         this.emitVerificationCompleted(verification, input, sessionId, traceId, options);
         await traceStore?.update((trace) => {
@@ -418,7 +424,8 @@ export class Agent {
 
         if (failedVerification) {
           stopReason = "error";
-          content = `${content}\n\nVerification failed: ${failedVerification.command}`.trim();
+          content =
+            `${content}\n\nVerification failed: ${failedVerification.command}`.trim();
         } else {
           stopReason = "completed";
         }
@@ -759,11 +766,7 @@ export class Agent {
         type: "conversation.assistant_stage",
         messageId: context.runId,
         stage: iteration === 1 ? "thinking" : "executing",
-        metadata: createEventMetadata(
-          context.input,
-          context.sessionId,
-          context.traceId,
-        ),
+        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
       },
       options,
     );
@@ -785,11 +788,7 @@ export class Agent {
         messageId: context.runId,
         delta: response.content,
         stage: response.toolCalls.length ? "planning" : "complete",
-        metadata: createEventMetadata(
-          context.input,
-          context.sessionId,
-          context.traceId,
-        ),
+        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
       },
       options,
     );
@@ -855,11 +854,7 @@ export class Agent {
       {
         type: "change_set.rollback_started",
         id: changeSet.id,
-        metadata: createEventMetadata(
-          context.input,
-          context.sessionId,
-          context.traceId,
-        ),
+        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
       },
       options,
     );
@@ -875,11 +870,7 @@ export class Agent {
       {
         type: "change_set.rollback_completed",
         id: changeSet.id,
-        metadata: createEventMetadata(
-          context.input,
-          context.sessionId,
-          context.traceId,
-        ),
+        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
       },
       options,
     );
@@ -945,9 +936,7 @@ export class Agent {
   }
 
   private eventsForTrace(traceId: string): PixelleEvent[] {
-    return this.eventBus
-      .history()
-      .filter((event) => event.metadata?.traceId === traceId);
+    return this.eventBus.history().filter((event) => event.metadata?.traceId === traceId);
   }
 }
 
@@ -992,10 +981,7 @@ function createTaskRun(runId: string): TaskRun {
   };
 }
 
-function buildRepairPrompt(
-  failure: VerificationResult,
-  repairAttempt: number,
-): string {
+function buildRepairPrompt(failure: VerificationResult, repairAttempt: number): string {
   const output = [failure.stderr, failure.stdout].filter(Boolean).join("\n\n");
 
   return [

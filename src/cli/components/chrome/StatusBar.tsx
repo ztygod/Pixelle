@@ -14,7 +14,11 @@ export function StatusBar({title, state, width}: StatusBarProps) {
   ).length;
   const errorTools = state.tools.filter((tool) => tool.status === "error").length;
   const toolsLabel =
-    runningTools > 0 ? `${runningTools} running` : errorTools > 0 ? `${errorTools} error` : "idle";
+    runningTools > 0
+      ? `${runningTools} running`
+      : errorTools > 0
+        ? `${errorTools} error`
+        : "idle";
   const lastEvent = state.lastEventType ?? "none";
   const compact = width < 72;
 
@@ -23,12 +27,23 @@ export function StatusBar({title, state, width}: StatusBarProps) {
       <Text color={state.lastError ? theme.danger : theme.muted}>
         <Text color={theme.primary}>{title}</Text>
         <Text color={theme.muted}> mode demo</Text>
-        <Text color={runningTools > 0 ? theme.accent : errorTools > 0 ? theme.danger : theme.success}>
-          {" "}tools {toolsLabel}
+        <Text
+          color={
+            runningTools > 0
+              ? theme.accent
+              : errorTools > 0
+                ? theme.danger
+                : theme.success
+          }
+        >
+          {" "}
+          tools {toolsLabel}
         </Text>
         <Text color={theme.muted}> events {state.eventCount}</Text>
         {!compact ? <Text color={theme.muted}> width {width}</Text> : null}
-        {!compact || state.debug ? <Text color={theme.muted}> last {lastEvent}</Text> : null}
+        {!compact || state.debug ? (
+          <Text color={theme.muted}> last {lastEvent}</Text>
+        ) : null}
         <Text color={theme.faint}> /help</Text>
       </Text>
     </Box>

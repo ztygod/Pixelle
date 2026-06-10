@@ -18,7 +18,11 @@ export function MarkdownRenderer({content, revealCode = false}: MarkdownRenderer
         switch (block.type) {
           case "heading":
             return (
-              <Text key={index} bold color={block.level <= 2 ? theme.primary : theme.muted}>
+              <Text
+                key={index}
+                bold
+                color={block.level <= 2 ? theme.primary : theme.muted}
+              >
                 {block.text}
               </Text>
             );

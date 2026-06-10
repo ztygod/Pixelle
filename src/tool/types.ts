@@ -13,9 +13,7 @@ export type ToolErrorResult<TData = unknown> = {
   data?: TData;
 };
 
-export type ToolResult<TData = unknown> =
-  | ToolSuccessResult<TData>
-  | ToolErrorResult;
+export type ToolResult<TData = unknown> = ToolSuccessResult<TData> | ToolErrorResult;
 
 export type ToolParameterSchema = z.ZodTypeAny;
 

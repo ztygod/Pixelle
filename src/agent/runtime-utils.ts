@@ -10,11 +10,7 @@ import {
   type ToolRegistry,
   type ToolResult,
 } from "../tool/index.js";
-import type {
-  AgentRunInput,
-  AgentRuntimeConfig,
-  RunInternalOptions,
-} from "./types.js";
+import type {AgentRunInput, AgentRuntimeConfig, RunInternalOptions} from "./types.js";
 
 export const DEFAULT_PERMISSIONS: Required<ToolPermissions> = {
   readFile: true,
@@ -37,8 +33,7 @@ export function normalizeConfig(
     ...config,
     runtime: {
       maxIterations: config.runtime.maxIterations ?? DEFAULT_MAX_ITERATIONS,
-      maxRepairAttempts:
-        config.runtime.maxRepairAttempts ?? DEFAULT_MAX_REPAIR_ATTEMPTS,
+      maxRepairAttempts: config.runtime.maxRepairAttempts ?? DEFAULT_MAX_REPAIR_ATTEMPTS,
       tokensLimit: config.runtime.tokensLimit ?? DEFAULT_TOKEN_LIMIT,
       systemPrompt: config.runtime.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
       workspaceDir: config.runtime.workspaceDir,

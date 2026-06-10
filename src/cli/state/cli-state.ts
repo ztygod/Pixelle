@@ -1,9 +1,4 @@
-import type {
-  CliEvent,
-  CliMessage,
-  ImagePreviewState,
-  ToolCallState,
-} from "../types.js";
+import type {CliEvent, CliMessage, ImagePreviewState, ToolCallState} from "../types.js";
 import {createId} from "../utils/format.js";
 
 export type CliViewState = {
@@ -28,10 +23,7 @@ export const initialCliState: CliViewState = {
 
 export type CliAction = {type: "event"; event: CliEvent};
 
-export function reduceCliState(
-  state: CliViewState,
-  action: CliAction,
-): CliViewState {
+export function reduceCliState(state: CliViewState, action: CliAction): CliViewState {
   return reduceCliEvent(state, action.event);
 }
 
@@ -94,9 +86,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
       };
 
     case "assistant_delta": {
-      const existing = state.messages.find(
-        (message) => message.id === event.messageId,
-      );
+      const existing = state.messages.find((message) => message.id === event.messageId);
       if (!existing) {
         return {
           ...state,
@@ -134,9 +124,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
     }
 
     case "assistant_stage": {
-      const existing = state.messages.find(
-        (message) => message.id === event.messageId,
-      );
+      const existing = state.messages.find((message) => message.id === event.messageId);
       if (!existing) {
         return {
           ...state,
@@ -278,10 +266,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
   }
 }
 
-function getDurationMs(
-  tool: ToolCallState,
-  completedAt: number,
-): number | undefined {
+function getDurationMs(tool: ToolCallState, completedAt: number): number | undefined {
   const startedAt = tool.startedAt ?? tool.createdAt;
   if (!startedAt || completedAt < startedAt) {
     return undefined;
@@ -289,4 +274,3 @@ function getDurationMs(
 
   return completedAt - startedAt;
 }
-

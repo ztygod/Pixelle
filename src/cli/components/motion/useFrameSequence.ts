@@ -8,4 +8,3 @@ export function useFrameSequence(
   const frame = useTerminalPulse(frames.length, intervalMs, active);
   return frames[frame] ?? frames[0] ?? "";
 }
-

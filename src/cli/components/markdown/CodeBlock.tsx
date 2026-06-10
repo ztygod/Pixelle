@@ -22,9 +22,7 @@ export function CodeBlock({code, language, reveal = false}: CodeBlockProps) {
       {lines.map((line, index) => (
         <Text key={`${index}:${line}`}>
           <Text color={getGutterColor(line, isDiff)}>│ </Text>
-          <Text color={getLineColor(line, isDiff)}>
-            {line.length === 0 ? " " : line}
-          </Text>
+          <Text color={getLineColor(line, isDiff)}>{line.length === 0 ? " " : line}</Text>
         </Text>
       ))}
     </Box>
