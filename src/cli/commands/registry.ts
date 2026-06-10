@@ -5,6 +5,9 @@ const DEFAULT_COMMANDS: readonly CommandDefinition[] = [
   {name: "debug", scope: "ui"},
   {name: "help", scope: "ui", aliases: ["?"]},
   {name: "exit", scope: "ui", aliases: ["quit"]},
+  {name: "config", scope: "runtime"},
+  {name: "workspace", scope: "runtime"},
+  {name: "edit", scope: "runtime"},
 ];
 
 export function createCommandRegistry(

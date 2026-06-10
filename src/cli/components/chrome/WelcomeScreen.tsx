@@ -15,7 +15,7 @@ type WelcomeScreenProps = {
 export function WelcomeScreen({
   version,
   cwd,
-  model = "gpt-5.5",
+  model = "not configured",
   gitBranch = "main",
   gitStatus = "unknown",
 }: WelcomeScreenProps) {
@@ -43,7 +43,7 @@ export function WelcomeScreen({
         <Box marginBottom={1}>
           <Text color={theme.success}>░</Text>
           <Text color={theme.muted}> runtime </Text>
-          <Text color={theme.text}>demo interface ready</Text>
+          <Text color={theme.text}>local agent ready</Text>
         </Box>
 
         <InfoRow label="version" value={`v${version}`} accent />

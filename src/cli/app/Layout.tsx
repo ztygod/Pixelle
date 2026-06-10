@@ -10,23 +10,26 @@ type LayoutProps = {
   title: string;
   version: string;
   cwd: string;
+  model?: string;
   state: CliViewState;
   onSubmit(input: string): void;
   width: number;
 };
 
-export function Layout({title, version, cwd, state, onSubmit, width}: LayoutProps) {
+export function Layout({
+  title,
+  version,
+  cwd,
+  model,
+  state,
+  onSubmit,
+  width,
+}: LayoutProps) {
   const timelineItems = selectTimelineItems(state);
 
   return (
     <Box flexDirection="column">
-      <WelcomeScreen
-        version={version}
-        cwd={cwd}
-        model="gpt-5.5"
-        gitBranch="feat/cli-header"
-        gitStatus="modified"
-      />
+      <WelcomeScreen version={version} cwd={cwd} model={model} />
       <Timeline items={timelineItems} showHelp={state.showHelp} />
       <StatusBar title={title} state={state} width={width} />
       <InputBox onSubmit={onSubmit} width={width} />

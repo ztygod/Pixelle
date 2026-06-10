@@ -8,6 +8,8 @@ import {Layout} from "./Layout.js";
 type AppProps = {
   title: string;
   version: string;
+  cwd: string;
+  model?: string;
   eventBus: CliEventBus;
   userInputBus: UserInputBus;
   initialEvents?: CliEvent[];
@@ -17,6 +19,8 @@ type AppProps = {
 export function App({
   title,
   version,
+  cwd,
+  model,
   eventBus,
   userInputBus,
   initialEvents,
@@ -67,7 +71,8 @@ export function App({
     <Layout
       title={title}
       version={version}
-      cwd={process.cwd()}
+      cwd={cwd}
+      model={model}
       state={state}
       onSubmit={handleSubmit}
       width={width}

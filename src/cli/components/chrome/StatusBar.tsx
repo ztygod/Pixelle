@@ -26,7 +26,7 @@ export function StatusBar({title, state, width}: StatusBarProps) {
     <Box marginTop={1}>
       <Text color={state.lastError ? theme.danger : theme.muted}>
         <Text color={theme.primary}>{title}</Text>
-        <Text color={theme.muted}> mode demo</Text>
+        <Text color={theme.muted}> mode local</Text>
         <Text
           color={
             runningTools > 0

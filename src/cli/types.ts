@@ -102,6 +102,8 @@ export type ImagePreviewState = {
 
 export type RenderCliOptions = {
   title?: string;
+  cwd?: string;
+  model?: string;
   initialEvents?: CliEvent[];
 };
 

@@ -24,6 +24,8 @@ export function renderCli(options: RenderCliOptions = {}): CliHandle {
     <App
       title={options.title ?? "Pixelle"}
       version={CLI_VERSION}
+      cwd={options.cwd ?? process.cwd()}
+      model={options.model}
       eventBus={eventBus}
       userInputBus={userInputBus}
       initialEvents={options.initialEvents}

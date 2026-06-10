@@ -27,7 +27,8 @@
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",
-    "dev": "tsc -b tsconfig.json --watch --preserveWatchOutput",
+    "dev": "tsx src/cli.ts",
+    "dev:watch": "tsc -b tsconfig.json --watch --preserveWatchOutput",
     "dev:cli": "tsx src/cli.ts",
     "typecheck": "tsc -b tsconfig.json --pretty false",
     "lint": "eslint .",
