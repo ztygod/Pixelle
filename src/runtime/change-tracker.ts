@@ -78,7 +78,8 @@ export class ChangeTracker {
     for (const file of [...changeSet.files].reverse()) {
       const safePath = resolveWorkspacePath(this.input.workspaceRoot, file.path);
       const currentContent = await readExistingFile(safePath.absolutePath);
-      const currentHash = currentContent === undefined ? undefined : hashText(currentContent);
+      const currentHash =
+        currentContent === undefined ? undefined : hashText(currentContent);
 
       if (currentHash !== file.afterHash) {
         throw new Error(

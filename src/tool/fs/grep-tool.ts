@@ -55,11 +55,7 @@ export const grepTool: Tool<typeof grepParameters, {matches: GrepMatch[]}> = {
         maxResults,
         context.signal,
       )) ??
-      (await searchWorkspaceWithNode(
-        context.workspaceRoot,
-        input.pattern,
-        maxResults,
-      ));
+      (await searchWorkspaceWithNode(context.workspaceRoot, input.pattern, maxResults));
 
     return okToolResult("Searched workspace file contents.", {matches});
   },

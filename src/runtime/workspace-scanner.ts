@@ -96,4 +96,3 @@ async function exists(filePath: string): Promise<boolean> {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-

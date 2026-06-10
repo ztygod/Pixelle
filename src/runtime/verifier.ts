@@ -144,4 +144,3 @@ function appendLimited(current: string, chunk: string, maxLength: number): strin
 
   return `${current}${chunk}`.slice(0, maxLength);
 }
-

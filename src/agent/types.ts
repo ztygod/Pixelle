@@ -36,11 +36,7 @@ import type {EventBus} from "../events/index.js";
 import type {Agent} from "./agent.js";
 
 /** Reason why an agent run stopped. */
-export type AgentStopReason =
-  | "completed"
-  | "max_iterations"
-  | "aborted"
-  | "error";
+export type AgentStopReason = "completed" | "max_iterations" | "aborted" | "error";
 
 /** Context that can be injected into the reserved runtime context section. */
 export type AgentContextValue =
@@ -186,10 +182,7 @@ export type AgentOptions = {
   verifier?: Verifier;
 };
 
-export type AgentRuntimeInjectionOptions = Omit<
-  AgentOptions,
-  "config" | "permissions"
->;
+export type AgentRuntimeInjectionOptions = Omit<AgentOptions, "config" | "permissions">;
 
 export type CreateAgentRuntimeFromConfigOptions = LoadAgentConfigOptions &
   AgentRuntimeInjectionOptions;

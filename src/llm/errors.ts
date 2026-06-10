@@ -1,4 +1,4 @@
-import { LLMProvider } from "../config/types.js";
+import type {LLMProvider} from "../config/types.js";
 
 /** Stable error code values for LLM failures. */
 export type LLMErrorCode =
@@ -54,7 +54,10 @@ export class LLMTimeoutError extends LLMError {
 
 /** Raised when a provider returns a rate-limit response. */
 export class LLMRateLimitError extends LLMError {
-  constructor(message = "LLM provider rate limit exceeded.", options: Omit<LLMErrorOptions, "code"> = {}) {
+  constructor(
+    message = "LLM provider rate limit exceeded.",
+    options: Omit<LLMErrorOptions, "code"> = {},
+  ) {
     super(message, {
       ...options,
       code: "llm_rate_limit",
@@ -66,7 +69,10 @@ export class LLMRateLimitError extends LLMError {
 
 /** Raised when provider authentication fails. */
 export class LLMAuthError extends LLMError {
-  constructor(message = "LLM provider authentication failed.", options: Omit<LLMErrorOptions, "code"> = {}) {
+  constructor(
+    message = "LLM provider authentication failed.",
+    options: Omit<LLMErrorOptions, "code"> = {},
+  ) {
     super(message, {
       ...options,
       code: "llm_auth",
@@ -78,7 +84,10 @@ export class LLMAuthError extends LLMError {
 
 /** Raised for retryable network or upstream availability failures. */
 export class LLMNetworkError extends LLMError {
-  constructor(message = "LLM provider network request failed.", options: Omit<LLMErrorOptions, "code"> = {}) {
+  constructor(
+    message = "LLM provider network request failed.",
+    options: Omit<LLMErrorOptions, "code"> = {},
+  ) {
     super(message, {
       ...options,
       code: "llm_network",
@@ -90,7 +99,10 @@ export class LLMNetworkError extends LLMError {
 
 /** Raised when the requested model is unavailable or invalid. */
 export class LLMModelError extends LLMError {
-  constructor(message = "LLM model is unavailable or unsupported.", options: Omit<LLMErrorOptions, "code"> = {}) {
+  constructor(
+    message = "LLM model is unavailable or unsupported.",
+    options: Omit<LLMErrorOptions, "code"> = {},
+  ) {
     super(message, {
       ...options,
       code: "llm_model",
@@ -102,7 +114,10 @@ export class LLMModelError extends LLMError {
 
 /** Raised when a provider response cannot be normalized safely. */
 export class LLMResponseFormatError extends LLMError {
-  constructor(message = "LLM provider returned an unexpected response format.", options: Omit<LLMErrorOptions, "code"> = {}) {
+  constructor(
+    message = "LLM provider returned an unexpected response format.",
+    options: Omit<LLMErrorOptions, "code"> = {},
+  ) {
     super(message, {
       ...options,
       code: "llm_response_format",

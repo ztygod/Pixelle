@@ -8,6 +8,11 @@ import {Layout} from "./Layout.js";
 type AppProps = {
   title: string;
   version: string;
+  cwd: string;
+  model?: string;
+  provider?: string;
+  gitBranch?: string;
+  gitStatus?: "clean" | "modified" | "unknown";
   eventBus: CliEventBus;
   userInputBus: UserInputBus;
   initialEvents?: CliEvent[];
@@ -17,6 +22,11 @@ type AppProps = {
 export function App({
   title,
   version,
+  cwd,
+  model,
+  provider,
+  gitBranch,
+  gitStatus,
   eventBus,
   userInputBus,
   initialEvents,
@@ -67,11 +77,14 @@ export function App({
     <Layout
       title={title}
       version={version}
-      cwd={process.cwd()}
+      cwd={cwd}
+      model={model}
+      provider={provider}
+      gitBranch={gitBranch}
+      gitStatus={gitStatus}
       state={state}
       onSubmit={handleSubmit}
       width={width}
     />
   );
 }
-

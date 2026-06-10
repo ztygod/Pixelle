@@ -23,43 +23,41 @@ const webFetchParameters = z.object({
     .describe("Maximum number of characters of response text to return."),
 });
 
-export const webFetchTool: Tool<
-  typeof webFetchParameters,
-  {url: string; text: string}
-> = {
-  definition: {
-    name: "web_fetch",
-    description:
-      "Fetch text from a specific known URL. Use this when you already have the exact webpage URL and need its page text. This tool does not discover unknown pages. Returns the final URL string and capped response text. This is a network tool and does not access workspace files.",
-    parameters: webFetchParameters,
-  },
-  async execute(input, context) {
-    requireNetworkPermission(context, "web_fetch");
+export const webFetchTool: Tool<typeof webFetchParameters, {url: string; text: string}> =
+  {
+    definition: {
+      name: "web_fetch",
+      description:
+        "Fetch text from a specific known URL. Use this when you already have the exact webpage URL and need its page text. This tool does not discover unknown pages. Returns the final URL string and capped response text. This is a network tool and does not access workspace files.",
+      parameters: webFetchParameters,
+    },
+    async execute(input, context) {
+      requireNetworkPermission(context, "web_fetch");
 
-    const url = parseHttpUrl(input.url, "web_fetch");
-    const maxLength =
-      typeof input.maxLength === "number" && input.maxLength > 0
-        ? Math.floor(input.maxLength)
-        : 20_000;
-    const response = await fetch(url, {signal: context.signal});
+      const url = parseHttpUrl(input.url, "web_fetch");
+      const maxLength =
+        typeof input.maxLength === "number" && input.maxLength > 0
+          ? Math.floor(input.maxLength)
+          : 20_000;
+      const response = await fetch(url, {signal: context.signal});
 
-    if (!response.ok) {
-      throw new ToolError({
-        code: "TOOL_EXECUTION_FAILED",
-        message: `web_fetch failed with HTTP ${response.status}.`,
-        toolName: "web_fetch",
-        details: {status: response.status, url},
+      if (!response.ok) {
+        throw new ToolError({
+          code: "TOOL_EXECUTION_FAILED",
+          message: `web_fetch failed with HTTP ${response.status}.`,
+          toolName: "web_fetch",
+          details: {status: response.status, url},
+        });
+      }
+
+      const text = await response.text();
+
+      return okToolResult("Fetched webpage text.", {
+        url,
+        text: text.slice(0, maxLength),
       });
-    }
-
-    const text = await response.text();
-
-    return okToolResult("Fetched webpage text.", {
-      url,
-      text: text.slice(0, maxLength),
-    });
-  },
-};
+    },
+  };
 
 function requireNetworkPermission(context: ToolContext, toolName: string): void {
   if (!context.permissions?.network) {

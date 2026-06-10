@@ -1,5 +1,5 @@
-import { render } from "ink";
-import { App } from "./app/App.js";
+import {render} from "ink";
+import {App} from "./app/App.js";
 import {EventBus} from "../events/index.js";
 import type {
   CliEvent,
@@ -16,15 +16,19 @@ const CLI_VERSION = process.env.npm_package_version ?? "1.0.0";
 export function renderCli(options: RenderCliOptions = {}): CliHandle {
   const eventBus: CliEventBus = new EventBus<CliEvent>();
   const userInputBus: UserInputBus = new EventBus<UserInputEvent>();
-  let instance: ReturnType<typeof render>;
   const onExit = () => {
     instance.unmount();
   };
 
-  instance = render(
+  const instance = render(
     <App
       title={options.title ?? "Pixelle"}
       version={CLI_VERSION}
+      cwd={options.cwd ?? process.cwd()}
+      model={options.model}
+      provider={options.provider}
+      gitBranch={options.gitBranch}
+      gitStatus={options.gitStatus}
       eventBus={eventBus}
       userInputBus={userInputBus}
       initialEvents={options.initialEvents}

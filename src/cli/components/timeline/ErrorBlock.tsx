@@ -16,4 +16,3 @@ export function ErrorBlock({message}: ErrorBlockProps) {
     </Box>
   );
 }
-

@@ -1,10 +1,13 @@
 {
   "name": "@pixelle/agent",
   "version": "0.0.0",
-  "private": true,
+  "description": "Agent runtime, tool calling framework, and LLM integration layer for Pixelle.",
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -24,27 +27,84 @@
   },
   "scripts": {
     "build": "tsc -b tsconfig.json",
-    "dev": "tsc -b tsconfig.json --watch --preserveWatchOutput",
+    "dev": "tsx src/cli.ts",
+    "dev:watch": "tsc -b tsconfig.json --watch --preserveWatchOutput",
     "dev:cli": "tsx src/cli.ts",
-    "typecheck": "tsc -b tsconfig.json --pretty false"
+    "typecheck": "tsc -b tsconfig.json --pretty false",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "api": "api-extractor run --local",
+    "changeset": "changeset",
+    "release": "pnpm build && changeset publish",
+    "prepare": "husky"
   },
-  "keywords": [],
+  "keywords": [
+    "agent",
+    "agent-runtime",
+    "llm",
+    "tool-calling",
+    "pixelle"
+  ],
   "author": "tianyi zhou",
-  "license": "ISC",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ztygod/Pixelle.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ztygod/Pixelle/issues"
+  },
+  "homepage": "https://github.com/ztygod/Pixelle#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.0.0",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,toml}": [
+      "prettier --write"
+    ]
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
+    "@clack/prompts": "^1.5.1",
     "chalk": "^5.6.2",
+    "cli-highlight": "^2.1.11",
     "diff": "^9.0.0",
     "ink": "^7.0.3",
     "openai": "^6.38.0",
     "react": "^19.2.6",
     "smol-toml": "^1.6.1",
+    "wrap-ansi": "^10.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.7",
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "@eslint/js": "^9.39.1",
+    "@microsoft/api-extractor": "^7.55.1",
     "@types/node": "^25.8.0",
     "@types/react": "^19.2.14",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
+    "prettier": "^3.6.2",
     "tsx": "^4.22.1",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.48.0",
+    "vitest": "^4.0.15"
   }
 }

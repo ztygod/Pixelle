@@ -8,19 +8,17 @@ type ToolCallId = Brand<string, "ToolCallId">;
 
 type AgentStage = "thinking" | "planning" | "executing" | "complete";
 
-type ToolCallStatus =
-  | "pending"
-  | "running"
-  | "success"
-  | "done"
-  | "error";
+type ToolCallStatus = "pending" | "running" | "success" | "done" | "error";
 
-type PatchSummary = {
-  id: string;
-  title: string;
-  filesChanged: number;
-  additions?: number;
-  deletions?: number;
+type EventChangedFileStatus = "created" | "modified" | "deleted";
+
+type EventChangedFile = {
+  path: string;
+  beforeHash?: string;
+  afterHash?: string;
+  beforeContent?: string;
+  afterContent?: string;
+  status: EventChangedFileStatus;
 };
 
 type EventMetadata = Readonly<{
@@ -49,9 +47,7 @@ type PublishedEvent<TEvent extends BaseEvent> = TEvent & {
 
 type EventType<TEvent extends BaseEvent> = TEvent["type"] | "*";
 
-type EventListener<TEvent extends BaseEvent> = (
-  event: PublishedEvent<TEvent>,
-) => void;
+type EventListener<TEvent extends BaseEvent> = (event: PublishedEvent<TEvent>) => void;
 
 type EventMiddleware<TEvent extends BaseEvent> = (
   event: PublishedEvent<TEvent>,
@@ -129,6 +125,7 @@ type RuntimeEvent =
   | (BaseEvent<"change_set.applied"> & {
       id: string;
       files: readonly string[];
+      changes?: readonly EventChangedFile[];
       checkpointPath?: string;
     })
   | (BaseEvent<"change_set.rollback_started"> & {
@@ -159,10 +156,7 @@ type EventBusOptions<TEvent extends BaseEvent> = {
 
 /** In-memory typed pub/sub bus with bounded history and optional middleware. */
 export class EventBus<TEvent extends BaseEvent> {
-  private readonly listenersByType = new Map<
-    string,
-    Set<EventListener<TEvent>>
-  >();
+  private readonly listenersByType = new Map<string, Set<EventListener<TEvent>>>();
   private readonly historyBuffer: PublishedEvent<TEvent>[] = [];
   private readonly middleware: EventMiddleware<TEvent>[];
   private readonly maxHistorySize: number;
@@ -220,10 +214,7 @@ export class EventBus<TEvent extends BaseEvent> {
 
     this.historyBuffer.push(publishedEvent);
     if (this.historyBuffer.length > this.maxHistorySize) {
-      this.historyBuffer.splice(
-        0,
-        this.historyBuffer.length - this.maxHistorySize,
-      );
+      this.historyBuffer.splice(0, this.historyBuffer.length - this.maxHistorySize);
     }
 
     for (const listener of this.listenersByType.get(publishedEvent.type) ?? []) {
@@ -259,10 +250,7 @@ export class EventBus<TEvent extends BaseEvent> {
   }
 
   /** Replay retained events to a listener, optionally filtered by type and limit. */
-  replay(
-    listener: EventListener<TEvent>,
-    options: ReplayOptions<TEvent> = {},
-  ): void {
+  replay(listener: EventListener<TEvent>, options: ReplayOptions<TEvent> = {}): void {
     const replayableEvents = options.type
       ? this.historyBuffer.filter((event) => event.type === options.type)
       : this.historyBuffer;

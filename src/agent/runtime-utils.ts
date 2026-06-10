@@ -10,11 +10,7 @@ import {
   type ToolRegistry,
   type ToolResult,
 } from "../tool/index.js";
-import type {
-  AgentRunInput,
-  AgentRuntimeConfig,
-  RunInternalOptions,
-} from "./types.js";
+import type {AgentRunInput, AgentRuntimeConfig, RunInternalOptions} from "./types.js";
 
 export const DEFAULT_PERMISSIONS: Required<ToolPermissions> = {
   readFile: true,
@@ -29,6 +25,16 @@ export const DEFAULT_TOKEN_LIMIT = 32_000;
 export const DEFAULT_SYSTEM_PROMPT =
   "You are Pixelle, an autonomous coding agent. Solve the user's request by reasoning carefully, using tools when needed, and explaining the final outcome clearly.";
 
+export const CLI_MARKDOWN_OUTPUT_INSTRUCTIONS = [
+  "# CLI Output Format",
+  "Format responses for a terminal-based coding agent UI.",
+  "- Use concise Markdown with short headings, short paragraphs, and lists.",
+  "- Do not use Markdown tables. Convert tabular information into bullets or compact sections.",
+  "- Avoid very long single lines; wrap prose naturally.",
+  "- Use fenced code blocks for code and always include a language identifier.",
+  "- Keep tool details, file changes, and raw JSON out of assistant prose unless the user asks for them.",
+].join("\n");
+
 /** Applies runtime defaults without mutating the caller's config object. */
 export function normalizeConfig(
   config: AgentRuntimeConfig | AgentConfig,
@@ -37,8 +43,7 @@ export function normalizeConfig(
     ...config,
     runtime: {
       maxIterations: config.runtime.maxIterations ?? DEFAULT_MAX_ITERATIONS,
-      maxRepairAttempts:
-        config.runtime.maxRepairAttempts ?? DEFAULT_MAX_REPAIR_ATTEMPTS,
+      maxRepairAttempts: config.runtime.maxRepairAttempts ?? DEFAULT_MAX_REPAIR_ATTEMPTS,
       tokensLimit: config.runtime.tokensLimit ?? DEFAULT_TOKEN_LIMIT,
       systemPrompt: config.runtime.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
       workspaceDir: config.runtime.workspaceDir,

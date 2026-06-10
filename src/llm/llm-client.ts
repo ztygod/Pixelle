@@ -26,11 +26,11 @@ export class LLMClient extends BaseLLMClient {
     }
   }
 
-  generate(input: LLMGenerateInput): Promise<LLMResponse> {
+  override generate(input: LLMGenerateInput): Promise<LLMResponse> {
     return this.providerClient.generate(input);
   }
 
-  stream(input: LLMStreamInput): AsyncIterable<LLMStreamChunk> {
+  override stream(input: LLMStreamInput): AsyncIterable<LLMStreamChunk> {
     return this.providerClient.stream(input);
   }
 }

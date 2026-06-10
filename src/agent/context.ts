@@ -6,6 +6,7 @@ import type {
 } from "./types.js";
 import type {EventBus, PixelleEvent} from "../events/index.js";
 import {
+  CLI_MARKDOWN_OUTPUT_INSTRUCTIONS,
   createEventMetadata,
   DEFAULT_SYSTEM_PROMPT,
   emitAgentEvent,
@@ -44,11 +45,7 @@ export async function buildRuntimeContext(input: {
     {
       type: "runtime.context_built",
       tokenEstimate: estimateTokens(contextText),
-      metadata: createEventMetadata(
-        context.input,
-        context.sessionId,
-        context.traceId,
-      ),
+      metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
     },
     input.options,
   );
@@ -57,20 +54,18 @@ export async function buildRuntimeContext(input: {
 }
 
 /** Combines the configured system prompt with the reserved runtime context. */
-export function buildSystemPrompt(
-  context: AgentRunContext,
-  contextText: string,
-): string {
+export function buildSystemPrompt(context: AgentRunContext, contextText: string): string {
   const systemPrompt =
     context.input.systemPrompt ??
     context.config.runtime.systemPrompt ??
     DEFAULT_SYSTEM_PROMPT;
+  const promptWithCliInstructions = `${systemPrompt}\n\n${CLI_MARKDOWN_OUTPUT_INSTRUCTIONS}`;
 
   if (!contextText) {
-    return systemPrompt;
+    return promptWithCliInstructions;
   }
 
-  return `${systemPrompt}\n\n# Runtime Context\n${contextText}`;
+  return `${promptWithCliInstructions}\n\n# Runtime Context\n${contextText}`;
 }
 
 export function estimateTokens(text: string): number {
@@ -90,10 +85,7 @@ function formatContextValue(value: AgentContextValue): string {
   return value.title ? `## ${value.title}\n${content}` : content;
 }
 
-function compareContextValue(
-  left: AgentContextValue,
-  right: AgentContextValue,
-): number {
+function compareContextValue(left: AgentContextValue, right: AgentContextValue): number {
   return getContextPriority(right) - getContextPriority(left);
 }
 
@@ -117,9 +109,7 @@ function truncateContext(blocks: string[], tokenLimit: number): string {
       break;
     }
 
-    selectedBlocks.push(
-      block.length > allowed ? block.slice(0, allowed) : block,
-    );
+    selectedBlocks.push(block.length > allowed ? block.slice(0, allowed) : block);
     remaining -= Math.min(block.length, allowed) + separatorLength;
   }
 

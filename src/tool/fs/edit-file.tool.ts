@@ -9,13 +9,8 @@ import type {Tool, ToolContext} from "../types.js";
 const editFileParameters = z.object({
   reason: z
     .string()
-    .describe(
-      "Explain why this edit is needed and what behavior it changes.",
-    ),
-  path: z
-    .string()
-    .min(1)
-    .describe("Workspace-relative path of the UTF-8 file to edit."),
+    .describe("Explain why this edit is needed and what behavior it changes."),
+  path: z.string().min(1).describe("Workspace-relative path of the UTF-8 file to edit."),
   oldText: z
     .string()
     .min(1)

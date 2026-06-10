@@ -1,8 +1,8 @@
-import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { parse as parseToml } from "smol-toml";
-import { AgentConfigInputSchema, AgentConfigSchema } from "./schema.js";
-import type { AgentConfig, AgentConfigInput, LoadAgentConfigOptions } from "./types.js";
+import {readFile} from "node:fs/promises";
+import {dirname, resolve} from "node:path";
+import {parse as parseToml} from "smol-toml";
+import {AgentConfigInputSchema, AgentConfigSchema} from "./schema.js";
+import type {AgentConfig, AgentConfigInput, LoadAgentConfigOptions} from "./types.js";
 
 const DEFAULT_CONFIG_FILE = "pixelle.toml";
 const DEFAULT_SYSTEM_PROMPT =
@@ -16,17 +16,12 @@ export async function loadAgentConfig(
   const configPath = resolve(cwd, options.configFile ?? DEFAULT_CONFIG_FILE);
 
   const toml = await readFile(configPath, "utf8");
-  const fileConfig = AgentConfigInputSchema.parse(
-    parseToml(toml) as AgentConfigInput,
-  );
+  const fileConfig = AgentConfigInputSchema.parse(parseToml(toml) as AgentConfigInput);
 
   return AgentConfigSchema.parse(normalizeAgentConfig(fileConfig, configPath));
 }
 
-function normalizeAgentConfig(
-  input: AgentConfigInput,
-  configPath: string,
-): AgentConfig {
+function normalizeAgentConfig(input: AgentConfigInput, configPath: string): AgentConfig {
   const configDir = dirname(configPath);
   const apiKey =
     input.llm?.apiKey ??

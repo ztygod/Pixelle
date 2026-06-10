@@ -1,0 +1,27 @@
+name: Tool or Provider Proposal
+description: Propose a built-in tool, third-party tool, or provider adapter.
+title: "feat: "
+labels: ["proposal"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Proposal Type
+      options:
+        - Tool
+        - Provider Adapter
+        - Middleware
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Contract
+      description: Describe inputs, outputs, permissions, events, and errors.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility
+      description: Note any public API or event contract implications.

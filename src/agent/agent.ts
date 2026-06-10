@@ -17,8 +17,8 @@ import {
 } from "../runtime/index.js";
 import {
   createDefaultToolRegistry,
-  ToolRegistry,
   ToolRunner,
+  type ToolRegistry,
   type ToolPermissions,
 } from "../tool/index.js";
 import {buildRuntimeContext, buildSystemPrompt} from "./context.js";
@@ -73,9 +73,7 @@ export class Agent {
     this.config = normalizeConfig(options.config);
     this.llm =
       options.llm ??
-      (this.config.llm
-        ? new LLMClient(this.config.llm)
-        : missingLLMClient());
+      (this.config.llm ? new LLMClient(this.config.llm) : missingLLMClient());
     this.toolRegistry = options.toolRegistry ?? createDefaultToolRegistry();
     this.toolRunner = options.toolRunner ?? new ToolRunner(this.toolRegistry);
     this.eventBus = options.eventBus ?? new EventBus<PixelleEvent>();
@@ -157,9 +155,7 @@ export class Agent {
     const sessionId = options.sessionId ?? runId;
     const traceId = options.traceId ?? randomUUID();
     const maxIterations =
-      input.maxIterations ??
-      this.config.runtime.maxIterations ??
-      DEFAULT_MAX_ITERATIONS;
+      input.maxIterations ?? this.config.runtime.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     const context = this.createRunContext({
       input,
       runId,
@@ -252,11 +248,11 @@ export class Agent {
           iteration,
           messages,
           tools,
+          options,
         });
         usage = mergeUsage(usage, response.usage);
         content = response.content || content;
 
-        this.emitAssistantContent(response, context, options);
         messages.push({
           role: "assistant",
           content: response.content,
@@ -315,14 +311,24 @@ export class Agent {
             ? input.verification.commands
             : this.config.verification?.commands,
         );
-        this.emitVerificationStarted(selectedCommands, input, sessionId, traceId, options);
+        this.emitVerificationStarted(
+          selectedCommands,
+          input,
+          sessionId,
+          traceId,
+          options,
+        );
         verification.push(
-          ...(await this.verifier.verify(this.config.runtime.workspaceDir, workspaceProfile, {
-            commands: input.verification?.commands?.length
-              ? input.verification.commands
-              : this.config.verification?.commands,
-            signal: input.signal,
-          })),
+          ...(await this.verifier.verify(
+            this.config.runtime.workspaceDir,
+            workspaceProfile,
+            {
+              commands: input.verification?.commands?.length
+                ? input.verification.commands
+                : this.config.verification?.commands,
+              signal: input.signal,
+            },
+          )),
         );
         this.emitVerificationCompleted(verification, input, sessionId, traceId, options);
         await traceStore?.update((trace) => {
@@ -354,10 +360,10 @@ export class Agent {
             iteration: context.iteration,
             messages,
             tools,
+            options,
           });
           usage = mergeUsage(usage, repairResponse.usage);
           content = repairResponse.content || content;
-          this.emitAssistantContent(repairResponse, context, options);
           messages.push({
             role: "assistant",
             content: repairResponse.content,
@@ -418,7 +424,8 @@ export class Agent {
 
         if (failedVerification) {
           stopReason = "error";
-          content = `${content}\n\nVerification failed: ${failedVerification.command}`.trim();
+          content =
+            `${content}\n\nVerification failed: ${failedVerification.command}`.trim();
         } else {
           stopReason = "completed";
         }
@@ -544,6 +551,7 @@ export class Agent {
     iteration: number;
     messages: LLMMessage[];
     tools: ReturnType<typeof buildLLMTools>;
+    options: RunInternalOptions;
   }): Promise<AgentModelResponse> {
     const request = await this.middlewarePipeline.beforeModel(
       {
@@ -556,7 +564,11 @@ export class Agent {
       },
       input.context,
     );
-    const rawResponse = await this.llm.generate(request);
+    const rawResponse = await this.generateStreamingModelResponse(
+      request,
+      input.context,
+      input.options,
+    );
     await input.context.traceStore?.update((trace) => {
       trace.modelCalls.push({
         request,
@@ -577,6 +589,72 @@ export class Agent {
       },
       input.context,
     );
+  }
+
+  private async generateStreamingModelResponse(
+    request: Parameters<BaseLLMClient["stream"]>[0],
+    context: AgentRunContext,
+    options: RunInternalOptions,
+  ): Promise<AgentModelResponse> {
+    let streamedContent = "";
+    let emittedContent = false;
+    let finalResponse: AgentModelResponse | undefined;
+
+    try {
+      for await (const chunk of this.llm.stream(request)) {
+        if (chunk.type === "content_delta") {
+          streamedContent += chunk.content;
+          emittedContent = true;
+          emitAgentEvent(
+            this.eventBus,
+            {
+              type: "conversation.assistant_delta",
+              messageId: context.runId,
+              delta: chunk.content,
+              stage: "thinking",
+              metadata: createEventMetadata(
+                context.input,
+                context.sessionId,
+                context.traceId,
+              ),
+            },
+            options,
+          );
+          continue;
+        }
+
+        if (chunk.type === "done") {
+          finalResponse = {
+            ...chunk.response,
+            content: chunk.response.content || streamedContent,
+            iteration: context.iteration,
+            runId: context.runId,
+          };
+        }
+      }
+    } catch (error) {
+      if (emittedContent) {
+        throw error;
+      }
+
+      const response = await this.llm.generate(request);
+      return {
+        ...response,
+        iteration: context.iteration,
+        runId: context.runId,
+      };
+    }
+
+    if (!finalResponse) {
+      const response = await this.llm.generate(request);
+      return {
+        ...response,
+        iteration: context.iteration,
+        runId: context.runId,
+      };
+    }
+
+    return finalResponse;
   }
 
   private async runTool(
@@ -759,37 +837,7 @@ export class Agent {
         type: "conversation.assistant_stage",
         messageId: context.runId,
         stage: iteration === 1 ? "thinking" : "executing",
-        metadata: createEventMetadata(
-          context.input,
-          context.sessionId,
-          context.traceId,
-        ),
-      },
-      options,
-    );
-  }
-
-  private emitAssistantContent(
-    response: AgentModelResponse,
-    context: AgentRunContext,
-    options: RunInternalOptions,
-  ): void {
-    if (!response.content) {
-      return;
-    }
-
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "conversation.assistant_delta",
-        messageId: context.runId,
-        delta: response.content,
-        stage: response.toolCalls.length ? "planning" : "complete",
-        metadata: createEventMetadata(
-          context.input,
-          context.sessionId,
-          context.traceId,
-        ),
+        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
       },
       options,
     );
@@ -838,6 +886,7 @@ export class Agent {
         type: "change_set.applied",
         id: changeSet.id,
         files,
+        changes: changeSet.files,
         checkpointPath,
         metadata,
       },
@@ -855,11 +904,7 @@ export class Agent {
       {
         type: "change_set.rollback_started",
         id: changeSet.id,
-        metadata: createEventMetadata(
-          context.input,
-          context.sessionId,
-          context.traceId,
-        ),
+        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
       },
       options,
     );
@@ -875,11 +920,7 @@ export class Agent {
       {
         type: "change_set.rollback_completed",
         id: changeSet.id,
-        metadata: createEventMetadata(
-          context.input,
-          context.sessionId,
-          context.traceId,
-        ),
+        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
       },
       options,
     );
@@ -945,9 +986,7 @@ export class Agent {
   }
 
   private eventsForTrace(traceId: string): PixelleEvent[] {
-    return this.eventBus
-      .history()
-      .filter((event) => event.metadata?.traceId === traceId);
+    return this.eventBus.history().filter((event) => event.metadata?.traceId === traceId);
   }
 }
 
@@ -992,10 +1031,7 @@ function createTaskRun(runId: string): TaskRun {
   };
 }
 
-function buildRepairPrompt(
-  failure: VerificationResult,
-  repairAttempt: number,
-): string {
+function buildRepairPrompt(failure: VerificationResult, repairAttempt: number): string {
   const output = [failure.stderr, failure.stdout].filter(Boolean).join("\n\n");
 
   return [

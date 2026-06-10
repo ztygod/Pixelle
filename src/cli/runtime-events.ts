@@ -65,6 +65,44 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         detail: event.detail,
         createdAt: event.createdAt,
       };
+    case "change_set.applied":
+      return {
+        type: "change_set",
+        id: event.id,
+        files:
+          event.changes?.map((file) => ({
+            path: file.path,
+            beforeContent: file.beforeContent,
+            afterContent: file.afterContent,
+            status: file.status,
+          })) ??
+          event.files.map((filePath) => ({
+            path: filePath,
+            status: "modified" as const,
+          })),
+        checkpointPath: event.checkpointPath,
+        createdAt: event.createdAt,
+      };
+    case "verification.started":
+      return {
+        type: "verification",
+        status: "running",
+        commands: event.commands,
+        createdAt: event.createdAt,
+      };
+    case "verification.completed":
+      return {
+        type: "verification",
+        status: event.passed ? "passed" : "failed",
+        commands: event.commands,
+        createdAt: event.createdAt,
+      };
+    case "trace.persisted":
+      return {
+        type: "trace",
+        path: event.path,
+        createdAt: event.createdAt,
+      };
     default:
       return undefined;
   }

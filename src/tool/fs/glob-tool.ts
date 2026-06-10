@@ -107,11 +107,7 @@ async function listWorkspaceFilesWithRg(
       return undefined;
     }
 
-    return filterPathResults(
-      parseRgFileLines(result.stdout),
-      maxResults,
-      pattern,
-    );
+    return filterPathResults(parseRgFileLines(result.stdout), maxResults, pattern);
   } catch {
     return undefined;
   }
@@ -125,13 +121,7 @@ async function listWorkspaceFilesWithNode(
   const root = resolveWorkspacePath(workspaceRoot, ".");
   const paths: string[] = [];
 
-  await walkDirectory(
-    root.absolutePath,
-    root.absolutePath,
-    paths,
-    maxResults,
-    pattern,
-  );
+  await walkDirectory(root.absolutePath, root.absolutePath, paths, maxResults, pattern);
 
   return paths;
 }
@@ -161,20 +151,12 @@ async function walkDirectory(
     const absolutePath = path.join(currentDirectory, entry.name);
 
     if (entry.isDirectory()) {
-      await walkDirectory(
-        workspaceRoot,
-        absolutePath,
-        paths,
-        maxResults,
-        pattern,
-      );
+      await walkDirectory(workspaceRoot, absolutePath, paths, maxResults, pattern);
       continue;
     }
 
     if (entry.isFile()) {
-      const relativePath = toPosixPath(
-        path.relative(workspaceRoot, absolutePath),
-      );
+      const relativePath = toPosixPath(path.relative(workspaceRoot, absolutePath));
 
       if (!pattern || relativePath.includes(pattern)) {
         paths.push(relativePath);

@@ -18,9 +18,17 @@ export type MarkdownBlock =
       text: string;
     }
   | {
+      type: "hr";
+    }
+  | {
+      type: "table";
+      rows: string[][];
+    }
+  | {
       type: "code";
       language?: string;
       code: string;
+      closed: boolean;
     };
 
 export function parseMarkdown(markdown: string): MarkdownBlock[] {
@@ -44,6 +52,7 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
         codeLines.push(lines[index] ?? "");
         index += 1;
       }
+      const closed = index < lines.length;
       if (index < lines.length) {
         index += 1;
       }
@@ -51,6 +60,29 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
         type: "code",
         language: fence[1],
         code: codeLines.join("\n"),
+        closed,
+      });
+      continue;
+    }
+
+    if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)) {
+      blocks.push({type: "hr"});
+      index += 1;
+      continue;
+    }
+
+    if (looksLikeTableLine(line)) {
+      const tableLines: string[] = [];
+      while (index < lines.length && looksLikeTableLine(lines[index] ?? "")) {
+        const current = lines[index] ?? "";
+        if (!/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(current)) {
+          tableLines.push(current);
+        }
+        index += 1;
+      }
+      blocks.push({
+        type: "table",
+        rows: tableLines.map(parseTableRow).filter((row) => row.length > 0),
       });
       continue;
     }
@@ -102,6 +134,8 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
       if (
         current.trim() === "" ||
         /^```/.test(current) ||
+        /^\s*([-*_])(?:\s*\1){2,}\s*$/.test(current) ||
+        looksLikeTableLine(current) ||
         /^(#{1,6})\s+/.test(current) ||
         /^>\s?/.test(current) ||
         /^\s*[-*]\s+/.test(current) ||
@@ -117,4 +151,19 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
   }
 
   return blocks;
+}
+
+function looksLikeTableLine(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.includes("|") && trimmed.split("|").length >= 3;
+}
+
+function parseTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim())
+    .filter(Boolean);
 }

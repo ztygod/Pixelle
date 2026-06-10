@@ -1,8 +1,11 @@
 import type {
+  ChangeSetState,
   CliEvent,
   CliMessage,
   ImagePreviewState,
   ToolCallState,
+  TraceState,
+  VerificationState,
 } from "../types.js";
 import {createId} from "../utils/format.js";
 
@@ -10,6 +13,9 @@ export type CliViewState = {
   messages: CliMessage[];
   tools: ToolCallState[];
   images: ImagePreviewState[];
+  changeSets: ChangeSetState[];
+  verifications: VerificationState[];
+  traces: TraceState[];
   lastError?: string;
   debug: boolean;
   showHelp: boolean;
@@ -21,6 +27,9 @@ export const initialCliState: CliViewState = {
   messages: [],
   tools: [],
   images: [],
+  changeSets: [],
+  verifications: [],
+  traces: [],
   debug: false,
   showHelp: false,
   eventCount: 0,
@@ -28,10 +37,7 @@ export const initialCliState: CliViewState = {
 
 export type CliAction = {type: "event"; event: CliEvent};
 
-export function reduceCliState(
-  state: CliViewState,
-  action: CliAction,
-): CliViewState {
+export function reduceCliState(state: CliViewState, action: CliAction): CliViewState {
   return reduceCliEvent(state, action.event);
 }
 
@@ -51,6 +57,9 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         messages: [],
         tools: [],
         images: [],
+        changeSets: [],
+        verifications: [],
+        traces: [],
         lastError: undefined,
         showHelp: false,
       };
@@ -94,9 +103,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
       };
 
     case "assistant_delta": {
-      const existing = state.messages.find(
-        (message) => message.id === event.messageId,
-      );
+      const existing = state.messages.find((message) => message.id === event.messageId);
       if (!existing) {
         return {
           ...state,
@@ -125,6 +132,8 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             ? {
                 ...message,
                 content: message.content + event.delta,
+                createdAt: eventCreatedAt,
+                order: eventOrder,
                 streaming: true,
                 stage: event.stage ?? message.stage,
               }
@@ -134,9 +143,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
     }
 
     case "assistant_stage": {
-      const existing = state.messages.find(
-        (message) => message.id === event.messageId,
-      );
+      const existing = state.messages.find((message) => message.id === event.messageId);
       if (!existing) {
         return {
           ...state,
@@ -259,6 +266,53 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         ],
       };
 
+    case "change_set":
+      return {
+        ...state,
+        ...viewEventStats,
+        changeSets: [
+          ...state.changeSets,
+          {
+            id: event.id,
+            files: event.files,
+            checkpointPath: event.checkpointPath,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
+          },
+        ],
+      };
+
+    case "verification":
+      return {
+        ...state,
+        ...viewEventStats,
+        verifications: [
+          ...state.verifications,
+          {
+            id: createId("verification"),
+            status: event.status,
+            commands: event.commands,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
+          },
+        ],
+      };
+
+    case "trace":
+      return {
+        ...state,
+        ...viewEventStats,
+        traces: [
+          ...state.traces,
+          {
+            id: createId("trace"),
+            path: event.path,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
+          },
+        ],
+      };
+
     case "error":
       return {
         ...state,
@@ -278,10 +332,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
   }
 }
 
-function getDurationMs(
-  tool: ToolCallState,
-  completedAt: number,
-): number | undefined {
+function getDurationMs(tool: ToolCallState, completedAt: number): number | undefined {
   const startedAt = tool.startedAt ?? tool.createdAt;
   if (!startedAt || completedAt < startedAt) {
     return undefined;
@@ -289,4 +340,3 @@ function getDurationMs(
 
   return completedAt - startedAt;
 }
-

@@ -1,6 +1,5 @@
-import { Box, Text } from "ink";
-import { WelcomeLogo } from "./WelcomeLogo.js";
-import { theme } from "../../utils/theme.js";
+import {Box, Text} from "ink";
+import {theme} from "../../utils/theme.js";
 
 type GitStatus = "clean" | "modified" | "unknown";
 
@@ -8,6 +7,7 @@ type WelcomeScreenProps = {
   version: string;
   cwd: string;
   model?: string;
+  provider?: string;
   gitBranch?: string;
   gitStatus?: GitStatus;
 };
@@ -15,47 +15,36 @@ type WelcomeScreenProps = {
 export function WelcomeScreen({
   version,
   cwd,
-  model = "gpt-5.5",
-  gitBranch = "main",
+  model = "not configured",
+  provider = "provider",
+  gitBranch = "unknown",
   gitStatus = "unknown",
 }: WelcomeScreenProps) {
   const shortCwd = formatCwd(cwd);
 
   return (
     <Box
-      borderStyle="round"
-      borderColor={theme.border}
       flexDirection="column"
-      alignSelf="flex-start"
       marginBottom={1}
-      paddingX={1}
+      paddingX={2}
       paddingY={1}
+      borderStyle="single"
+      borderColor={theme.faint}
+      alignSelf="flex-start"
     >
       <Box flexDirection="row">
-        <WelcomeLogo />
-      </Box>
-
-      <Box marginTop={1}>
-        <Text color={theme.rail}>{"─".repeat(44)}</Text>
+        <Text color={theme.brand} bold>
+          Pixelle
+        </Text>
+        <Text color={theme.muted}> Agent </Text>
+        <Text color={theme.faint}>v{version}</Text>
       </Box>
 
       <Box marginTop={1} flexDirection="column">
-        <Box marginBottom={1}>
-          <Text color={theme.success}>░</Text>
-          <Text color={theme.muted}> runtime </Text>
-          <Text color={theme.text}>demo interface ready</Text>
-        </Box>
-
-        <InfoRow label="version" value={`v${version}`} accent />
-
+        <InfoRow label="workspace" value={shortCwd} />
         <InfoRow label="model" value={model} />
-
-        <InfoRow
-          label="git"
-          value={`${gitBranch} ${formatGitStatus(gitStatus)}`}
-        />
-
-        <InfoRow label="directory" value={shortCwd} />
+        <InfoRow label="provider" value={provider} />
+        <InfoRow label="git" value={`${gitBranch} ${formatGitStatus(gitStatus)}`} />
       </Box>
     </Box>
   );
@@ -64,15 +53,18 @@ export function WelcomeScreen({
 type InfoRowProps = {
   label: string;
   value: string;
-  accent?: boolean;
 };
 
-function InfoRow({ label, value, accent = false }: InfoRowProps) {
+function InfoRow({label, value}: InfoRowProps) {
   return (
-    <Box>
-      <Text color={theme.muted}> {label.padEnd(9)} </Text>
+    <Box flexDirection="row">
+      <Box width={12}>
+        <Text color={theme.muted}>{label}</Text>
+      </Box>
 
-      <Text color={accent ? theme.primary : theme.text}>{value}</Text>
+      <Text color={theme.faint}>│ </Text>
+
+      <Text color={theme.text}>{value}</Text>
     </Box>
   );
 }

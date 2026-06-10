@@ -24,8 +24,7 @@ export class AgentMiddlewarePipeline {
   ): Promise<AgentRunResult> {
     let nextResult = result;
     for (const middleware of this.middleware) {
-      nextResult =
-        (await middleware.afterAgentRun?.(nextResult, context)) ?? nextResult;
+      nextResult = (await middleware.afterAgentRun?.(nextResult, context)) ?? nextResult;
     }
     return nextResult;
   }
@@ -36,8 +35,7 @@ export class AgentMiddlewarePipeline {
   ): Promise<AgentModelRequest> {
     let nextRequest = request;
     for (const middleware of this.middleware) {
-      nextRequest =
-        (await middleware.beforeModel?.(nextRequest, context)) ?? nextRequest;
+      nextRequest = (await middleware.beforeModel?.(nextRequest, context)) ?? nextRequest;
     }
     return nextRequest;
   }
@@ -72,8 +70,7 @@ export class AgentMiddlewarePipeline {
     let nextToolResult = toolResult;
     for (const middleware of this.middleware) {
       nextToolResult =
-        (await middleware.afterTool?.(nextToolResult, context)) ??
-        nextToolResult;
+        (await middleware.afterTool?.(nextToolResult, context)) ?? nextToolResult;
     }
     return nextToolResult;
   }

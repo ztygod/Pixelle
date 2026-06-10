@@ -54,4 +54,3 @@ function stringifyUnknown(value: unknown): string {
     return String(value);
   }
 }
-
