@@ -1,3 +1,6 @@
+import {lookup} from "node:dns/promises";
+import {isIP} from "node:net";
+import ipaddr from "ipaddr.js";
 import {z} from "zod";
 
 import {ToolError} from "../tool-error.js";
@@ -34,7 +37,7 @@ export const webFetchTool: Tool<typeof webFetchParameters, {url: string; text: s
     async execute(input, context) {
       requireNetworkPermission(context, "web_fetch");
 
-      const url = parseHttpUrl(input.url, "web_fetch");
+      const url = await parseHttpUrl(input.url, "web_fetch");
       const maxLength =
         typeof input.maxLength === "number" && input.maxLength > 0
           ? Math.floor(input.maxLength)
@@ -69,7 +72,8 @@ function requireNetworkPermission(context: ToolContext, toolName: string): void 
   }
 }
 
-function parseHttpUrl(url: string, toolName: string): string {
+// Security fix: Validate resolved IP address to prevent SSRF against private/internal networks
+async function parseHttpUrl(url: string, toolName: string): Promise<string> {
   try {
     const parsedUrl = new URL(url);
 
@@ -77,11 +81,28 @@ function parseHttpUrl(url: string, toolName: string): string {
       throw new Error("Unsupported protocol.");
     }
 
+    const hostname = parsedUrl.hostname;
+    let ip = hostname;
+
+    // Resolve hostname to IP if it's not already an IP address
+    if (!isIP(hostname)) {
+      const resolved = await lookup(hostname);
+      ip = resolved.address;
+    }
+
+    const addr = ipaddr.parse(ip);
+    const range = addr.range();
+
+    // 'unicast' covers public IPs; block 'private', 'loopback', 'linkLocal', etc.
+    if (range !== "unicast") {
+      throw new Error("Access to internal or private networks is not allowed.");
+    }
+
     return parsedUrl.toString();
   } catch (error) {
     throw new ToolError({
       code: "TOOL_INVALID_INPUT",
-      message: "web_fetch requires a valid HTTP or HTTPS URL.",
+      message: "web_fetch requires a valid, public HTTP or HTTPS URL.",
       toolName,
       cause: error,
     });
