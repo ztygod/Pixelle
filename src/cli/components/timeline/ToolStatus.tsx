@@ -44,6 +44,11 @@ export function ToolStatus({tool, debug}: ToolStatusProps) {
           {tool.output !== undefined ? (
             <Text color={theme.muted}>output {formatUnknown(tool.output, 500)}</Text>
           ) : null}
+          {getPolicyDecision(tool) ? (
+            <Text color={theme.muted}>
+              policy {formatPolicyDecision(getPolicyDecision(tool))}
+            </Text>
+          ) : null}
           {tool.error ? <Text color={theme.danger}>error {tool.error}</Text> : null}
         </Box>
       ) : null}
@@ -66,7 +71,14 @@ function getInlineDetail(tool: ToolCallState): string {
     return target ?? tool.summary ?? formatUnknown(tool.output ?? "done", 80);
   }
 
-  return tool.error ?? "Failed";
+  const policyDecision = getPolicyDecision(tool);
+  if (policyDecision) {
+    return formatPolicyDecision(policyDecision);
+  }
+
+  return tool.errorCode
+    ? `${tool.errorCode}: ${tool.error ?? "Failed"}`
+    : (tool.error ?? "Failed");
 }
 
 function getToolTarget(input: unknown): string | undefined {
@@ -134,4 +146,44 @@ function formatDuration(tool: ToolCallState): string | undefined {
   }
 
   return undefined;
+}
+
+type PolicyDecisionView = {
+  approvalMessage?: string;
+  category?: string;
+  effect?: string;
+  reason?: string;
+  risk?: string;
+  ruleId?: string;
+};
+
+function getPolicyDecision(tool: ToolCallState): PolicyDecisionView | undefined {
+  if (!tool.errorData || typeof tool.errorData !== "object") {
+    return undefined;
+  }
+
+  const data = tool.errorData as Record<string, unknown>;
+  const decision = data.decision;
+  if (!decision || typeof decision !== "object") {
+    return undefined;
+  }
+
+  return decision as PolicyDecisionView;
+}
+
+function formatPolicyDecision(decision: PolicyDecisionView | undefined): string {
+  if (!decision) {
+    return "";
+  }
+
+  const parts = [
+    decision.approvalMessage,
+    decision.risk ? `risk ${decision.risk}` : undefined,
+    decision.category ? `category ${decision.category}` : undefined,
+    decision.ruleId ? `rule ${decision.ruleId}` : undefined,
+  ].filter((part): part is string => Boolean(part));
+
+  return parts.length
+    ? parts.join(" · ")
+    : (decision.reason ?? decision.effect ?? "Policy blocked");
 }

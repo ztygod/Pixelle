@@ -6,11 +6,13 @@ import {LLMClient, type BaseLLMClient} from "../llm/index.js";
 import type {LLMMessage, LLMUsage} from "../llm/types.js";
 import {
   ChangeTracker,
+  createCommandPolicy,
   JsonCheckpointStore,
   JsonTraceStore,
   Verifier,
   WorkspaceScanner,
   type ChangeSet,
+  type CommandPolicyLike,
   type TaskRun,
   type VerificationResult,
   type WorkspaceProfile,
@@ -68,6 +70,7 @@ export class Agent {
   private readonly checkpointStore?: AgentOptions["checkpointStore"];
   private readonly workspaceScanner: WorkspaceScanner;
   private readonly verifier: Verifier;
+  private readonly commandPolicy: CommandPolicyLike;
 
   constructor(options: AgentOptions) {
     this.config = normalizeConfig(options.config);
@@ -84,7 +87,8 @@ export class Agent {
     this.traceStore = options.traceStore;
     this.checkpointStore = options.checkpointStore;
     this.workspaceScanner = options.workspaceScanner ?? new WorkspaceScanner();
-    this.verifier = options.verifier ?? new Verifier();
+    this.commandPolicy = options.commandPolicy ?? createCommandPolicy();
+    this.verifier = options.verifier ?? new Verifier(this.commandPolicy);
   }
 
   /** Registers middleware and returns a disposer for removing it. */
@@ -692,6 +696,8 @@ export class Agent {
         basePermissions: this.permissions,
         runPermissions: context.input.permissions,
         fileWriter: context.fileWriter,
+        workspaceProfile: context.workspaceProfile,
+        commandPolicy: this.commandPolicy,
       }),
     );
     const toolResult = await this.middlewarePipeline.afterTool(
@@ -723,6 +729,8 @@ export class Agent {
           id: toolCall.id,
           name: toolCall.name,
           error: toolResult.result.message,
+          code: toolResult.result.code,
+          data: toolResult.result.data,
           metadata,
         },
         options,

@@ -14,7 +14,12 @@ import type {
   LLMStreamChunk,
   LLMStreamInput,
 } from "../../src/llm/types.js";
-import type {WorkspaceProfile} from "../../src/runtime/index.js";
+import type {
+  CommandPolicyDecision,
+  CommandPolicyEvaluateInput,
+  CommandPolicyLike,
+  WorkspaceProfile,
+} from "../../src/runtime/index.js";
 import {okToolResult, ToolRegistry, ToolRunner, type Tool} from "../../src/tool/index.js";
 
 class QueueLLMClient extends BaseLLMClient {
@@ -227,5 +232,96 @@ describe("Agent runtime loop", () => {
     expect(result.stopReason).toBe("max_iterations");
     expect(result.iterations).toBe(2);
     expect(result.toolResults).toHaveLength(2);
+  });
+
+  it("passes workspace profile and command policy into tool context", async () => {
+    const workspaceRoot = await createWorkspace();
+    const profile = createWorkspaceScanner(workspaceRoot);
+    const registry = new ToolRegistry();
+    const decision: CommandPolicyDecision = {
+      effect: "allow",
+      allowed: true,
+      risk: "low",
+      category: "verification",
+      ruleId: "test-policy",
+      reason: "Allowed by test.",
+    };
+    const commandPolicy: CommandPolicyLike = {
+      evaluate(_input: CommandPolicyEvaluateInput) {
+        return decision;
+      },
+      canRun() {
+        return {allowed: true};
+      },
+    };
+
+    registry.register({
+      definition: {
+        name: "inspect_context",
+        description: "Inspect tool context.",
+        parameters: z.object({}),
+      },
+      execute: (_input, context) =>
+        okToolResult("Inspected.", {
+          hasPolicy: context.commandPolicy === commandPolicy,
+          packageManager: context.workspaceProfile?.packageManager,
+        }),
+    });
+
+    const llm = new QueueLLMClient([
+      {
+        content: "Inspecting.",
+        toolCalls: [{id: "ctx", name: "inspect_context", arguments: {}}],
+      },
+      {content: "Done.", toolCalls: []},
+    ]);
+
+    const result = await new Agent({
+      config: createConfig(workspaceRoot),
+      llm,
+      toolRegistry: registry,
+      workspaceScanner: profile,
+      commandPolicy,
+    }).run({prompt: "Inspect context."});
+
+    expect(result.toolResults[0]?.result).toMatchObject({
+      ok: true,
+      data: {hasPolicy: true, packageManager: "pnpm"},
+    });
+  });
+
+  it("uses injected command policy for verification", async () => {
+    const workspaceRoot = await createWorkspace();
+    const config = createConfig(workspaceRoot);
+    config.verification.enabled = true;
+    config.verification.commands = ["pnpm typecheck"];
+
+    const commandPolicy: CommandPolicyLike = {
+      evaluate() {
+        throw new Error("Verifier should use canRun compatibility.");
+      },
+      canRun(command) {
+        return {
+          allowed: false,
+          reason: `Rejected by injected policy: ${command}`,
+        };
+      },
+    };
+
+    const result = await new Agent({
+      config,
+      llm: new QueueLLMClient([{content: "Done.", toolCalls: []}]),
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+      commandPolicy,
+    }).run({prompt: "Finish."});
+
+    expect(result.verification).toEqual([
+      expect.objectContaining({
+        command: "pnpm typecheck",
+        exitCode: null,
+        passed: false,
+        stderr: "Rejected by injected policy: pnpm typecheck",
+      }),
+    ]);
   });
 });

@@ -56,6 +56,8 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         id: String(event.id),
         name: event.name,
         error: event.error,
+        code: event.code,
+        data: event.data,
         createdAt: event.createdAt,
       };
     case "runtime.error":

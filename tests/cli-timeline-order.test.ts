@@ -41,4 +41,48 @@ describe("CLI timeline ordering", () => {
       "message",
     ]);
   });
+
+  it("stores structured tool failure details in tool state", () => {
+    const state = [
+      {
+        type: "tool_start" as const,
+        id: "tool-1",
+        name: "bash",
+        input: {command: "pnpm add left-pad"},
+        createdAt: 1,
+      },
+      {
+        type: "tool_error" as const,
+        id: "tool-1",
+        name: "bash",
+        error: "Command requires user confirmation.",
+        code: "TOOL_APPROVAL_REQUIRED",
+        data: {
+          decision: {
+            effect: "ask",
+            risk: "high",
+            category: "dependency_mutation",
+            ruleId: "dependency-mutation",
+            approvalMessage: "Allow dependency changes?",
+          },
+        },
+        createdAt: 2,
+      },
+    ].reduce(
+      (current, event) => reduceCliState(current, {type: "event", event}),
+      initialCliState,
+    );
+
+    expect(state.tools[0]).toMatchObject({
+      status: "error",
+      errorCode: "TOOL_APPROVAL_REQUIRED",
+      errorData: {
+        decision: {
+          risk: "high",
+          category: "dependency_mutation",
+          approvalMessage: "Allow dependency changes?",
+        },
+      },
+    });
+  });
 });

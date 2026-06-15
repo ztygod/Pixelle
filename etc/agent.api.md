@@ -176,6 +176,7 @@ export type AgentOptions = {
     checkpointStore?: CheckpointStore;
     workspaceScanner?: WorkspaceScanner;
     verifier?: Verifier;
+    commandPolicy?: CommandPolicyLike;
 };
 
 // @public
@@ -334,16 +335,50 @@ export type CheckpointStore = {
     save(changeSet: ChangeSet): Promise<string | undefined>;
 };
 
-// @public (undocumented)
-export class CommandPolicy {
-    // (undocumented)
-    canRun(command: string, profile?: WorkspaceProfile): CommandPolicyDecision;
+// @public
+export class CommandPolicy implements CommandPolicyLike {
+    constructor(options?: CommandPolicyOptions);
+    canRun(command: string, profile?: WorkspaceProfile): CommandPolicyCompatDecision;
+    evaluate(input: CommandPolicyEvaluateInput): CommandPolicyDecision;
 }
 
-// @public (undocumented)
-export type CommandPolicyDecision = {
+// @public
+export type CommandPolicyCompatDecision = {
     allowed: boolean;
     reason?: string;
+};
+
+// @public
+export type CommandPolicyDecision = {
+    effect: PolicyEffect;
+    allowed: boolean;
+    risk: PolicyRisk;
+    category: CommandCategory;
+    ruleId: string;
+    reason: string;
+    approvalMessage?: string;
+    metadata?: Record<string, unknown>;
+};
+
+// @public
+export type CommandPolicyEvaluateInput = {
+    command: string;
+    cwd?: string;
+    profile?: WorkspaceProfile;
+    source?: PolicySource;
+    approvalMode?: ApprovalMode;
+    trustLevel?: WorkspaceTrustLevel;
+};
+
+// @public (undocumented)
+export type CommandPolicyLike = {
+    evaluate(input: CommandPolicyEvaluateInput): CommandPolicyDecision;
+    canRun(command: string, profile?: WorkspaceProfile): CommandPolicyCompatDecision;
+};
+
+// @public (undocumented)
+export type CommandPolicyOptions = {
+    rules?: readonly CommandPolicyRule[];
 };
 
 // @public
@@ -357,6 +392,9 @@ export function createAgentRuntimeFromConfig(options?: CreateAgentRuntimeFromCon
 
 // @public (undocumented)
 export type CreateAgentRuntimeFromConfigOptions = LoadAgentConfigOptions & AgentRuntimeInjectionOptions;
+
+// @public
+export function createCommandPolicy(options?: CommandPolicyOptions): CommandPolicy;
 
 // @public (undocumented)
 export function createDefaultToolRegistry(): ToolRegistry;
@@ -603,6 +641,8 @@ export type ToolContext = {
     signal?: AbortSignal;
     permissions?: ToolPermissions;
     fileWriter?: ToolFileWriter;
+    workspaceProfile?: WorkspaceProfile;
+    commandPolicy?: CommandPolicyLike;
 };
 
 // @public (undocumented)
@@ -624,7 +664,7 @@ export class ToolError extends Error {
 }
 
 // @public (undocumented)
-export type ToolErrorCode = "TOOL_NOT_FOUND" | "TOOL_ALREADY_REGISTERED" | "TOOL_PERMISSION_DENIED" | "TOOL_INVALID_INPUT" | "TOOL_PATH_OUTSIDE_WORKSPACE" | "TOOL_EXECUTION_FAILED";
+export type ToolErrorCode = "TOOL_NOT_FOUND" | "TOOL_ALREADY_REGISTERED" | "TOOL_PERMISSION_DENIED" | "TOOL_APPROVAL_REQUIRED" | "TOOL_COMMAND_POLICY_DENIED" | "TOOL_INVALID_INPUT" | "TOOL_PATH_OUTSIDE_WORKSPACE" | "TOOL_EXECUTION_FAILED";
 
 // @public (undocumented)
 export type ToolErrorOptions = {
@@ -755,9 +795,9 @@ export type VerificationResult = {
     timedOut: boolean;
 };
 
-// @public (undocumented)
+// @public
 export class Verifier {
-    constructor(commandPolicy?: CommandPolicy);
+    constructor(commandPolicy?: CommandPolicyLike);
     // (undocumented)
     selectCommands(profile: WorkspaceProfile, requested?: readonly string[]): string[];
     // (undocumented)
@@ -797,9 +837,16 @@ export const writeFileTool: Tool<typeof writeFileParameters, {
 
 // Warnings were encountered during analysis:
 //
-// src/agent/types.ts:61:3 - (ae-forgotten-export) The symbol "LLMMessage" needs to be exported by the entry point index.d.ts
-// src/agent/types.ts:123:3 - (ae-forgotten-export) The symbol "LLMUsage" needs to be exported by the entry point index.d.ts
+// src/agent/types.ts:62:3 - (ae-forgotten-export) The symbol "LLMMessage" needs to be exported by the entry point index.d.ts
+// src/agent/types.ts:124:3 - (ae-forgotten-export) The symbol "LLMUsage" needs to be exported by the entry point index.d.ts
 // src/config/types.ts:12:3 - (ae-forgotten-export) The symbol "LLMProvider" needs to be exported by the entry point index.d.ts
+// src/runtime/policy/types.ts:32:3 - (ae-forgotten-export) The symbol "PolicySource" needs to be exported by the entry point index.d.ts
+// src/runtime/policy/types.ts:33:3 - (ae-forgotten-export) The symbol "ApprovalMode" needs to be exported by the entry point index.d.ts
+// src/runtime/policy/types.ts:34:3 - (ae-forgotten-export) The symbol "WorkspaceTrustLevel" needs to be exported by the entry point index.d.ts
+// src/runtime/policy/types.ts:57:3 - (ae-forgotten-export) The symbol "PolicyEffect" needs to be exported by the entry point index.d.ts
+// src/runtime/policy/types.ts:59:3 - (ae-forgotten-export) The symbol "PolicyRisk" needs to be exported by the entry point index.d.ts
+// src/runtime/policy/types.ts:60:3 - (ae-forgotten-export) The symbol "CommandCategory" needs to be exported by the entry point index.d.ts
+// src/runtime/policy/types.ts:91:3 - (ae-forgotten-export) The symbol "CommandPolicyRule" needs to be exported by the entry point index.d.ts
 // src/tool/fs/grep-tool.ts:36:53 - (ae-forgotten-export) The symbol "GrepMatch" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)

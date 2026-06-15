@@ -31,6 +31,7 @@ import type {
   Verifier,
   WorkspaceProfile,
   WorkspaceScanner,
+  CommandPolicyLike,
 } from "../runtime/index.js";
 import type {EventBus} from "../events/index.js";
 import type {Agent} from "./agent.js";
@@ -180,6 +181,7 @@ export type AgentOptions = {
   checkpointStore?: CheckpointStore;
   workspaceScanner?: WorkspaceScanner;
   verifier?: Verifier;
+  commandPolicy?: CommandPolicyLike;
 };
 
 export type AgentRuntimeInjectionOptions = Omit<AgentOptions, "config" | "permissions">;
