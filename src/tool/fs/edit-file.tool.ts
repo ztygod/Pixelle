@@ -34,8 +34,10 @@ export const editFileTool: Tool<
   },
   async execute(input, context) {
     requireWritePermission(context, "edit_file");
+    throwIfAborted(context, "edit_file");
 
     const safePath = resolveWorkspacePath(context.workspaceRoot, input.path);
+    throwIfAborted(context, "edit_file");
     const current = await readFile(safePath.absolutePath, "utf8");
     const count = countOccurrences(current, input.oldText);
 
@@ -63,6 +65,7 @@ export const editFileTool: Tool<
     const next = input.replaceAll
       ? current.split(input.oldText).join(input.newText)
       : current.replace(input.oldText, input.newText);
+    throwIfAborted(context, "edit_file");
     const written = context.fileWriter
       ? await context.fileWriter.writeFile(safePath.relativePath, next)
       : await fallbackWrite(context, safePath.relativePath, next);
@@ -107,6 +110,16 @@ function requireWritePermission(context: ToolContext, toolName: string): void {
     throw new ToolError({
       code: "TOOL_PERMISSION_DENIED",
       message: "File write permission is required.",
+      toolName,
+    });
+  }
+}
+
+function throwIfAborted(context: ToolContext, toolName: string): void {
+  if (context.signal?.aborted) {
+    throw new ToolError({
+      code: "TOOL_ABORTED",
+      message: "Tool execution was aborted.",
       toolName,
     });
   }

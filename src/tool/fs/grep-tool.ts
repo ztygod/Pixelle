@@ -55,7 +55,12 @@ export const grepTool: Tool<typeof grepParameters, {matches: GrepMatch[]}> = {
         maxResults,
         context.signal,
       )) ??
-      (await searchWorkspaceWithNode(context.workspaceRoot, input.pattern, maxResults));
+      (await searchWorkspaceWithNode(
+        context.workspaceRoot,
+        input.pattern,
+        maxResults,
+        context.signal,
+      ));
 
     return okToolResult("Searched workspace file contents.", {matches});
   },
@@ -106,11 +111,15 @@ async function searchWorkspaceWithNode(
   workspaceRoot: string,
   pattern: string,
   maxResults: number,
+  signal: AbortSignal | undefined,
 ): Promise<GrepMatch[]> {
-  const files = await listWorkspaceFiles(workspaceRoot, 5000);
+  throwIfAborted(signal);
+  const files = await listWorkspaceFiles(workspaceRoot, 5000, undefined, signal);
   const matches: GrepMatch[] = [];
 
   for (const file of files) {
+    throwIfAborted(signal);
+
     if (matches.length >= maxResults) {
       break;
     }
@@ -125,6 +134,8 @@ async function searchWorkspaceWithNode(
     const lines = content.split(/\r?\n/);
 
     for (const [index, text] of lines.entries()) {
+      throwIfAborted(signal);
+
       if (text.includes(pattern)) {
         matches.push({
           path: safePath.relativePath,
@@ -177,6 +188,16 @@ function requireReadPermission(context: ToolContext, toolName: string): void {
       code: "TOOL_PERMISSION_DENIED",
       message: "File read permission is required.",
       toolName,
+    });
+  }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new ToolError({
+      code: "TOOL_ABORTED",
+      message: "Tool execution was aborted.",
+      toolName: "grep",
     });
   }
 }

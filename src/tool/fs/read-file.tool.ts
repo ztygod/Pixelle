@@ -32,8 +32,10 @@ export const readFileTool: Tool<
   },
   async execute(input, context) {
     requireReadPermission(context, "read_file");
+    throwIfAborted(context, "read_file");
 
     const safePath = resolveWorkspacePath(context.workspaceRoot, input.path);
+    throwIfAborted(context, "read_file");
     const content = await readFile(safePath.absolutePath, "utf8");
 
     return okToolResult("Read file content.", {
@@ -48,6 +50,16 @@ function requireReadPermission(context: ToolContext, toolName: string): void {
     throw new ToolError({
       code: "TOOL_PERMISSION_DENIED",
       message: "File read permission is required.",
+      toolName,
+    });
+  }
+}
+
+function throwIfAborted(context: ToolContext, toolName: string): void {
+  if (context.signal?.aborted) {
+    throw new ToolError({
+      code: "TOOL_ABORTED",
+      message: "Tool execution was aborted.",
       toolName,
     });
   }

@@ -6,7 +6,9 @@ export type ToolErrorCode =
   | "TOOL_COMMAND_POLICY_DENIED"
   | "TOOL_INVALID_INPUT"
   | "TOOL_PATH_OUTSIDE_WORKSPACE"
-  | "TOOL_EXECUTION_FAILED";
+  | "TOOL_EXECUTION_FAILED"
+  | "TOOL_TIMEOUT"
+  | "TOOL_ABORTED";
 
 export type ToolErrorOptions = {
   code: ToolErrorCode;

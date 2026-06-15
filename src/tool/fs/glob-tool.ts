@@ -80,7 +80,7 @@ export async function listWorkspaceFiles(
     return rgPaths;
   }
 
-  return listWorkspaceFilesWithNode(workspaceRoot, maxResults, pattern);
+  return listWorkspaceFilesWithNode(workspaceRoot, maxResults, pattern, signal);
 }
 
 async function listWorkspaceFilesWithRg(
@@ -117,11 +117,20 @@ async function listWorkspaceFilesWithNode(
   workspaceRoot: string,
   maxResults: number,
   pattern: string | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<string[]> {
+  throwIfAborted(signal);
   const root = resolveWorkspacePath(workspaceRoot, ".");
   const paths: string[] = [];
 
-  await walkDirectory(root.absolutePath, root.absolutePath, paths, maxResults, pattern);
+  await walkDirectory(
+    root.absolutePath,
+    root.absolutePath,
+    paths,
+    maxResults,
+    pattern,
+    signal,
+  );
 
   return paths;
 }
@@ -132,7 +141,10 @@ async function walkDirectory(
   paths: string[],
   maxResults: number,
   pattern: string | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<void> {
+  throwIfAborted(signal);
+
   if (paths.length >= maxResults) {
     return;
   }
@@ -140,6 +152,8 @@ async function walkDirectory(
   const entries = await readdir(currentDirectory, {withFileTypes: true});
 
   for (const entry of entries) {
+    throwIfAborted(signal);
+
     if (paths.length >= maxResults) {
       return;
     }
@@ -151,7 +165,14 @@ async function walkDirectory(
     const absolutePath = path.join(currentDirectory, entry.name);
 
     if (entry.isDirectory()) {
-      await walkDirectory(workspaceRoot, absolutePath, paths, maxResults, pattern);
+      await walkDirectory(
+        workspaceRoot,
+        absolutePath,
+        paths,
+        maxResults,
+        pattern,
+        signal,
+      );
       continue;
     }
 
@@ -176,4 +197,12 @@ function filterPathResults(
     : paths;
 
   return filteredPaths.slice(0, maxResults);
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    const error = new Error("Tool execution was aborted.");
+    error.name = "AbortError";
+    throw error;
+  }
 }

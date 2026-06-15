@@ -38,15 +38,19 @@ export const writeFileTool: Tool<
   },
   async execute(input, context) {
     requireWritePermission(context, "write_file");
+    throwIfAborted(context, "write_file");
 
     if (context.fileWriter) {
+      throwIfAborted(context, "write_file");
       const result = await context.fileWriter.writeFile(input.path, input.content);
 
       return okToolResult("Wrote file content.", result);
     }
 
     const safePath = resolveWorkspacePath(context.workspaceRoot, input.path);
+    throwIfAborted(context, "write_file");
     await mkdir(path.dirname(safePath.absolutePath), {recursive: true});
+    throwIfAborted(context, "write_file");
     await writeFile(safePath.absolutePath, input.content, "utf8");
 
     return okToolResult("Wrote file content.", {
@@ -61,6 +65,16 @@ function requireWritePermission(context: ToolContext, toolName: string): void {
     throw new ToolError({
       code: "TOOL_PERMISSION_DENIED",
       message: "File write permission is required.",
+      toolName,
+    });
+  }
+}
+
+function throwIfAborted(context: ToolContext, toolName: string): void {
+  if (context.signal?.aborted) {
+    throw new ToolError({
+      code: "TOOL_ABORTED",
+      message: "Tool execution was aborted.",
       toolName,
     });
   }
