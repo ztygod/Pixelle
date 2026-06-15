@@ -1,9 +1,9 @@
 import {spawn} from "node:child_process";
 import {z} from "zod";
 
-import {ToolError} from "../tool-error.js";
-import {okToolResult} from "../tool-result.js";
-import type {Tool, ToolContext} from "../types.js";
+import {createCommandPolicy} from "../../runtime/index.js";
+import {errorToolResult, okToolResult} from "../tool-result.js";
+import type {Tool} from "../types.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_LENGTH = 20_000;
@@ -51,7 +51,39 @@ export const bashTool: Tool<typeof bashParameters, BashResult> = {
     parameters: bashParameters,
   },
   async execute(input, context) {
-    requireShellPermission(context, "bash");
+    const policy = context.commandPolicy ?? createCommandPolicy();
+    const decision = policy.evaluate({
+      command: input.command,
+      cwd: context.workspaceRoot,
+      profile: context.workspaceProfile,
+      source: "bash",
+      approvalMode: "disabled",
+      trustLevel: "untrusted",
+    });
+
+    if (decision.effect === "ask") {
+      return errorToolResult(
+        "Command requires user confirmation.",
+        "TOOL_APPROVAL_REQUIRED",
+        {
+          command: input.command,
+          cwd: context.workspaceRoot,
+          decision,
+        },
+      );
+    }
+
+    if (decision.effect === "deny") {
+      return errorToolResult(
+        "Command was blocked by policy.",
+        "TOOL_COMMAND_POLICY_DENIED",
+        {
+          command: input.command,
+          cwd: context.workspaceRoot,
+          decision,
+        },
+      );
+    }
 
     const timeoutMs = Math.floor(input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     const maxOutputLength = Math.floor(
@@ -68,16 +100,6 @@ export const bashTool: Tool<typeof bashParameters, BashResult> = {
     return okToolResult("Executed shell command.", result);
   },
 };
-
-function requireShellPermission(context: ToolContext, toolName: string): void {
-  if (!context.permissions?.shell) {
-    throw new ToolError({
-      code: "TOOL_PERMISSION_DENIED",
-      message: "Shell permission is required.",
-      toolName,
-    });
-  }
-}
 
 type RunShellCommandInput = {
   command: string;

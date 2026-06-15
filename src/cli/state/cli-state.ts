@@ -242,6 +242,8 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
                 ...tool,
                 status: "error",
                 error: event.error,
+                errorCode: event.code,
+                errorData: event.data,
                 completedAt: eventCreatedAt,
                 durationMs: getDurationMs(tool, eventCreatedAt),
               }

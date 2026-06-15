@@ -58,4 +58,38 @@ describe("agentEventToCliEvent", () => {
       path: ".pixelle/run.json",
     });
   });
+
+  it("preserves structured tool failure details", () => {
+    const event: PixelleEvent = {
+      type: "tool.call_failed",
+      id: "call-1",
+      name: "bash",
+      error: "Command requires user confirmation.",
+      code: "TOOL_APPROVAL_REQUIRED",
+      data: {
+        decision: {
+          effect: "ask",
+          risk: "high",
+          category: "dependency_mutation",
+          ruleId: "dependency-mutation",
+          approvalMessage: "Allow dependency changes?",
+        },
+      },
+    };
+
+    expect(agentEventToCliEvent(event)).toMatchObject({
+      type: "tool_error",
+      id: "call-1",
+      name: "bash",
+      error: "Command requires user confirmation.",
+      code: "TOOL_APPROVAL_REQUIRED",
+      data: {
+        decision: {
+          risk: "high",
+          category: "dependency_mutation",
+          approvalMessage: "Allow dependency changes?",
+        },
+      },
+    });
+  });
 });

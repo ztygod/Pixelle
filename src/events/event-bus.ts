@@ -92,6 +92,8 @@ type AgentEvent =
       id: ToolCallId | string;
       name: string;
       error: string;
+      code?: string;
+      data?: unknown;
     })
   | (BaseEvent<"runtime.status_changed"> & {
       status: "idle" | "running" | "waiting" | "complete" | "error";

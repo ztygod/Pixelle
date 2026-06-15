@@ -1,10 +1,16 @@
 export {ChangeTracker} from "./change-tracker.js";
 export type {TrackedWriteResult} from "./change-tracker.js";
-export {CommandPolicy} from "./command-policy.js";
-export type {CommandPolicyDecision} from "./command-policy.js";
+export {CommandPolicy, createCommandPolicy} from "./policy/index.js";
+export type {
+  CommandPolicyCompatDecision,
+  CommandPolicyDecision,
+  CommandPolicyEvaluateInput,
+  CommandPolicyLike,
+  CommandPolicyOptions,
+} from "./policy/index.js";
 export {JsonCheckpointStore, JsonTraceStore} from "./json-store.js";
-export {Verifier} from "./verifier.js";
-export type {VerificationOptions} from "./verifier.js";
+export {Verifier} from "./verification/index.js";
+export type {VerificationOptions} from "./verification/index.js";
 export {WorkspaceScanner} from "./workspace-scanner.js";
 export type {
   AgentModelTrace,

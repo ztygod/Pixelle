@@ -2,6 +2,7 @@ import type {AgentConfig} from "../config/index.js";
 import type {EventBus, PixelleEvent} from "../events/index.js";
 import type {BaseLLMClient} from "../llm/index.js";
 import type {LLMTool, LLMUsage} from "../llm/types.js";
+import type {CommandPolicyLike, WorkspaceProfile} from "../runtime/index.js";
 import {
   toLLMToolParametersSchema,
   type ToolContext,
@@ -120,12 +121,16 @@ export function createToolContext(input: {
   basePermissions?: ToolPermissions;
   runPermissions?: ToolPermissions;
   fileWriter?: ToolFileWriter;
+  workspaceProfile?: WorkspaceProfile;
+  commandPolicy?: CommandPolicyLike;
 }): ToolContext {
   return {
     workspaceRoot: input.workspaceRoot,
     signal: input.signal,
     permissions: mergePermissions(input.basePermissions, input.runPermissions),
     fileWriter: input.fileWriter,
+    workspaceProfile: input.workspaceProfile,
+    commandPolicy: input.commandPolicy,
   };
 }
 

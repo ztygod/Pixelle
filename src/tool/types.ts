@@ -1,4 +1,5 @@
 import type {z} from "zod";
+import type {CommandPolicyLike, WorkspaceProfile} from "../runtime/index.js";
 
 export type ToolSuccessResult<TData = unknown> = {
   ok: true;
@@ -42,6 +43,8 @@ export type ToolContext = {
   signal?: AbortSignal;
   permissions?: ToolPermissions;
   fileWriter?: ToolFileWriter;
+  workspaceProfile?: WorkspaceProfile;
+  commandPolicy?: CommandPolicyLike;
 };
 
 export type ToolExecute<

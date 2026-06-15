@@ -1,7 +1,8 @@
 import {spawn} from "node:child_process";
 
-import {CommandPolicy} from "./command-policy.js";
-import type {VerificationResult, WorkspaceProfile} from "./types.js";
+import {CommandPolicy} from "../policy/index.js";
+import type {CommandPolicyLike} from "../policy/index.js";
+import type {VerificationResult, WorkspaceProfile} from "../types.js";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_OUTPUT_LENGTH = 24_000;
@@ -11,8 +12,9 @@ export type VerificationOptions = {
   signal?: AbortSignal;
 };
 
+/** Runs the workspace verification workflow while delegating safety decisions to policy. */
 export class Verifier {
-  constructor(private readonly commandPolicy = new CommandPolicy()) {}
+  constructor(private readonly commandPolicy: CommandPolicyLike = new CommandPolicy()) {}
 
   selectCommands(profile: WorkspaceProfile, requested?: readonly string[]): string[] {
     if (requested?.length) {

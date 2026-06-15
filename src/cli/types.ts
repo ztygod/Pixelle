@@ -44,6 +44,8 @@ export type CliEvent =
       id: string;
       name: string;
       error: string;
+      code?: string;
+      data?: unknown;
     })
   | (BaseEvent<"image_preview"> & {
       id?: string;
@@ -94,6 +96,8 @@ export type ToolCallState = {
   input?: unknown;
   output?: unknown;
   error?: string;
+  errorCode?: string;
+  errorData?: unknown;
   description?: string;
   summary?: string;
   createdAt: number;
