@@ -22,7 +22,13 @@ export {ToolError, toToolError} from "./tool-error.js";
 export {ToolRegistry} from "./tool-registry.js";
 export {errorToolResult, okToolResult} from "./tool-result.js";
 export {ToolRunner} from "./tool-runner.js";
-export {webFetchTool} from "./web/index.js";
+export {
+  DEFAULT_WEB_FETCH_MAX_LENGTH,
+  DEFAULT_WEB_FETCH_TIMEOUT_MS,
+  MAX_WEB_FETCH_MAX_LENGTH,
+  MAX_WEB_FETCH_TIMEOUT_MS,
+  webFetchTool,
+} from "./web/index.js";
 export type {ToolErrorCode, ToolErrorOptions} from "./tool-error.js";
 export type {LLMToolParametersSchema} from "./tool-parameters.js";
 export type {

@@ -37,6 +37,25 @@ export type ToolPermissions = {
   shell?: boolean;
 };
 
+/** Successful data returned by the built-in web_fetch tool. */
+export type WebFetchResultData = {
+  requestedUrl: string;
+  finalUrl: string;
+  status: number;
+  statusText: string;
+  contentType: string | null;
+  contentLength: number | null;
+  text: string;
+  truncated: boolean;
+  maxLength: number;
+};
+
+/** Structured failure details returned by the built-in web_fetch tool. */
+export type WebFetchFailureDetails = Omit<
+  WebFetchResultData,
+  "text" | "truncated" | "maxLength"
+>;
+
 /** Optional writer abstraction used by the agent to track file changes. */
 export type ToolFileWriter = {
   writeFile(

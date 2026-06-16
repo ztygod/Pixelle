@@ -2,7 +2,17 @@ import {z} from "zod";
 
 import {ToolError} from "../tool-error.js";
 import {okToolResult} from "../tool-result.js";
-import type {Tool, ToolContext} from "../types.js";
+import type {
+  Tool,
+  ToolContext,
+  WebFetchFailureDetails,
+  WebFetchResultData,
+} from "../types.js";
+
+export const DEFAULT_WEB_FETCH_MAX_LENGTH = 20_000;
+export const MAX_WEB_FETCH_MAX_LENGTH = 200_000;
+export const DEFAULT_WEB_FETCH_TIMEOUT_MS = 15_000;
+export const MAX_WEB_FETCH_TIMEOUT_MS = 60_000;
 
 const webFetchParameters = z.object({
   reason: z
@@ -18,47 +28,78 @@ const webFetchParameters = z.object({
     ),
   maxLength: z
     .number()
+    .int()
     .positive()
+    .max(MAX_WEB_FETCH_MAX_LENGTH)
     .optional()
     .describe("Maximum number of characters of response text to return."),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(MAX_WEB_FETCH_TIMEOUT_MS)
+    .optional()
+    .describe("Maximum time in milliseconds to wait for the HTTP request."),
 });
 
 /** Tool that fetches text from a known HTTP(S) URL when network permission is granted. */
-export const webFetchTool: Tool<typeof webFetchParameters, {url: string; text: string}> =
-  {
-    definition: {
-      name: "web_fetch",
-      description:
-        "Fetch text from a specific known URL. Use this when you already have the exact webpage URL and need its page text. This tool does not discover unknown pages. Returns the final URL string and capped response text. This is a network tool and does not access workspace files.",
-      parameters: webFetchParameters,
-    },
-    async execute(input, context) {
-      requireNetworkPermission(context, "web_fetch");
+export const webFetchTool: Tool<typeof webFetchParameters, WebFetchResultData> = {
+  definition: {
+    name: "web_fetch",
+    description:
+      "Read text from a specific known HTTP or HTTPS URL. Use this only when the caller already has the exact URL. This tool does not search, discover pages, crawl, or recursively fetch links. Returns HTTP metadata and capped response text. Requires network permission.",
+    parameters: webFetchParameters,
+  },
+  async execute(input, context) {
+    requireNetworkPermission(context, "web_fetch");
 
-      const url = parseHttpUrl(input.url, "web_fetch");
-      const maxLength =
-        typeof input.maxLength === "number" && input.maxLength > 0
-          ? Math.floor(input.maxLength)
-          : 20_000;
-      const response = await fetch(url, {signal: context.signal});
+    const requestedUrl = parseHttpUrl(input.url, "web_fetch");
+    const maxLength = input.maxLength ?? DEFAULT_WEB_FETCH_MAX_LENGTH;
+    const timeoutMs = input.timeoutMs ?? DEFAULT_WEB_FETCH_TIMEOUT_MS;
+    const control = createFetchControl(context.signal, timeoutMs);
+
+    try {
+      const response = await fetch(requestedUrl, {signal: control.signal});
+      const details = getResponseDetails(response, requestedUrl);
 
       if (!response.ok) {
         throw new ToolError({
           code: "TOOL_EXECUTION_FAILED",
           message: `web_fetch failed with HTTP ${response.status}.`,
           toolName: "web_fetch",
-          details: {status: response.status, url},
+          details,
         });
       }
 
-      const text = await response.text();
+      if (!isTextContentType(details.contentType)) {
+        throw new ToolError({
+          code: "TOOL_EXECUTION_FAILED",
+          message: contentTypeErrorMessage(details.contentType),
+          toolName: "web_fetch",
+          details,
+        });
+      }
+
+      const {text, truncated} = await readResponseTextWithLimit(response, maxLength);
 
       return okToolResult("Fetched webpage text.", {
-        url,
-        text: text.slice(0, maxLength),
+        ...details,
+        text,
+        truncated,
+        maxLength,
       });
-    },
-  };
+    } catch (error) {
+      throw normalizeFetchError(error, {
+        requestedUrl,
+        timedOut: control.timedOut,
+        contextSignal: context.signal,
+        timeoutMs,
+      });
+    } finally {
+      control.cleanup();
+    }
+  },
+};
 
 /** Ensures the current run granted network access before issuing a fetch. */
 function requireNetworkPermission(context: ToolContext, toolName: string): void {
@@ -89,4 +130,181 @@ function parseHttpUrl(url: string, toolName: string): string {
       cause: error,
     });
   }
+}
+
+function getResponseDetails(
+  response: Response,
+  requestedUrl: string,
+): WebFetchFailureDetails {
+  const contentType = response.headers.get("content-type");
+
+  return {
+    requestedUrl,
+    finalUrl: response.url || requestedUrl,
+    status: response.status,
+    statusText: response.statusText,
+    contentType,
+    contentLength: parseContentLength(response.headers.get("content-length")),
+  };
+}
+
+function parseContentLength(value: string | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function isTextContentType(contentType: string | null): boolean {
+  if (contentType === null) {
+    return false;
+  }
+
+  const mediaType = contentType.split(";", 1)[0]?.trim().toLowerCase();
+
+  return (
+    mediaType.startsWith("text/") ||
+    mediaType === "application/json" ||
+    mediaType === "application/xml" ||
+    mediaType === "application/xhtml+xml" ||
+    mediaType === "application/javascript" ||
+    mediaType === "image/svg+xml"
+  );
+}
+
+function contentTypeErrorMessage(contentType: string | null): string {
+  return contentType === null
+    ? "web_fetch refused to read a response without a text content type."
+    : `web_fetch refused to read non-text response content type "${contentType}".`;
+}
+
+function createFetchControl(
+  contextSignal: AbortSignal | undefined,
+  timeoutMs: number,
+): {
+  signal: AbortSignal;
+  timedOut: () => boolean;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  let didTimeOut = false;
+
+  const abortFromContext = (): void => controller.abort();
+
+  if (contextSignal?.aborted) {
+    controller.abort();
+  } else {
+    contextSignal?.addEventListener("abort", abortFromContext, {once: true});
+  }
+
+  const timeout = setTimeout(() => {
+    didTimeOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  return {
+    signal: controller.signal,
+    timedOut: () => didTimeOut,
+    cleanup: () => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+
+      contextSignal?.removeEventListener("abort", abortFromContext);
+    },
+  };
+}
+
+async function readResponseTextWithLimit(
+  response: Response,
+  maxLength: number,
+): Promise<{text: string; truncated: boolean}> {
+  const reader = response.body?.getReader();
+
+  if (!reader) {
+    // Compatibility path for fetch mocks or runtimes without stream readers.
+    const text = await response.text();
+
+    return {
+      text: text.slice(0, maxLength),
+      truncated: text.length > maxLength,
+    };
+  }
+
+  const decoder = new TextDecoder();
+  let text = "";
+  let truncated = false;
+
+  try {
+    while (true) {
+      const {done, value} = await reader.read();
+
+      if (done) {
+        text += decoder.decode();
+        break;
+      }
+
+      text += decoder.decode(value, {stream: true});
+
+      if (text.length > maxLength) {
+        text = text.slice(0, maxLength);
+        truncated = true;
+        await reader.cancel();
+        break;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return {text, truncated};
+}
+
+function normalizeFetchError(
+  error: unknown,
+  input: {
+    requestedUrl: string;
+    timedOut: () => boolean;
+    contextSignal?: AbortSignal;
+    timeoutMs: number;
+  },
+): unknown {
+  if (error instanceof ToolError) {
+    return error;
+  }
+
+  if (isAbortLikeError(error) || input.timedOut() || input.contextSignal?.aborted) {
+    if (input.timedOut()) {
+      return new ToolError({
+        code: "TOOL_TIMEOUT",
+        message: `web_fetch timed out after ${input.timeoutMs}ms.`,
+        toolName: "web_fetch",
+        details: {requestedUrl: input.requestedUrl, timeoutMs: input.timeoutMs},
+        cause: error,
+      });
+    }
+
+    return new ToolError({
+      code: "TOOL_ABORTED",
+      message: "web_fetch was aborted.",
+      toolName: "web_fetch",
+      details: {requestedUrl: input.requestedUrl},
+      cause: error,
+    });
+  }
+
+  return new ToolError({
+    code: "TOOL_EXECUTION_FAILED",
+    message: "web_fetch network request failed.",
+    toolName: "web_fetch",
+    details: {requestedUrl: input.requestedUrl},
+    cause: error,
+  });
+}
+
+function isAbortLikeError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
