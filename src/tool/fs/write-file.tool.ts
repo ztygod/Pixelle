@@ -26,6 +26,7 @@ const writeFileParameters = z.object({
     ),
 });
 
+/** Tool that writes complete UTF-8 file contents inside the workspace. */
 export const writeFileTool: Tool<
   typeof writeFileParameters,
   {path: string; bytesWritten: number}
@@ -60,6 +61,7 @@ export const writeFileTool: Tool<
   },
 };
 
+/** Ensures this run granted write access to workspace files. */
 function requireWritePermission(context: ToolContext, toolName: string): void {
   if (!context.permissions?.writeFile) {
     throw new ToolError({
@@ -70,6 +72,7 @@ function requireWritePermission(context: ToolContext, toolName: string): void {
   }
 }
 
+/** Throws a structured tool error when the run was cancelled. */
 function throwIfAborted(context: ToolContext, toolName: string): void {
   if (context.signal?.aborted) {
     throw new ToolError({

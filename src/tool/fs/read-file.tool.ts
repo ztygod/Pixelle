@@ -20,6 +20,7 @@ const readFileParameters = z.object({
     ),
 });
 
+/** Tool that reads a known UTF-8 file inside the workspace. */
 export const readFileTool: Tool<
   typeof readFileParameters,
   {path: string; content: string}
@@ -45,6 +46,7 @@ export const readFileTool: Tool<
   },
 };
 
+/** Ensures this run granted read access to workspace files. */
 function requireReadPermission(context: ToolContext, toolName: string): void {
   if (!context.permissions?.readFile) {
     throw new ToolError({
@@ -55,6 +57,7 @@ function requireReadPermission(context: ToolContext, toolName: string): void {
   }
 }
 
+/** Throws a structured tool error when the run was cancelled. */
 function throwIfAborted(context: ToolContext, toolName: string): void {
   if (context.signal?.aborted) {
     throw new ToolError({

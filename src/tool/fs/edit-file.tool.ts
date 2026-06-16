@@ -22,6 +22,7 @@ const editFileParameters = z.object({
     .describe("Replace every occurrence. Defaults to false and requires one match."),
 });
 
+/** Tool that performs exact-text replacements in an existing UTF-8 workspace file. */
 export const editFileTool: Tool<
   typeof editFileParameters,
   {path: string; replacements: number; bytesWritten: number}
@@ -78,6 +79,7 @@ export const editFileTool: Tool<
   },
 };
 
+/** Writes edited content through the regular write_file tool when no fileWriter exists. */
 async function fallbackWrite(
   context: ToolContext,
   relativePath: string,
@@ -101,10 +103,12 @@ async function fallbackWrite(
   return result.data;
 }
 
+/** Counts exact, non-overlapping occurrences of a search string. */
 function countOccurrences(text: string, search: string): number {
   return text.split(search).length - 1;
 }
 
+/** Ensures this run granted write access to workspace files. */
 function requireWritePermission(context: ToolContext, toolName: string): void {
   if (!context.permissions?.writeFile) {
     throw new ToolError({
@@ -115,6 +119,7 @@ function requireWritePermission(context: ToolContext, toolName: string): void {
   }
 }
 
+/** Throws a structured tool error when the run was cancelled. */
 function throwIfAborted(context: ToolContext, toolName: string): void {
   if (context.signal?.aborted) {
     throw new ToolError({

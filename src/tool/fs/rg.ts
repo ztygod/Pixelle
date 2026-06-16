@@ -3,6 +3,7 @@ import {spawn} from "node:child_process";
 const RG_TIMEOUT_MS = 10_000;
 const RG_MAX_OUTPUT_LENGTH = 1_000_000;
 
+/** Directory globs excluded from ripgrep-backed file discovery and search. */
 export const DEFAULT_IGNORED_DIRECTORY_GLOBS = [
   "!node_modules/**",
   "!.git/**",
@@ -18,6 +19,7 @@ type RgRunOptions = {
   timeoutMs?: number;
 };
 
+/** Bounded result returned by the shared ripgrep process runner. */
 export type RgRunResult = {
   exitCode: number | null;
   stdout: string;
@@ -27,6 +29,7 @@ export type RgRunResult = {
 
 let rgAvailability: boolean | undefined;
 
+/** Probes whether ripgrep is available and caches the process-wide answer. */
 export async function isRgAvailable(cwd: string): Promise<boolean> {
   // Cache the probe so each tool call does not spawn `rg --version`.
   if (rgAvailability !== undefined) {
@@ -47,6 +50,7 @@ export async function isRgAvailable(cwd: string): Promise<boolean> {
   return rgAvailability;
 }
 
+/** Runs ripgrep without a shell and captures bounded stdout/stderr output. */
 export async function runRg(
   args: readonly string[],
   options: RgRunOptions,
@@ -117,11 +121,13 @@ export async function runRg(
   });
 }
 
+/** Builds ripgrep --glob arguments for ignored generated directories. */
 export function createIgnoredDirectoryArgs(): string[] {
   // Keep rg behavior aligned with the Node fallback's generated-directory skip list.
   return DEFAULT_IGNORED_DIRECTORY_GLOBS.flatMap((glob) => ["--glob", glob]);
 }
 
+/** Parses newline-delimited ripgrep file output into POSIX-style relative paths. */
 export function parseRgFileLines(stdout: string): string[] {
   return stdout
     .split(/\r?\n/)
@@ -129,6 +135,7 @@ export function parseRgFileLines(stdout: string): string[] {
     .map((line) => line.replaceAll("\\", "/"));
 }
 
+/** Appends process output while enforcing a maximum retained character count. */
 function appendLimited(current: string, chunk: string, maxLength: number): string {
   if (current.length >= maxLength) {
     return current;

@@ -33,6 +33,7 @@ const grepParameters = z.object({
     .describe("Maximum number of content matches to return."),
 });
 
+/** Tool that searches workspace file contents for literal text matches. */
 export const grepTool: Tool<typeof grepParameters, {matches: GrepMatch[]}> = {
   definition: {
     name: "grep",
@@ -66,6 +67,7 @@ export const grepTool: Tool<typeof grepParameters, {matches: GrepMatch[]}> = {
   },
 };
 
+/** Searches with ripgrep and returns undefined when the Node fallback should run. */
 async function searchWorkspaceWithRg(
   workspaceRoot: string,
   pattern: string,
@@ -107,6 +109,7 @@ async function searchWorkspaceWithRg(
   }
 }
 
+/** Searches readable text files using Node when ripgrep is unavailable or fails. */
 async function searchWorkspaceWithNode(
   workspaceRoot: string,
   pattern: string,
@@ -153,6 +156,7 @@ async function searchWorkspaceWithNode(
   return matches;
 }
 
+/** Parses ripgrep no-heading output into capped structured match objects. */
 function parseRgMatches(stdout: string, maxResults: number): GrepMatch[] {
   const matches: GrepMatch[] = [];
 
@@ -182,6 +186,7 @@ function parseRgMatches(stdout: string, maxResults: number): GrepMatch[] {
   return matches;
 }
 
+/** Ensures this run granted read access to workspace files. */
 function requireReadPermission(context: ToolContext, toolName: string): void {
   if (!context.permissions?.readFile) {
     throw new ToolError({
@@ -192,6 +197,7 @@ function requireReadPermission(context: ToolContext, toolName: string): void {
   }
 }
 
+/** Throws a structured tool error when the run was cancelled. */
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) {
     throw new ToolError({
@@ -202,6 +208,7 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
   }
 }
 
+/** Reads a file as UTF-8 text unless it appears to be binary or unreadable. */
 async function readTextFileIfSearchable(
   absolutePath: string,
 ): Promise<string | undefined> {

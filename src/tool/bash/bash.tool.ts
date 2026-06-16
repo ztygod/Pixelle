@@ -44,6 +44,7 @@ type BashResult = {
   timedOut: boolean;
 };
 
+/** Tool that executes a shell command from the workspace after command-policy checks. */
 export const bashTool: Tool<typeof bashParameters, BashResult> = {
   definition: {
     name: "bash",
@@ -119,6 +120,7 @@ type RunShellCommandInput = {
   timeoutMs: number;
 };
 
+/** Spawns a platform shell command and captures bounded stdout/stderr output. */
 async function runShellCommand(input: RunShellCommandInput): Promise<BashResult> {
   return new Promise((resolve, reject) => {
     let stdout = "";
@@ -188,6 +190,7 @@ async function runShellCommand(input: RunShellCommandInput): Promise<BashResult>
   });
 }
 
+/** Appends process output while enforcing a maximum retained character count. */
 function appendLimited(current: string, chunk: string, maxLength: number): string {
   if (current.length >= maxLength) {
     return current;

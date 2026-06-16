@@ -41,6 +41,7 @@ export type {
   ToolPermissions,
 } from "./types.js";
 
+/** Creates the standard tool registry used by Agent when no custom registry is supplied. */
 export function createDefaultToolRegistry(): ToolRegistry {
   const registry = new ToolRegistry();
 

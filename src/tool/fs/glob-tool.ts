@@ -39,6 +39,7 @@ const globParameters = z.object({
     .describe("Maximum number of workspace-relative file paths to return."),
 });
 
+/** Tool that lists workspace-relative file paths using rg or a Node fallback walker. */
 export const globTool: Tool<typeof globParameters, {paths: string[]}> = {
   definition: {
     name: "glob",
@@ -62,6 +63,7 @@ export const globTool: Tool<typeof globParameters, {paths: string[]}> = {
   },
 };
 
+/** Lists workspace files with common generated directories ignored. */
 export async function listWorkspaceFiles(
   workspaceRoot: string,
   maxResults = 1000,
@@ -83,6 +85,7 @@ export async function listWorkspaceFiles(
   return listWorkspaceFilesWithNode(workspaceRoot, maxResults, pattern, signal);
 }
 
+/** Uses ripgrep to list files quickly when rg is available and succeeds. */
 async function listWorkspaceFilesWithRg(
   workspaceRoot: string,
   maxResults: number,
@@ -113,6 +116,7 @@ async function listWorkspaceFilesWithRg(
   }
 }
 
+/** Lists workspace files by recursively walking directories in Node. */
 async function listWorkspaceFilesWithNode(
   workspaceRoot: string,
   maxResults: number,
@@ -135,6 +139,7 @@ async function listWorkspaceFilesWithNode(
   return paths;
 }
 
+/** Recursively walks a directory tree while respecting max result and abort limits. */
 async function walkDirectory(
   workspaceRoot: string,
   currentDirectory: string,
@@ -186,6 +191,7 @@ async function walkDirectory(
   }
 }
 
+/** Applies simple substring filtering and result capping to discovered paths. */
 function filterPathResults(
   paths: readonly string[],
   maxResults: number,
@@ -199,6 +205,7 @@ function filterPathResults(
   return filteredPaths.slice(0, maxResults);
 }
 
+/** Throws a standard abort-style error so ToolRunner can normalize cancellation. */
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) {
     const error = new Error("Tool execution was aborted.");

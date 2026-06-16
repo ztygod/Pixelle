@@ -24,6 +24,10 @@ type ExecutionControl = {
   cleanup: () => void;
 };
 
+/**
+ * Executes registered tools behind a stable boundary for validation, cancellation,
+ * timeout handling, result normalization, and runner-level lifecycle events.
+ */
 export class ToolRunner {
   private readonly defaultTimeoutMs: number;
   private readonly onEvent?: (event: ToolRunnerEvent) => void | Promise<void>;
@@ -41,6 +45,12 @@ export class ToolRunner {
       options.createCallId ?? (() => `tool-call-${++fallbackCallCounter}`);
   }
 
+  /**
+   * Runs one tool by name and always resolves to a normalized ToolResult.
+   *
+   * ToolRunner owns registry lookup, schema validation, context signal replacement,
+   * timeout/abort racing, and conversion of thrown errors into tool error results.
+   */
   async run(
     name: string,
     input: unknown,
@@ -55,6 +65,7 @@ export class ToolRunner {
       type: "runner.tool.started",
       callId,
       toolName: name,
+      input,
       startedAt,
       timeoutMs,
       metadata: options.metadata,
@@ -177,6 +188,7 @@ export class ToolRunner {
     }
   }
 
+  /** Records timing data, emits the terminal runner event, and returns the result. */
   private async finalize(input: {
     callId: string;
     toolName: string;
@@ -187,24 +199,24 @@ export class ToolRunner {
   }): Promise<ToolResult> {
     const endedAt = this.now();
     const durationMs = Math.max(0, endedAt - input.startedAt);
-    const errorCode = input.result.ok ? undefined : input.result.code;
 
-    await this.emitEvent({
-      type: toTerminalEventType(input.result),
+    const terminalEventBase = {
       callId: input.callId,
       toolName: input.toolName,
       startedAt: input.startedAt,
       endedAt,
       durationMs,
       result: input.result,
-      errorCode,
       timeoutMs: input.timeoutMs,
       metadata: input.metadata,
-    } as ToolRunnerEvent);
+    };
+
+    await this.emitEvent(toTerminalEvent(terminalEventBase));
 
     return input.result;
   }
 
+  /** Emits a runner event without allowing observer failures to affect execution. */
   private async emitEvent(event: ToolRunnerEvent): Promise<void> {
     try {
       await this.onEvent?.(event);
@@ -214,6 +226,7 @@ export class ToolRunner {
   }
 }
 
+/** Resolves per-call timeout policy, including explicit timeout disabling. */
 function resolveTimeoutMs(
   runTimeoutMs: ToolRunOptions["timeoutMs"],
   defaultTimeoutMs: number,
@@ -225,6 +238,7 @@ function resolveTimeoutMs(
   return Math.max(0, Math.floor(runTimeoutMs ?? defaultTimeoutMs));
 }
 
+/** Creates the combined abort/timeout signal used for one tool execution. */
 function createExecutionControl(input: {
   contextSignal?: AbortSignal;
   runSignal?: AbortSignal;
@@ -284,6 +298,7 @@ function createExecutionControl(input: {
   };
 }
 
+/** Detects the internal race outcome object produced by execution control. */
 function isControlOutcome(value: unknown): value is ControlOutcome {
   return (
     typeof value === "object" &&
@@ -294,24 +309,47 @@ function isControlOutcome(value: unknown): value is ControlOutcome {
   );
 }
 
+/** Detects standard abort-style errors from APIs that reject on cancellation. */
 function isAbortLikeError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
 
-function toTerminalEventType(
-  result: ToolResult,
-): Exclude<ToolRunnerEvent["type"], "runner.tool.started"> {
-  if (result.ok) {
-    return "runner.tool.completed";
+/** Converts a normalized ToolResult into the matching terminal runner event. */
+function toTerminalEvent(
+  event: Omit<
+    Extract<
+      ToolRunnerEvent,
+      {type: Exclude<ToolRunnerEvent["type"], "runner.tool.started">}
+    >,
+    "type" | "errorCode"
+  >,
+): Exclude<ToolRunnerEvent, {type: "runner.tool.started"}> {
+  if (event.result.ok) {
+    return {
+      ...event,
+      type: "runner.tool.completed",
+    };
   }
 
-  if (result.code === "TOOL_TIMEOUT") {
-    return "runner.tool.timed_out";
+  if (event.result.code === "TOOL_TIMEOUT") {
+    return {
+      ...event,
+      type: "runner.tool.timed_out",
+      errorCode: "TOOL_TIMEOUT",
+    };
   }
 
-  if (result.code === "TOOL_ABORTED") {
-    return "runner.tool.aborted";
+  if (event.result.code === "TOOL_ABORTED") {
+    return {
+      ...event,
+      type: "runner.tool.aborted",
+      errorCode: "TOOL_ABORTED",
+    };
   }
 
-  return "runner.tool.failed";
+  return {
+    ...event,
+    type: "runner.tool.failed",
+    errorCode: event.result.code,
+  };
 }
