@@ -23,6 +23,7 @@ const webFetchParameters = z.object({
     .describe("Maximum number of characters of response text to return."),
 });
 
+/** Tool that fetches text from a known HTTP(S) URL when network permission is granted. */
 export const webFetchTool: Tool<typeof webFetchParameters, {url: string; text: string}> =
   {
     definition: {
@@ -59,6 +60,7 @@ export const webFetchTool: Tool<typeof webFetchParameters, {url: string; text: s
     },
   };
 
+/** Ensures the current run granted network access before issuing a fetch. */
 function requireNetworkPermission(context: ToolContext, toolName: string): void {
   if (!context.permissions?.network) {
     throw new ToolError({
@@ -69,6 +71,7 @@ function requireNetworkPermission(context: ToolContext, toolName: string): void 
   }
 }
 
+/** Parses and normalizes an HTTP(S) URL, rejecting unsupported protocols. */
 function parseHttpUrl(url: string, toolName: string): string {
   try {
     const parsedUrl = new URL(url);

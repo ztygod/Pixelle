@@ -20,6 +20,7 @@ import {
 import {
   createDefaultToolRegistry,
   ToolRunner,
+  type ToolRunnerEvent,
   type ToolRegistry,
   type ToolPermissions,
 } from "../tool/index.js";
@@ -37,6 +38,7 @@ import {
   normalizeConfig,
   stringifyToolResult,
 } from "./runtime-utils.js";
+import {emitToolRunnerEventAsAgentEvent} from "./tool-runner-events.js";
 import type {
   AgentContextProvider,
   AgentMiddleware,
@@ -62,6 +64,7 @@ export class Agent {
   private readonly llm: BaseLLMClient;
   private readonly toolRegistry: ToolRegistry;
   private readonly toolRunner: ToolRunner;
+  private readonly usesToolRunnerEventAdapter: boolean;
   private readonly middleware: AgentMiddleware[];
   private readonly middlewarePipeline: AgentMiddlewarePipeline;
   private readonly contextProviders: AgentContextProvider[];
@@ -71,15 +74,28 @@ export class Agent {
   private readonly workspaceScanner: WorkspaceScanner;
   private readonly verifier: Verifier;
   private readonly commandPolicy: CommandPolicyLike;
+  private readonly runOptionsByTraceId = new Map<string, RunInternalOptions>();
+  private readonly pendingToolRunnerTerminalEvents = new Map<
+    string,
+    Exclude<ToolRunnerEvent, {type: "runner.tool.started"}>
+  >();
 
+  /** Creates an agent runtime from explicit dependencies and runtime configuration. */
   constructor(options: AgentOptions) {
     this.config = normalizeConfig(options.config);
     this.llm =
       options.llm ??
       (this.config.llm ? new LLMClient(this.config.llm) : missingLLMClient());
     this.toolRegistry = options.toolRegistry ?? createDefaultToolRegistry();
-    this.toolRunner = options.toolRunner ?? new ToolRunner(this.toolRegistry);
     this.eventBus = options.eventBus ?? new EventBus<PixelleEvent>();
+    this.usesToolRunnerEventAdapter = !options.toolRunner;
+    this.toolRunner =
+      options.toolRunner ??
+      new ToolRunner(this.toolRegistry, {
+        onEvent: (event) => {
+          this.emitToolRunnerEvent(event);
+        },
+      });
     this.middleware = [...(options.middleware ?? [])];
     this.middlewarePipeline = new AgentMiddlewarePipeline(this.middleware);
     this.contextProviders = [...(options.contextProviders ?? [])];
@@ -151,6 +167,7 @@ export class Agent {
     }
   }
 
+  /** Runs the full agent workflow, including model/tool loop, verification, and tracing. */
   private async runInternal(
     input: AgentRunInput,
     options: RunInternalOptions,
@@ -195,6 +212,8 @@ export class Agent {
     let content = "";
     let stopReason: AgentStopReason = "completed";
     let usage: LLMUsage | undefined;
+
+    this.runOptionsByTraceId.set(traceId, options);
 
     try {
       context.traceStore = traceStore;
@@ -511,9 +530,13 @@ export class Agent {
         checkpointPath,
         error,
       };
+    } finally {
+      this.runOptionsByTraceId.delete(traceId);
+      this.deletePendingToolRunnerEvents(traceId);
     }
   }
 
+  /** Creates the mutable per-run context passed to middleware and context providers. */
   private createRunContext(input: {
     input: AgentRunInput;
     runId: string;
@@ -532,6 +555,7 @@ export class Agent {
     };
   }
 
+  /** Builds and appends the initial system, historical, and user messages. */
   private async addInitialMessages(
     messages: LLMMessage[],
     context: AgentRunContext,
@@ -550,6 +574,7 @@ export class Agent {
     messages.push({role: "user", content: context.input.prompt});
   }
 
+  /** Runs model middleware, calls the LLM, records trace data, and returns model output. */
   private async generateModelResponse(input: {
     context: AgentRunContext;
     iteration: number;
@@ -595,6 +620,7 @@ export class Agent {
     );
   }
 
+  /** Streams model output when supported and falls back to generate() when needed. */
   private async generateStreamingModelResponse(
     request: Parameters<BaseLLMClient["stream"]>[0],
     context: AgentRunContext,
@@ -661,6 +687,7 @@ export class Agent {
     return finalResponse;
   }
 
+  /** Executes one model-requested tool call through middleware and ToolRunner. */
   private async runTool(
     call: AgentToolCall,
     context: AgentRunContext,
@@ -673,18 +700,20 @@ export class Agent {
       context.traceId,
     );
 
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "tool.call_started",
-        id: toolCall.id,
-        name: toolCall.name,
-        input: toolCall.arguments,
-        status: "running",
-        metadata,
-      },
-      options,
-    );
+    if (!this.usesToolRunnerEventAdapter) {
+      emitAgentEvent(
+        this.eventBus,
+        {
+          type: "tool.call_started",
+          id: toolCall.id,
+          name: toolCall.name,
+          input: toolCall.arguments,
+          status: "running",
+          metadata,
+        },
+        options,
+      );
+    }
 
     // ToolRunner owns schema validation and tool-level error normalization.
     const result = await this.toolRunner.run(
@@ -699,6 +728,10 @@ export class Agent {
         workspaceProfile: context.workspaceProfile,
         commandPolicy: this.commandPolicy,
       }),
+      {
+        callId: toolCall.id,
+        metadata,
+      },
     );
     const toolResult = await this.middlewarePipeline.afterTool(
       {call: toolCall, result},
@@ -707,6 +740,11 @@ export class Agent {
     await context.traceStore?.update((trace) => {
       trace.toolCalls.push(toolResult);
     });
+
+    if (this.usesToolRunnerEventAdapter) {
+      this.emitFinalToolRunnerEvent(toolCall.id, metadata, toolResult.result);
+      return toolResult;
+    }
 
     if (toolResult.result.ok) {
       emitAgentEvent(
@@ -740,6 +778,121 @@ export class Agent {
     return toolResult;
   }
 
+  /** Handles ToolRunner events for the default runner without duplicating Agent events. */
+  private emitToolRunnerEvent(event: ToolRunnerEvent): void {
+    const traceId =
+      typeof event.metadata?.traceId === "string" ? event.metadata.traceId : undefined;
+    if (event.type !== "runner.tool.started") {
+      if (traceId) {
+        this.pendingToolRunnerTerminalEvents.set(
+          this.toolRunnerEventKey(traceId, event.callId),
+          event,
+        );
+        return;
+      }
+    }
+
+    const options = traceId ? this.runOptionsByTraceId.get(traceId) : undefined;
+
+    emitToolRunnerEventAsAgentEvent({
+      eventBus: this.eventBus,
+      event,
+      options: options ?? {},
+    });
+  }
+
+  /** Emits the final Agent tool event after afterTool middleware has finalized the result. */
+  private emitFinalToolRunnerEvent(
+    callId: string,
+    metadata: Record<string, unknown>,
+    result: AgentToolResult["result"],
+  ): void {
+    const traceId = typeof metadata.traceId === "string" ? metadata.traceId : undefined;
+    const terminalEvent = traceId
+      ? this.pendingToolRunnerTerminalEvents.get(this.toolRunnerEventKey(traceId, callId))
+      : undefined;
+    const options = traceId ? this.runOptionsByTraceId.get(traceId) : undefined;
+
+    if (traceId) {
+      this.pendingToolRunnerTerminalEvents.delete(
+        this.toolRunnerEventKey(traceId, callId),
+      );
+    }
+
+    if (!terminalEvent) {
+      return;
+    }
+
+    emitToolRunnerEventAsAgentEvent({
+      eventBus: this.eventBus,
+      event: this.withToolRunnerEventResult(terminalEvent, result),
+      options: options ?? {},
+    });
+  }
+
+  /** Rebuilds a terminal runner event using the Agent's final post-middleware result. */
+  private withToolRunnerEventResult(
+    event: Exclude<ToolRunnerEvent, {type: "runner.tool.started"}>,
+    result: AgentToolResult["result"],
+  ): Exclude<ToolRunnerEvent, {type: "runner.tool.started"}> {
+    const base = {
+      callId: event.callId,
+      toolName: event.toolName,
+      startedAt: event.startedAt,
+      endedAt: event.endedAt,
+      durationMs: event.durationMs,
+      result,
+      timeoutMs: event.timeoutMs,
+      metadata: event.metadata,
+    };
+
+    if (result.ok) {
+      return {
+        ...base,
+        type: "runner.tool.completed",
+      };
+    }
+
+    if (result.code === "TOOL_TIMEOUT") {
+      return {
+        ...base,
+        type: "runner.tool.timed_out",
+        errorCode: "TOOL_TIMEOUT",
+      };
+    }
+
+    if (result.code === "TOOL_ABORTED") {
+      return {
+        ...base,
+        type: "runner.tool.aborted",
+        errorCode: "TOOL_ABORTED",
+      };
+    }
+
+    return {
+      ...base,
+      type: "runner.tool.failed",
+      errorCode: result.code,
+    };
+  }
+
+  /** Creates a stable key for pending runner terminal events within one trace. */
+  private toolRunnerEventKey(traceId: string, callId: string): string {
+    return `${traceId}:${callId}`;
+  }
+
+  /** Removes any pending terminal runner events left behind by an ending run. */
+  private deletePendingToolRunnerEvents(traceId: string): void {
+    const prefix = `${traceId}:`;
+
+    for (const key of this.pendingToolRunnerTerminalEvents.keys()) {
+      if (key.startsWith(prefix)) {
+        this.pendingToolRunnerTerminalEvents.delete(key);
+      }
+    }
+  }
+
+  /** Emits the standard run-start lifecycle events. */
   private emitRunStarted(
     input: AgentRunInput,
     sessionId: string,
@@ -765,6 +918,7 @@ export class Agent {
     );
   }
 
+  /** Emits the standard run-stop lifecycle events for completed or non-error stops. */
   private emitRunStopped(
     input: AgentRunInput,
     runId: string,
@@ -797,6 +951,7 @@ export class Agent {
     );
   }
 
+  /** Emits error lifecycle events when the agent run fails unexpectedly. */
   private emitRunFailed(
     input: AgentRunInput,
     sessionId: string,
@@ -834,6 +989,7 @@ export class Agent {
     );
   }
 
+  /** Emits the assistant stage event for the current model/tool loop iteration. */
   private emitAssistantStage(
     context: AgentRunContext,
     iteration: number,
@@ -851,6 +1007,7 @@ export class Agent {
     );
   }
 
+  /** Emits the task-started event used by runtime observers. */
   private emitTaskStarted(
     task: TaskRun,
     input: AgentRunInput,
@@ -870,6 +1027,7 @@ export class Agent {
     );
   }
 
+  /** Emits change-set events after tracked workspace changes are checkpointed. */
   private emitChangeSetApplied(
     changeSet: ChangeSet,
     checkpointPath: string | undefined,
@@ -902,6 +1060,7 @@ export class Agent {
     );
   }
 
+  /** Emits the rollback-started event for a change set. */
   private emitChangeSetRollbackStarted(
     changeSet: ChangeSet,
     context: AgentRunContext,
@@ -918,6 +1077,7 @@ export class Agent {
     );
   }
 
+  /** Emits the rollback-completed event for a change set. */
   private emitChangeSetRollbackCompleted(
     changeSet: ChangeSet,
     context: AgentRunContext,
@@ -934,6 +1094,7 @@ export class Agent {
     );
   }
 
+  /** Emits the verification-started event with selected verification commands. */
   private emitVerificationStarted(
     commands: readonly string[],
     input: AgentRunInput,
@@ -952,6 +1113,7 @@ export class Agent {
     );
   }
 
+  /** Emits the verification-completed event for one verification batch. */
   private emitVerificationCompleted(
     results: readonly VerificationResult[],
     input: AgentRunInput,
@@ -971,6 +1133,7 @@ export class Agent {
     );
   }
 
+  /** Emits the trace-persisted event when trace storage produced a file path. */
   private emitTracePersisted(
     tracePath: string | undefined,
     input: AgentRunInput,
@@ -993,6 +1156,7 @@ export class Agent {
     );
   }
 
+  /** Returns current EventBus history filtered to one trace for trace persistence. */
   private eventsForTrace(traceId: string): PixelleEvent[] {
     return this.eventBus.history().filter((event) => event.metadata?.traceId === traceId);
   }
@@ -1022,6 +1186,7 @@ export async function createAgentRuntimeFromConfig(
   });
 }
 
+/** Creates the initial task record tracked through the agent run lifecycle. */
 function createTaskRun(runId: string): TaskRun {
   const now = Date.now();
 
@@ -1039,6 +1204,7 @@ function createTaskRun(runId: string): TaskRun {
   };
 }
 
+/** Builds the prompt used to ask the model to repair a failed verification command. */
 function buildRepairPrompt(failure: VerificationResult, repairAttempt: number): string {
   const output = [failure.stderr, failure.stdout].filter(Boolean).join("\n\n");
 

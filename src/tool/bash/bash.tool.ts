@@ -2,6 +2,7 @@ import {spawn} from "node:child_process";
 import {z} from "zod";
 
 import {createCommandPolicy} from "../../runtime/index.js";
+import {ToolError} from "../tool-error.js";
 import {errorToolResult, okToolResult} from "../tool-result.js";
 import type {Tool} from "../types.js";
 
@@ -43,6 +44,7 @@ type BashResult = {
   timedOut: boolean;
 };
 
+/** Tool that executes a shell command from the workspace after command-policy checks. */
 export const bashTool: Tool<typeof bashParameters, BashResult> = {
   definition: {
     name: "bash",
@@ -89,6 +91,15 @@ export const bashTool: Tool<typeof bashParameters, BashResult> = {
     const maxOutputLength = Math.floor(
       input.maxOutputLength ?? DEFAULT_MAX_OUTPUT_LENGTH,
     );
+
+    if (context.signal?.aborted) {
+      throw new ToolError({
+        code: "TOOL_ABORTED",
+        message: "Tool execution was aborted.",
+        toolName: "bash",
+      });
+    }
+
     const result = await runShellCommand({
       command: input.command,
       cwd: context.workspaceRoot,
@@ -109,6 +120,7 @@ type RunShellCommandInput = {
   timeoutMs: number;
 };
 
+/** Spawns a platform shell command and captures bounded stdout/stderr output. */
 async function runShellCommand(input: RunShellCommandInput): Promise<BashResult> {
   return new Promise((resolve, reject) => {
     let stdout = "";
@@ -129,7 +141,6 @@ async function runShellCommand(input: RunShellCommandInput): Promise<BashResult>
     }, input.timeoutMs);
 
     const abort = (): void => {
-      timedOut = true;
       child.kill();
     };
 
@@ -179,6 +190,7 @@ async function runShellCommand(input: RunShellCommandInput): Promise<BashResult>
   });
 }
 
+/** Appends process output while enforcing a maximum retained character count. */
 function appendLimited(current: string, chunk: string, maxLength: number): string {
   if (current.length >= maxLength) {
     return current;

@@ -20,7 +20,13 @@ import type {
   CommandPolicyLike,
   WorkspaceProfile,
 } from "../../src/runtime/index.js";
-import {okToolResult, ToolRegistry, ToolRunner, type Tool} from "../../src/tool/index.js";
+import {
+  errorToolResult,
+  okToolResult,
+  ToolRegistry,
+  ToolRunner,
+  type Tool,
+} from "../../src/tool/index.js";
 
 class QueueLLMClient extends BaseLLMClient {
   readonly requests: LLMGenerateInput[] = [];
@@ -106,6 +112,10 @@ function createConfig(workspaceRoot: string) {
   };
 }
 
+function collectToolEvents(events: readonly PixelleEvent[]): PixelleEvent[] {
+  return events.filter((event) => event.type.startsWith("tool.call_"));
+}
+
 describe("Agent runtime loop", () => {
   it("completes when the model returns no tool calls", async () => {
     const workspaceRoot = await createWorkspace();
@@ -160,7 +170,6 @@ describe("Agent runtime loop", () => {
       config: createConfig(workspaceRoot),
       llm,
       toolRegistry: registry,
-      toolRunner: new ToolRunner(registry),
       eventBus,
       workspaceScanner: createWorkspaceScanner(workspaceRoot),
     }).run({prompt: "Use echo."});
@@ -173,9 +182,255 @@ describe("Agent runtime loop", () => {
       toolCallId: "call-1",
       name: "echo",
     });
-    expect(events.map((event) => event.type)).toEqual(
-      expect.arrayContaining(["tool.call_started", "tool.call_completed"]),
+    expect(collectToolEvents(events).map((event) => event.type)).toEqual([
+      "tool.call_started",
+      "tool.call_completed",
+    ]);
+    expect(collectToolEvents(events)[0]).toMatchObject({
+      type: "tool.call_started",
+      id: "call-1",
+      name: "echo",
+      input: {text: "hello"},
+      metadata: {source: "agent"},
+    });
+    expect(collectToolEvents(events)[1]).toMatchObject({
+      type: "tool.call_completed",
+      id: "call-1",
+      name: "echo",
+      output: {text: "hello"},
+      summary: "Echoed.",
+    });
+  });
+
+  it("emits one failed tool event for execution failures through the ToolRunner adapter", async () => {
+    const workspaceRoot = await createWorkspace();
+    const registry = new ToolRegistry();
+    const eventBus = new EventBus<PixelleEvent>();
+    const events: PixelleEvent[] = [];
+
+    registry.register({
+      definition: {
+        name: "fail",
+        description: "Fails.",
+        parameters: z.object({}),
+      },
+      execute: () => errorToolResult("Tool failed.", "TOOL_EXECUTION_FAILED", {x: 1}),
+    });
+    eventBus.subscribe((event) => events.push(event));
+
+    const result = await new Agent({
+      config: createConfig(workspaceRoot),
+      llm: new QueueLLMClient([
+        {
+          content: "Failing.",
+          toolCalls: [{id: "fail-1", name: "fail", arguments: {}}],
+        },
+        {content: "Done.", toolCalls: []},
+      ]),
+      toolRegistry: registry,
+      eventBus,
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+    }).run({prompt: "Use fail."});
+
+    expect(result.toolResults[0]?.result).toMatchObject({
+      ok: false,
+      code: "TOOL_EXECUTION_FAILED",
+    });
+    expect(collectToolEvents(events).map((event) => event.type)).toEqual([
+      "tool.call_started",
+      "tool.call_failed",
+    ]);
+    expect(collectToolEvents(events)[1]).toMatchObject({
+      type: "tool.call_failed",
+      id: "fail-1",
+      name: "fail",
+      error: "Tool failed.",
+      code: "TOOL_EXECUTION_FAILED",
+      data: {x: 1},
+    });
+  });
+
+  it("emits terminal tool events after afterTool middleware updates the result", async () => {
+    const workspaceRoot = await createWorkspace();
+    const registry = new ToolRegistry();
+    const eventBus = new EventBus<PixelleEvent>();
+    const events: PixelleEvent[] = [];
+
+    registry.register({
+      definition: {
+        name: "echo",
+        description: "Echo text.",
+        parameters: z.object({text: z.string()}),
+      },
+      execute: (input: {text: string}) => okToolResult("Original.", input),
+    });
+    eventBus.subscribe((event) => events.push(event));
+
+    const result = await new Agent({
+      config: createConfig(workspaceRoot),
+      llm: new QueueLLMClient([
+        {
+          content: "Echo.",
+          toolCalls: [{id: "mw-1", name: "echo", arguments: {text: "hello"}}],
+        },
+        {content: "Done.", toolCalls: []},
+      ]),
+      toolRegistry: registry,
+      eventBus,
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+      middleware: [
+        {
+          afterTool: (toolResult) => ({
+            ...toolResult,
+            result: okToolResult("Updated.", {text: "updated"}),
+          }),
+        },
+      ],
+    }).run({prompt: "Use echo."});
+
+    expect(result.toolResults[0]?.result).toMatchObject({
+      ok: true,
+      message: "Updated.",
+      data: {text: "updated"},
+    });
+    expect(collectToolEvents(events).map((event) => event.type)).toEqual([
+      "tool.call_started",
+      "tool.call_completed",
+    ]);
+    expect(collectToolEvents(events)[1]).toMatchObject({
+      type: "tool.call_completed",
+      id: "mw-1",
+      output: {text: "updated"},
+      summary: "Updated.",
+    });
+  });
+
+  it("maps timeout and aborted ToolRunner events to failed agent tool events", async () => {
+    const workspaceRoot = await createWorkspace();
+    const registry = new ToolRegistry();
+    const eventBus = new EventBus<PixelleEvent>();
+    const events: PixelleEvent[] = [];
+
+    registry.register({
+      definition: {
+        name: "timeout",
+        description: "Returns a timeout result.",
+        parameters: z.object({}),
+      },
+      execute: () => errorToolResult("Timed out.", "TOOL_TIMEOUT", {timeoutMs: 1}),
+    });
+    registry.register({
+      definition: {
+        name: "abort",
+        description: "Returns an abort result.",
+        parameters: z.object({}),
+      },
+      execute: () => errorToolResult("Aborted.", "TOOL_ABORTED"),
+    });
+    eventBus.subscribe((event) => events.push(event));
+
+    await new Agent({
+      config: createConfig(workspaceRoot),
+      llm: new QueueLLMClient([
+        {
+          content: "Timeout.",
+          toolCalls: [{id: "timeout-1", name: "timeout", arguments: {}}],
+        },
+        {
+          content: "Abort.",
+          toolCalls: [{id: "abort-1", name: "abort", arguments: {}}],
+        },
+        {content: "Done.", toolCalls: []},
+      ]),
+      toolRegistry: registry,
+      eventBus,
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+    }).run({prompt: "Use timeout and abort."});
+
+    const failedEvents = collectToolEvents(events).filter(
+      (event) => event.type === "tool.call_failed",
     );
+
+    expect(failedEvents).toHaveLength(2);
+    expect(failedEvents[0]).toMatchObject({
+      type: "tool.call_failed",
+      id: "timeout-1",
+      code: "TOOL_TIMEOUT",
+      data: {timeoutMs: 1},
+    });
+    expect(failedEvents[1]).toMatchObject({
+      type: "tool.call_failed",
+      id: "abort-1",
+      code: "TOOL_ABORTED",
+    });
+  });
+
+  it("streams tool events emitted by the ToolRunner adapter", async () => {
+    const workspaceRoot = await createWorkspace();
+    const registry = new ToolRegistry();
+
+    registry.register({
+      definition: {
+        name: "echo",
+        description: "Echo text.",
+        parameters: z.object({text: z.string()}),
+      },
+      execute: (input: {text: string}) => okToolResult("Echoed.", input),
+    });
+
+    const stream = new Agent({
+      config: createConfig(workspaceRoot),
+      llm: new QueueLLMClient([
+        {content: "Echo.", toolCalls: [{id: "s1", name: "echo", arguments: {text: "a"}}]},
+        {content: "Done.", toolCalls: []},
+      ]),
+      toolRegistry: registry,
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+    }).stream({prompt: "Use echo."});
+    const events: PixelleEvent[] = [];
+
+    for await (const event of stream) {
+      events.push(event);
+    }
+
+    expect(collectToolEvents(events).map((event) => event.type)).toEqual([
+      "tool.call_started",
+      "tool.call_completed",
+    ]);
+  });
+
+  it("keeps manual agent tool events for injected ToolRunner instances", async () => {
+    const workspaceRoot = await createWorkspace();
+    const registry = new ToolRegistry();
+    const eventBus = new EventBus<PixelleEvent>();
+    const events: PixelleEvent[] = [];
+
+    registry.register({
+      definition: {
+        name: "echo",
+        description: "Echo text.",
+        parameters: z.object({text: z.string()}),
+      },
+      execute: (input: {text: string}) => okToolResult("Echoed.", input),
+    });
+    eventBus.subscribe((event) => events.push(event));
+
+    await new Agent({
+      config: createConfig(workspaceRoot),
+      llm: new QueueLLMClient([
+        {content: "Echo.", toolCalls: [{id: "i1", name: "echo", arguments: {text: "a"}}]},
+        {content: "Done.", toolCalls: []},
+      ]),
+      toolRegistry: registry,
+      toolRunner: new ToolRunner(registry),
+      eventBus,
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+    }).run({prompt: "Use echo."});
+
+    expect(collectToolEvents(events).map((event) => event.type)).toEqual([
+      "tool.call_started",
+      "tool.call_completed",
+    ]);
   });
 
   it("emits assistant deltas while streaming model output", async () => {

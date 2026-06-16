@@ -25,6 +25,11 @@ export {ToolRunner} from "./tool-runner.js";
 export {webFetchTool} from "./web/index.js";
 export type {ToolErrorCode, ToolErrorOptions} from "./tool-error.js";
 export type {LLMToolParametersSchema} from "./tool-parameters.js";
+export type {
+  ToolRunOptions,
+  ToolRunnerEvent,
+  ToolRunnerOptions,
+} from "./tool-runner-types.js";
 export type {ToolErrorResult, ToolResult, ToolSuccessResult} from "./tool-result.js";
 export type {
   Tool,
@@ -36,6 +41,7 @@ export type {
   ToolPermissions,
 } from "./types.js";
 
+/** Creates the standard tool registry used by Agent when no custom registry is supplied. */
 export function createDefaultToolRegistry(): ToolRegistry {
   const registry = new ToolRegistry();
 

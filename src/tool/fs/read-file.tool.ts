@@ -20,6 +20,7 @@ const readFileParameters = z.object({
     ),
 });
 
+/** Tool that reads a known UTF-8 file inside the workspace. */
 export const readFileTool: Tool<
   typeof readFileParameters,
   {path: string; content: string}
@@ -32,8 +33,10 @@ export const readFileTool: Tool<
   },
   async execute(input, context) {
     requireReadPermission(context, "read_file");
+    throwIfAborted(context, "read_file");
 
     const safePath = resolveWorkspacePath(context.workspaceRoot, input.path);
+    throwIfAborted(context, "read_file");
     const content = await readFile(safePath.absolutePath, "utf8");
 
     return okToolResult("Read file content.", {
@@ -43,11 +46,23 @@ export const readFileTool: Tool<
   },
 };
 
+/** Ensures this run granted read access to workspace files. */
 function requireReadPermission(context: ToolContext, toolName: string): void {
   if (!context.permissions?.readFile) {
     throw new ToolError({
       code: "TOOL_PERMISSION_DENIED",
       message: "File read permission is required.",
+      toolName,
+    });
+  }
+}
+
+/** Throws a structured tool error when the run was cancelled. */
+function throwIfAborted(context: ToolContext, toolName: string): void {
+  if (context.signal?.aborted) {
+    throw new ToolError({
+      code: "TOOL_ABORTED",
+      message: "Tool execution was aborted.",
       toolName,
     });
   }

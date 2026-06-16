@@ -33,6 +33,7 @@ const grepParameters = z.object({
     .describe("Maximum number of content matches to return."),
 });
 
+/** Tool that searches workspace file contents for literal text matches. */
 export const grepTool: Tool<typeof grepParameters, {matches: GrepMatch[]}> = {
   definition: {
     name: "grep",
@@ -55,12 +56,18 @@ export const grepTool: Tool<typeof grepParameters, {matches: GrepMatch[]}> = {
         maxResults,
         context.signal,
       )) ??
-      (await searchWorkspaceWithNode(context.workspaceRoot, input.pattern, maxResults));
+      (await searchWorkspaceWithNode(
+        context.workspaceRoot,
+        input.pattern,
+        maxResults,
+        context.signal,
+      ));
 
     return okToolResult("Searched workspace file contents.", {matches});
   },
 };
 
+/** Searches with ripgrep and returns undefined when the Node fallback should run. */
 async function searchWorkspaceWithRg(
   workspaceRoot: string,
   pattern: string,
@@ -102,15 +109,20 @@ async function searchWorkspaceWithRg(
   }
 }
 
+/** Searches readable text files using Node when ripgrep is unavailable or fails. */
 async function searchWorkspaceWithNode(
   workspaceRoot: string,
   pattern: string,
   maxResults: number,
+  signal: AbortSignal | undefined,
 ): Promise<GrepMatch[]> {
-  const files = await listWorkspaceFiles(workspaceRoot, 5000);
+  throwIfAborted(signal);
+  const files = await listWorkspaceFiles(workspaceRoot, 5000, undefined, signal);
   const matches: GrepMatch[] = [];
 
   for (const file of files) {
+    throwIfAborted(signal);
+
     if (matches.length >= maxResults) {
       break;
     }
@@ -125,6 +137,8 @@ async function searchWorkspaceWithNode(
     const lines = content.split(/\r?\n/);
 
     for (const [index, text] of lines.entries()) {
+      throwIfAborted(signal);
+
       if (text.includes(pattern)) {
         matches.push({
           path: safePath.relativePath,
@@ -142,6 +156,7 @@ async function searchWorkspaceWithNode(
   return matches;
 }
 
+/** Parses ripgrep no-heading output into capped structured match objects. */
 function parseRgMatches(stdout: string, maxResults: number): GrepMatch[] {
   const matches: GrepMatch[] = [];
 
@@ -171,6 +186,7 @@ function parseRgMatches(stdout: string, maxResults: number): GrepMatch[] {
   return matches;
 }
 
+/** Ensures this run granted read access to workspace files. */
 function requireReadPermission(context: ToolContext, toolName: string): void {
   if (!context.permissions?.readFile) {
     throw new ToolError({
@@ -181,6 +197,18 @@ function requireReadPermission(context: ToolContext, toolName: string): void {
   }
 }
 
+/** Throws a structured tool error when the run was cancelled. */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new ToolError({
+      code: "TOOL_ABORTED",
+      message: "Tool execution was aborted.",
+      toolName: "grep",
+    });
+  }
+}
+
+/** Reads a file as UTF-8 text unless it appears to be binary or unreadable. */
 async function readTextFileIfSearchable(
   absolutePath: string,
 ): Promise<string | undefined> {
