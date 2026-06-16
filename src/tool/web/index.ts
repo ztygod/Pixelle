@@ -1,1 +1,7 @@
-export {webFetchTool} from "./web-fetch.tool.js";
+export {
+  DEFAULT_WEB_FETCH_MAX_LENGTH,
+  DEFAULT_WEB_FETCH_TIMEOUT_MS,
+  MAX_WEB_FETCH_MAX_LENGTH,
+  MAX_WEB_FETCH_TIMEOUT_MS,
+  webFetchTool,
+} from "./web-fetch.tool.js";

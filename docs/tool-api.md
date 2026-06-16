@@ -29,3 +29,47 @@ Failed tools return:
 
 Built-in error codes should remain stable. Third-party tools should namespace
 custom codes to avoid collisions.
+
+## `web_fetch`
+
+`web_fetch` reads text from a caller-provided HTTP or HTTPS URL. It only works
+when `ToolContext.permissions.network` is granted. It is not a search, page
+discovery, crawler, recursive fetch, or sitemap tool; callers must already know
+the exact URL.
+
+Input:
+
+```ts
+{
+  reason: string;
+  url: string;
+  maxLength?: number; // default 20_000, max 200_000
+  timeoutMs?: number; // default 15_000, max 60_000
+}
+```
+
+Successful responses include HTTP metadata and capped text:
+
+```ts
+{
+  requestedUrl: string;
+  finalUrl: string;
+  status: number;
+  statusText: string;
+  contentType: string | null;
+  contentLength: number | null;
+  text: string;
+  truncated: boolean;
+  maxLength: number;
+}
+```
+
+`requestedUrl` is the normalized input URL. `finalUrl` records the response URL
+after redirects. Long text is truncated to `maxLength`, and `truncated` reports
+whether truncation happened.
+
+The tool rejects non-HTTP(S) URLs, missing network permission, HTTP 4xx/5xx
+responses, timeout/abort failures, and non-text responses. Text responses
+include `text/*`, JSON, XML, XHTML, JavaScript, and SVG content types. Binary
+responses such as images, archives, audio, and video are rejected before their
+bodies are read so binary data is not inserted into agent context.
