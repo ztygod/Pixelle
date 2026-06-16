@@ -2,12 +2,26 @@ import {z} from "zod";
 
 import {ToolError} from "../tool-error.js";
 import {okToolResult} from "../tool-result.js";
-import type {
-  Tool,
-  ToolContext,
-  WebFetchFailureDetails,
+import type {Tool, ToolContext} from "../types.js";
+
+/** Successful data returned by the built-in web_fetch tool. */
+export type WebFetchResultData = {
+  requestedUrl: string;
+  finalUrl: string;
+  status: number;
+  statusText: string;
+  contentType: string | null;
+  contentLength: number | null;
+  text: string;
+  truncated: boolean;
+  maxLength: number;
+};
+
+/** Structured failure details returned by the built-in web_fetch tool. */
+export type WebFetchFailureDetails = Omit<
   WebFetchResultData,
-} from "../types.js";
+  "text" | "truncated" | "maxLength"
+>;
 
 export const DEFAULT_WEB_FETCH_MAX_LENGTH = 20_000;
 export const MAX_WEB_FETCH_MAX_LENGTH = 200_000;
