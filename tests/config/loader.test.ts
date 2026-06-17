@@ -1,16 +1,25 @@
 import {mkdtemp, writeFile} from "node:fs/promises";
-import {join} from "node:path";
+import {dirname, join, resolve} from "node:path";
 import {tmpdir} from "node:os";
+import {fileURLToPath} from "node:url";
 
 import {describe, expect, it} from "vitest";
 
 import {loadAgentConfig} from "../../src/config/index.js";
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 async function createTempWorkspace(): Promise<string> {
   return mkdtemp(join(tmpdir(), "pixelle-agent-config-"));
 }
 
 describe("loadAgentConfig", () => {
+  it("loads the repository example pixelle.toml", async () => {
+    const config = await loadAgentConfig({cwd: repoRoot});
+
+    expect(config.llm.maxRetries).toBeLessThanOrEqual(10);
+  });
+
   it("loads TOML, resolves relative paths, and applies environment API keys", async () => {
     const cwd = await createTempWorkspace();
     process.env.PIXELLE_TEST_API_KEY = "secret-key";
