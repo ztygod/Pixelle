@@ -42,6 +42,7 @@ import {emitToolRunnerEventAsAgentEvent} from "./tool-runner-events.js";
 import type {
   AgentContextProvider,
   AgentMiddleware,
+  AgentModelRequest,
   AgentModelResponse,
   AgentOptions,
   AgentRunContext,
@@ -600,9 +601,9 @@ export class Agent {
     );
     await input.context.traceStore?.update((trace) => {
       trace.modelCalls.push({
-        request,
+        request: createTraceModelRequest(request),
         response: {
-          ...rawResponse,
+          ...createTraceModelResponse(rawResponse),
           iteration: input.iteration,
           runId: input.context.runId,
         },
@@ -1216,4 +1217,85 @@ function buildRepairPrompt(failure: VerificationResult, repairAttempt: number): 
     "Verification output:",
     output.slice(0, 12_000),
   ].join("\n\n");
+}
+
+const TRACE_MESSAGE_CONTENT_LIMIT = 4_000;
+const TRACE_TOOL_ARGUMENT_LIMIT = 4_000;
+const TRACE_TOOL_COUNT_LIMIT = 32;
+
+function createTraceModelRequest(request: AgentModelRequest): AgentModelRequest {
+  return {
+    ...request,
+    messages: request.messages.map(createTraceMessage),
+    tools: request.tools?.slice(0, TRACE_TOOL_COUNT_LIMIT),
+  };
+}
+
+function createTraceModelResponse(response: AgentModelResponse): AgentModelResponse {
+  return {
+    ...response,
+    content: truncateTraceString(response.content, TRACE_MESSAGE_CONTENT_LIMIT),
+    toolCalls: response.toolCalls.map((toolCall) => ({
+      ...toolCall,
+      arguments: truncateTraceRecord(toolCall.arguments, TRACE_TOOL_ARGUMENT_LIMIT),
+    })),
+  };
+}
+
+function createTraceMessage(message: LLMMessage): LLMMessage {
+  if (message.role === "assistant") {
+    return {
+      ...message,
+      content:
+        message.content === undefined
+          ? undefined
+          : truncateTraceString(message.content, TRACE_MESSAGE_CONTENT_LIMIT),
+      toolCalls: message.toolCalls?.map((toolCall) => ({
+        ...toolCall,
+        arguments: truncateTraceRecord(toolCall.arguments, TRACE_TOOL_ARGUMENT_LIMIT),
+      })),
+    };
+  }
+
+  return {
+    ...message,
+    content: truncateTraceString(message.content, TRACE_MESSAGE_CONTENT_LIMIT),
+  };
+}
+
+function truncateTraceString(value: string, limit: number): string {
+  if (value.length <= limit) {
+    return value;
+  }
+
+  return `${value.slice(0, limit)}\n\n[trace truncated ${value.length - limit} chars]`;
+}
+
+function truncateTraceJson(value: unknown, limit: number): unknown {
+  const serialized = safeJsonStringify(value);
+  if (!serialized || serialized.length <= limit) {
+    return value;
+  }
+
+  return `[trace truncated ${serialized.length - limit} chars] ${serialized.slice(0, limit)}`;
+}
+
+function truncateTraceRecord(
+  value: Record<string, unknown>,
+  limit: number,
+): Record<string, unknown> {
+  const truncated = truncateTraceJson(value, limit);
+  if (typeof truncated === "string") {
+    return {__pixelleTraceTruncated: truncated};
+  }
+
+  return value;
+}
+
+function safeJsonStringify(value: unknown): string | undefined {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return undefined;
+  }
 }

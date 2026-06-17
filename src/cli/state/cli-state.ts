@@ -37,8 +37,17 @@ export const initialCliState: CliViewState = {
 
 export type CliAction = {type: "event"; event: CliEvent};
 
+const MAX_MESSAGES = 80;
+const MAX_TOOLS = 80;
+const MAX_IMAGES = 40;
+const MAX_CHANGE_SETS = 40;
+const MAX_VERIFICATIONS = 40;
+const MAX_TRACES = 40;
+const MAX_MESSAGE_CONTENT_LENGTH = 24_000;
+const MAX_TOOL_PAYLOAD_LENGTH = 12_000;
+
 export function reduceCliState(state: CliViewState, action: CliAction): CliViewState {
-  return reduceCliEvent(state, action.event);
+  return compactCliState(reduceCliEvent(state, action.event));
 }
 
 function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
@@ -341,4 +350,53 @@ function getDurationMs(tool: ToolCallState, completedAt: number): number | undef
   }
 
   return completedAt - startedAt;
+}
+
+function compactCliState(state: CliViewState): CliViewState {
+  return {
+    ...state,
+    messages: state.messages.slice(-MAX_MESSAGES).map((message) => ({
+      ...message,
+      content: truncateText(message.content, MAX_MESSAGE_CONTENT_LENGTH),
+    })),
+    tools: state.tools.slice(-MAX_TOOLS).map((tool) => ({
+      ...tool,
+      input: compactPayload(tool.input),
+      output: compactPayload(tool.output),
+      errorData: compactPayload(tool.errorData),
+    })),
+    images: state.images.slice(-MAX_IMAGES),
+    changeSets: state.changeSets.slice(-MAX_CHANGE_SETS),
+    verifications: state.verifications.slice(-MAX_VERIFICATIONS),
+    traces: state.traces.slice(-MAX_TRACES),
+  };
+}
+
+function compactPayload(value: unknown): unknown {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const serialized = safeJsonStringify(value);
+  if (!serialized || serialized.length <= MAX_TOOL_PAYLOAD_LENGTH) {
+    return value;
+  }
+
+  return `[cli truncated ${serialized.length - MAX_TOOL_PAYLOAD_LENGTH} chars] ${serialized.slice(0, MAX_TOOL_PAYLOAD_LENGTH)}`;
+}
+
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength)}\n\n[cli truncated ${value.length - maxLength} chars]`;
+}
+
+function safeJsonStringify(value: unknown): string | undefined {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return undefined;
+  }
 }
