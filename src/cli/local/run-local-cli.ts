@@ -8,7 +8,6 @@ import {
   saveLocalCliConfig,
   type LocalCliConfig,
 } from "../../config/local-cli-config.js";
-import {agentEventToCliEvent} from "../runtime-events.js";
 import {renderCli, type CliEvent, type CliHandle} from "../index.js";
 import {readGitSummary} from "./git.js";
 import {runLocalCliSetup} from "./setup.js";
@@ -200,10 +199,7 @@ export async function runLocalCli(options: {reconfigure?: boolean} = {}): Promis
           network: false,
         },
       })) {
-        const cliEvent = agentEventToCliEvent(event);
-        if (cliEvent) {
-          emit(cliEvent);
-        }
+        emit(event);
       }
     } catch (error) {
       emitError(error instanceof Error ? error.message : "Agent run failed.", error);

@@ -45,7 +45,15 @@ export const writeFileTool: Tool<
       throwIfAborted(context, "write_file");
       const result = await context.fileWriter.writeFile(input.path, input.content);
 
-      return okToolResult("Wrote file content.", result);
+      return okToolResult("Wrote file content.", result, {
+        kind: "file",
+        title: result.path,
+        target: result.path,
+        summary: `wrote ${formatBytes(result.bytesWritten)}`,
+        stats: {
+          bytesWritten: result.bytesWritten,
+        },
+      });
     }
 
     const safePath = resolveWorkspacePath(context.workspaceRoot, input.path);
@@ -54,12 +62,34 @@ export const writeFileTool: Tool<
     throwIfAborted(context, "write_file");
     await writeFile(safePath.absolutePath, input.content, "utf8");
 
-    return okToolResult("Wrote file content.", {
-      path: safePath.relativePath,
-      bytesWritten: Buffer.byteLength(input.content, "utf8"),
-    });
+    const bytesWritten = Buffer.byteLength(input.content, "utf8");
+
+    return okToolResult(
+      "Wrote file content.",
+      {
+        path: safePath.relativePath,
+        bytesWritten,
+      },
+      {
+        kind: "file",
+        title: safePath.relativePath,
+        target: safePath.relativePath,
+        summary: `wrote ${formatBytes(bytesWritten)}`,
+        stats: {
+          bytesWritten,
+        },
+      },
+    );
   },
 };
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
 
 /** Ensures this run granted write access to workspace files. */
 function requireWritePermission(context: ToolContext, toolName: string): void {

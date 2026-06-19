@@ -38,13 +38,43 @@ export const readFileTool: Tool<
     const safePath = resolveWorkspacePath(context.workspaceRoot, input.path);
     throwIfAborted(context, "read_file");
     const content = await readFile(safePath.absolutePath, "utf8");
+    const lineCount = countLines(content);
 
-    return okToolResult("Read file content.", {
-      path: safePath.relativePath,
-      content,
-    });
+    return okToolResult(
+      "Read file content.",
+      {
+        path: safePath.relativePath,
+        content,
+      },
+      {
+        kind: "file",
+        title: safePath.relativePath,
+        target: safePath.relativePath,
+        summary: `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${formatBytes(Buffer.byteLength(content, "utf8"))}`,
+        stats: {
+          lines: lineCount,
+          bytes: Buffer.byteLength(content, "utf8"),
+        },
+      },
+    );
   },
 };
+
+function countLines(content: string): number {
+  if (!content) {
+    return 0;
+  }
+
+  return content.split(/\r?\n/).length;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
 
 /** Ensures this run granted read access to workspace files. */
 function requireReadPermission(context: ToolContext, toolName: string): void {

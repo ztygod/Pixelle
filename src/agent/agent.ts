@@ -23,6 +23,7 @@ import {
   type ToolRunnerEvent,
   type ToolRegistry,
   type ToolPermissions,
+  type ToolStreamChunk,
 } from "../tool/index.js";
 import {buildRuntimeContext, buildSystemPrompt} from "./context.js";
 import {AgentMiddlewarePipeline} from "./middleware.js";
@@ -38,10 +39,14 @@ import {
   normalizeConfig,
   stringifyToolResult,
 } from "./runtime-utils.js";
-import {emitToolRunnerEventAsAgentEvent} from "./tool-runner-events.js";
+import {
+  emitFinalToolResultAsAgentEvent,
+  emitRunnerLiveEventAsAgentEvent,
+} from "./tool-runner-events.js";
 import type {
   AgentContextProvider,
   AgentMiddleware,
+  AgentModelRequest,
   AgentModelResponse,
   AgentOptions,
   AgentRunContext,
@@ -77,7 +82,10 @@ export class Agent {
   private readonly runOptionsByTraceId = new Map<string, RunInternalOptions>();
   private readonly pendingToolRunnerTerminalEvents = new Map<
     string,
-    Exclude<ToolRunnerEvent, {type: "runner.tool.started"}>
+    Exclude<
+      ToolRunnerEvent,
+      {type: "runner.tool.started"} | {type: "runner.tool.streamed"}
+    >
   >();
 
   /** Creates an agent runtime from explicit dependencies and runtime configuration. */
@@ -600,9 +608,9 @@ export class Agent {
     );
     await input.context.traceStore?.update((trace) => {
       trace.modelCalls.push({
-        request,
+        request: createTraceModelRequest(request),
         response: {
-          ...rawResponse,
+          ...createTraceModelResponse(rawResponse),
           iteration: input.iteration,
           runId: input.context.runId,
         },
@@ -727,6 +735,9 @@ export class Agent {
         fileWriter: context.fileWriter,
         workspaceProfile: context.workspaceProfile,
         commandPolicy: this.commandPolicy,
+        emitStream: this.usesToolRunnerEventAdapter
+          ? undefined
+          : (stream) => this.emitToolCallStream(toolCall, metadata, options, stream),
       }),
       {
         callId: toolCall.id,
@@ -753,8 +764,10 @@ export class Agent {
           type: "tool.call_completed",
           id: toolCall.id,
           name: toolCall.name,
+          result: toolResult.result,
           output: toolResult.result.data,
           summary: toolResult.result.message,
+          display: toolResult.result.display,
           metadata,
         },
         options,
@@ -766,9 +779,11 @@ export class Agent {
           type: "tool.call_failed",
           id: toolCall.id,
           name: toolCall.name,
+          result: toolResult.result,
           error: toolResult.result.message,
           code: toolResult.result.code,
           data: toolResult.result.data,
+          display: toolResult.result.display,
           metadata,
         },
         options,
@@ -778,11 +793,16 @@ export class Agent {
     return toolResult;
   }
 
-  /** Handles ToolRunner events for the default runner without duplicating Agent events. */
+  /** Handles default ToolRunner events without exposing raw terminal results.
+   *
+   * Live runner events are safe to publish immediately. Terminal runner events
+   * are cached for their timing/metadata only; the public terminal Agent event
+   * is emitted after afterTool middleware has produced the final ToolResult.
+   */
   private emitToolRunnerEvent(event: ToolRunnerEvent): void {
     const traceId =
       typeof event.metadata?.traceId === "string" ? event.metadata.traceId : undefined;
-    if (event.type !== "runner.tool.started") {
+    if (event.type !== "runner.tool.started" && event.type !== "runner.tool.streamed") {
       if (traceId) {
         this.pendingToolRunnerTerminalEvents.set(
           this.toolRunnerEventKey(traceId, event.callId),
@@ -790,15 +810,37 @@ export class Agent {
         );
         return;
       }
+
+      return;
     }
 
     const options = traceId ? this.runOptionsByTraceId.get(traceId) : undefined;
 
-    emitToolRunnerEventAsAgentEvent({
+    emitRunnerLiveEventAsAgentEvent({
       eventBus: this.eventBus,
       event,
       options: options ?? {},
     });
+  }
+
+  /** Emits stream chunks for externally supplied ToolRunner instances. */
+  private emitToolCallStream(
+    toolCall: AgentToolCall,
+    metadata: Record<string, unknown>,
+    options: RunInternalOptions,
+    stream: ToolStreamChunk,
+  ): void {
+    emitAgentEvent(
+      this.eventBus,
+      {
+        type: "tool.call_stream",
+        id: toolCall.id,
+        name: toolCall.name,
+        stream,
+        metadata,
+      },
+      options,
+    );
   }
 
   /** Emits the final Agent tool event after afterTool middleware has finalized the result. */
@@ -823,57 +865,12 @@ export class Agent {
       return;
     }
 
-    emitToolRunnerEventAsAgentEvent({
+    emitFinalToolResultAsAgentEvent({
       eventBus: this.eventBus,
-      event: this.withToolRunnerEventResult(terminalEvent, result),
+      runnerEvent: terminalEvent,
+      result,
       options: options ?? {},
     });
-  }
-
-  /** Rebuilds a terminal runner event using the Agent's final post-middleware result. */
-  private withToolRunnerEventResult(
-    event: Exclude<ToolRunnerEvent, {type: "runner.tool.started"}>,
-    result: AgentToolResult["result"],
-  ): Exclude<ToolRunnerEvent, {type: "runner.tool.started"}> {
-    const base = {
-      callId: event.callId,
-      toolName: event.toolName,
-      startedAt: event.startedAt,
-      endedAt: event.endedAt,
-      durationMs: event.durationMs,
-      result,
-      timeoutMs: event.timeoutMs,
-      metadata: event.metadata,
-    };
-
-    if (result.ok) {
-      return {
-        ...base,
-        type: "runner.tool.completed",
-      };
-    }
-
-    if (result.code === "TOOL_TIMEOUT") {
-      return {
-        ...base,
-        type: "runner.tool.timed_out",
-        errorCode: "TOOL_TIMEOUT",
-      };
-    }
-
-    if (result.code === "TOOL_ABORTED") {
-      return {
-        ...base,
-        type: "runner.tool.aborted",
-        errorCode: "TOOL_ABORTED",
-      };
-    }
-
-    return {
-      ...base,
-      type: "runner.tool.failed",
-      errorCode: result.code,
-    };
   }
 
   /** Creates a stable key for pending runner terminal events within one trace. */
@@ -1216,4 +1213,85 @@ function buildRepairPrompt(failure: VerificationResult, repairAttempt: number): 
     "Verification output:",
     output.slice(0, 12_000),
   ].join("\n\n");
+}
+
+const TRACE_MESSAGE_CONTENT_LIMIT = 4_000;
+const TRACE_TOOL_ARGUMENT_LIMIT = 4_000;
+const TRACE_TOOL_COUNT_LIMIT = 32;
+
+function createTraceModelRequest(request: AgentModelRequest): AgentModelRequest {
+  return {
+    ...request,
+    messages: request.messages.map(createTraceMessage),
+    tools: request.tools?.slice(0, TRACE_TOOL_COUNT_LIMIT),
+  };
+}
+
+function createTraceModelResponse(response: AgentModelResponse): AgentModelResponse {
+  return {
+    ...response,
+    content: truncateTraceString(response.content, TRACE_MESSAGE_CONTENT_LIMIT),
+    toolCalls: response.toolCalls.map((toolCall) => ({
+      ...toolCall,
+      arguments: truncateTraceRecord(toolCall.arguments, TRACE_TOOL_ARGUMENT_LIMIT),
+    })),
+  };
+}
+
+function createTraceMessage(message: LLMMessage): LLMMessage {
+  if (message.role === "assistant") {
+    return {
+      ...message,
+      content:
+        message.content === undefined
+          ? undefined
+          : truncateTraceString(message.content, TRACE_MESSAGE_CONTENT_LIMIT),
+      toolCalls: message.toolCalls?.map((toolCall) => ({
+        ...toolCall,
+        arguments: truncateTraceRecord(toolCall.arguments, TRACE_TOOL_ARGUMENT_LIMIT),
+      })),
+    };
+  }
+
+  return {
+    ...message,
+    content: truncateTraceString(message.content, TRACE_MESSAGE_CONTENT_LIMIT),
+  };
+}
+
+function truncateTraceString(value: string, limit: number): string {
+  if (value.length <= limit) {
+    return value;
+  }
+
+  return `${value.slice(0, limit)}\n\n[trace truncated ${value.length - limit} chars]`;
+}
+
+function truncateTraceJson(value: unknown, limit: number): unknown {
+  const serialized = safeJsonStringify(value);
+  if (!serialized || serialized.length <= limit) {
+    return value;
+  }
+
+  return `[trace truncated ${serialized.length - limit} chars] ${serialized.slice(0, limit)}`;
+}
+
+function truncateTraceRecord(
+  value: Record<string, unknown>,
+  limit: number,
+): Record<string, unknown> {
+  const truncated = truncateTraceJson(value, limit);
+  if (typeof truncated === "string") {
+    return {__pixelleTraceTruncated: truncated};
+  }
+
+  return value;
+}
+
+function safeJsonStringify(value: unknown): string | undefined {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return undefined;
+  }
 }

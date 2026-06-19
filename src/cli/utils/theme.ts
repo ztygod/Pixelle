@@ -18,7 +18,7 @@ export const icons = {
   tool: "◇",
   running: "●",
   done: "✓",
-  error: "!",
+  error: "✕",
   cursor: "▌",
   image: "▧",
   rail: "│",

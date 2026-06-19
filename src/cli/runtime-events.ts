@@ -1,5 +1,6 @@
 import type {PixelleEvent} from "../events/index.js";
-import type {CliEvent} from "./types.js";
+import {inferToolTarget} from "../tool/tool-target.js";
+import type {ChangedFileState, CliEvent} from "./types.js";
 
 export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined {
   switch (event.type) {
@@ -36,6 +37,7 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         type: "tool_start",
         id: String(event.id),
         name: event.name,
+        target: inferToolTarget(event.name, event.target, event.input),
         input: event.input,
         description: event.description,
         status: event.status,
@@ -46,8 +48,17 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         type: "tool_done",
         id: String(event.id),
         name: event.name,
-        output: event.output,
-        summary: event.summary,
+        target: inferToolTarget(
+          event.name,
+          event.target,
+          event.result?.display,
+          event.display,
+          event.result?.data,
+          event.output,
+        ),
+        output: event.result?.data ?? event.output,
+        summary: event.result?.message ?? event.summary,
+        display: event.result?.display ?? event.display,
         createdAt: event.createdAt,
       };
     case "tool.call_failed":
@@ -55,9 +66,26 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         type: "tool_error",
         id: String(event.id),
         name: event.name,
-        error: event.error,
-        code: event.code,
-        data: event.data,
+        target: inferToolTarget(
+          event.name,
+          event.target,
+          event.result?.display,
+          event.display,
+          event.result?.data,
+          event.data,
+        ),
+        error: event.result?.message ?? event.error,
+        code: event.result?.code ?? event.code,
+        data: event.result?.data ?? event.data,
+        display: event.result?.display ?? event.display,
+        createdAt: event.createdAt,
+      };
+    case "tool.call_stream":
+      return {
+        type: "tool_stream",
+        id: String(event.id),
+        name: event.name,
+        stream: event.stream,
         createdAt: event.createdAt,
       };
     case "runtime.error":
@@ -72,12 +100,7 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         type: "change_set",
         id: event.id,
         files:
-          event.changes?.map((file) => ({
-            path: file.path,
-            beforeContent: file.beforeContent,
-            afterContent: file.afterContent,
-            status: file.status,
-          })) ??
+          event.changes?.map(normalizeChangedFile) ??
           event.files.map((filePath) => ({
             path: filePath,
             status: "modified" as const,
@@ -108,4 +131,24 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
     default:
       return undefined;
   }
+}
+
+function normalizeChangedFile(
+  file: {
+    path: string;
+    beforeContent?: string;
+    afterContent?: string;
+    status: ChangedFileState["status"];
+  } & Partial<ChangedFileState>,
+): ChangedFileState {
+  return {
+    path: file.path,
+    oldPath: file.oldPath,
+    beforeContent: file.beforeContent,
+    afterContent: file.afterContent,
+    status: file.status,
+    diff: file.diff,
+    addedLines: file.addedLines,
+    removedLines: file.removedLines,
+  };
 }

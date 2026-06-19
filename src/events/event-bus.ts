@@ -10,6 +10,53 @@ type AgentStage = "thinking" | "planning" | "executing" | "complete";
 
 type ToolCallStatus = "pending" | "running" | "success" | "done" | "error";
 
+type ToolResultDisplay = {
+  kind?: "command" | "file" | "edit" | "search" | "list" | "network" | "text" | "json";
+  title?: string;
+  target?: string;
+  summary?: string;
+  preview?: string;
+  stats?: Record<string, string | number | boolean>;
+  truncated?: boolean;
+};
+
+type ToolStreamChunk =
+  | {
+      type: "stdout" | "stderr" | "log";
+      content: string;
+      level?: "debug" | "info" | "warn" | "error";
+      metadata?: Record<string, unknown>;
+    }
+  | {
+      type: "data";
+      data?: unknown;
+      content?: string;
+      metadata?: Record<string, unknown>;
+    }
+  | {
+      type: "progress";
+      label?: string;
+      current?: number;
+      total?: number;
+      percent?: number;
+      metadata?: Record<string, unknown>;
+    };
+
+type ToolSuccessResult = {
+  ok: true;
+  message: string;
+  data: unknown;
+  display?: ToolResultDisplay;
+};
+
+type ToolErrorResult = {
+  ok: false;
+  message: string;
+  code: string;
+  data?: unknown;
+  display?: ToolResultDisplay;
+};
+
 type EventChangedFileStatus = "created" | "modified" | "deleted";
 
 type EventChangedFile = {
@@ -78,22 +125,37 @@ type AgentEvent =
   | (BaseEvent<"tool.call_started"> & {
       id: ToolCallId | string;
       name: string;
+      target?: string;
       input?: unknown;
       description?: string;
+      display?: ToolResultDisplay;
       status?: Extract<ToolCallStatus, "pending" | "running">;
     })
   | (BaseEvent<"tool.call_completed"> & {
       id: ToolCallId | string;
       name: string;
+      result?: ToolSuccessResult;
+      durationMs?: number;
+      target?: string;
       output?: unknown;
       summary?: string;
+      display?: ToolResultDisplay;
     })
   | (BaseEvent<"tool.call_failed"> & {
       id: ToolCallId | string;
       name: string;
+      result?: ToolErrorResult;
+      durationMs?: number;
+      target?: string;
       error: string;
       code?: string;
       data?: unknown;
+      display?: ToolResultDisplay;
+    })
+  | (BaseEvent<"tool.call_stream"> & {
+      id: ToolCallId | string;
+      name: string;
+      stream: ToolStreamChunk;
     })
   | (BaseEvent<"runtime.status_changed"> & {
       status: "idle" | "running" | "waiting" | "complete" | "error";

@@ -96,12 +96,28 @@ export const webFetchTool: Tool<typeof webFetchParameters, WebFetchResultData> =
 
       const {text, truncated} = await readResponseTextWithLimit(response, maxLength);
 
-      return okToolResult("Fetched webpage text.", {
-        ...details,
-        text,
-        truncated,
-        maxLength,
-      });
+      return okToolResult(
+        "Fetched webpage text.",
+        {
+          ...details,
+          text,
+          truncated,
+          maxLength,
+        },
+        {
+          kind: "network",
+          title: details.finalUrl,
+          target: details.finalUrl,
+          summary: `${details.status} ${details.statusText || "OK"} · ${details.contentType ?? "unknown content type"}`,
+          preview: text,
+          stats: {
+            status: details.status,
+            characters: text.length,
+            maxLength,
+          },
+          truncated,
+        },
+      );
     } catch (error) {
       throw normalizeFetchError(error, {
         requestedUrl,

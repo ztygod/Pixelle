@@ -21,6 +21,7 @@ export {toLLMToolParametersSchema} from "./tool-parameters.js";
 export {ToolError, toToolError} from "./tool-error.js";
 export {ToolRegistry} from "./tool-registry.js";
 export {errorToolResult, okToolResult} from "./tool-result.js";
+export {inferToolTarget} from "./tool-target.js";
 export {ToolRunner} from "./tool-runner.js";
 export {
   DEFAULT_WEB_FETCH_MAX_LENGTH,
@@ -45,6 +46,9 @@ export type {
   ToolFileWriter,
   ToolParameterSchema,
   ToolPermissions,
+  ToolResultDisplay,
+  ToolResultDisplayKind,
+  ToolStreamChunk,
 } from "./types.js";
 
 /** Creates the standard tool registry used by Agent when no custom registry is supplied. */

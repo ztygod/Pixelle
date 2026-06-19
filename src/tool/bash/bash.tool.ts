@@ -4,7 +4,7 @@ import {z} from "zod";
 import {createCommandPolicy} from "../../runtime/index.js";
 import {ToolError} from "../tool-error.js";
 import {errorToolResult, okToolResult} from "../tool-result.js";
-import type {Tool} from "../types.js";
+import type {Tool, ToolStreamChunk} from "../types.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_LENGTH = 20_000;
@@ -103,18 +103,37 @@ export const bashTool: Tool<typeof bashParameters, BashResult> = {
     const result = await runShellCommand({
       command: input.command,
       cwd: context.workspaceRoot,
+      emitStream: context.emitStream,
       maxOutputLength,
       signal: context.signal,
       timeoutMs,
     });
 
-    return okToolResult("Executed shell command.", result);
+    const preferredOutput = result.stderr || result.stdout;
+
+    return okToolResult("Executed shell command.", result, {
+      kind: "command",
+      title: input.command,
+      target: input.command,
+      summary: `exit ${result.exitCode ?? "unknown"}${result.timedOut ? " · timed out" : ""}`,
+      preview: preferredOutput,
+      stats: {
+        exitCode: result.exitCode ?? "null",
+        stdoutBytes: result.stdout.length,
+        stderrBytes: result.stderr.length,
+        timedOut: result.timedOut,
+      },
+      truncated:
+        result.stdout.length >= maxOutputLength ||
+        result.stderr.length >= maxOutputLength,
+    });
   },
 };
 
 type RunShellCommandInput = {
   command: string;
   cwd: string;
+  emitStream?: (chunk: ToolStreamChunk) => void | Promise<void>;
   maxOutputLength: number;
   signal?: AbortSignal;
   timeoutMs: number;
@@ -152,10 +171,12 @@ async function runShellCommand(input: RunShellCommandInput): Promise<BashResult>
     child.stdout?.on("data", (chunk: string) => {
       // Bound output so a noisy command cannot flood the model context.
       stdout = appendLimited(stdout, chunk, input.maxOutputLength);
+      void input.emitStream?.({type: "stdout", content: chunk});
     });
 
     child.stderr?.on("data", (chunk: string) => {
       stderr = appendLimited(stderr, chunk, input.maxOutputLength);
+      void input.emitStream?.({type: "stderr", content: chunk});
     });
 
     child.on("error", (error) => {

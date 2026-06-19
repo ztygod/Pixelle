@@ -1,4 +1,10 @@
-import type {BaseEvent, EventBus} from "../events/index.js";
+import type {BaseEvent, EventBus, PixelleEvent} from "../events/index.js";
+import type {
+  ToolResult,
+  ToolResultDisplay,
+  ToolResultDisplayKind,
+  ToolStreamChunk,
+} from "../tool/index.js";
 
 export type RuntimeCommandEvent = BaseEvent<"runtime_command"> & {
   command: string;
@@ -7,6 +13,7 @@ export type RuntimeCommandEvent = BaseEvent<"runtime_command"> & {
 };
 
 export type CliEvent =
+  | PixelleEvent
   | BaseEvent<"cli_clear">
   | BaseEvent<"cli_debug_toggle">
   | BaseEvent<"cli_help_toggle">
@@ -30,6 +37,7 @@ export type CliEvent =
   | (BaseEvent<"tool_start"> & {
       id: string;
       name: string;
+      target?: string;
       input?: unknown;
       description?: string;
       status?: Extract<ToolCallStatus, "pending" | "running">;
@@ -37,15 +45,24 @@ export type CliEvent =
   | (BaseEvent<"tool_done"> & {
       id: string;
       name: string;
+      target?: string;
       output?: unknown;
       summary?: string;
+      display?: ToolResultDisplayState;
     })
   | (BaseEvent<"tool_error"> & {
       id: string;
       name: string;
+      target?: string;
       error: string;
       code?: string;
       data?: unknown;
+      display?: ToolResultDisplayState;
+    })
+  | (BaseEvent<"tool_stream"> & {
+      id: string;
+      name: string;
+      stream: ToolStreamState;
     })
   | (BaseEvent<"image_preview"> & {
       id?: string;
@@ -89,17 +106,33 @@ export type CliMessage = {
 
 export type ToolCallStatus = "pending" | "running" | "success" | "done" | "error";
 
+export type ToolResultDisplayState = {
+  kind?: ToolResultDisplayKind;
+  title?: string;
+  target?: string;
+  summary?: string;
+  preview?: string;
+  stats?: Record<string, string | number | boolean>;
+  truncated?: boolean;
+} & ToolResultDisplay;
+
+export type ToolStreamState = ToolStreamChunk;
+
 export type ToolCallState = {
   id: string;
   name: string;
+  target?: string;
   status: ToolCallStatus;
   input?: unknown;
   output?: unknown;
+  result?: ToolResult;
   error?: string;
   errorCode?: string;
   errorData?: unknown;
   description?: string;
   summary?: string;
+  display?: ToolResultDisplayState;
+  streams?: ToolStreamState[];
   createdAt: number;
   order: number;
   startedAt?: number;
@@ -118,9 +151,13 @@ export type ImagePreviewState = {
 
 export type ChangedFileState = {
   path: string;
+  oldPath?: string;
   beforeContent?: string;
   afterContent?: string;
   status: "created" | "modified" | "deleted";
+  diff?: string;
+  addedLines?: number;
+  removedLines?: number;
 };
 
 export type ChangeSetState = {

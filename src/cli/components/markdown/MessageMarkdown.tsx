@@ -76,7 +76,7 @@ export function MessageMarkdown({
                 key={index}
                 code={block.code}
                 language={block.language}
-                reveal={streaming}
+                streaming={streaming && !block.closed}
                 closed={block.closed}
                 width={width}
               />

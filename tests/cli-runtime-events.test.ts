@@ -92,4 +92,93 @@ describe("agentEventToCliEvent", () => {
       },
     });
   });
+
+  it("maps tool display and stream events", () => {
+    expect(
+      agentEventToCliEvent({
+        type: "tool.call_completed",
+        id: "call-1",
+        name: "read_file",
+        output: {path: "README.md"},
+        summary: "Read file content.",
+        display: {
+          title: "README.md",
+          summary: "20 lines",
+        },
+      }),
+    ).toMatchObject({
+      type: "tool_done",
+      id: "call-1",
+      display: {
+        title: "README.md",
+        summary: "20 lines",
+      },
+      target: "README.md",
+    });
+
+    expect(
+      agentEventToCliEvent({
+        type: "tool.call_stream",
+        id: "call-1",
+        name: "bash",
+        stream: {type: "stderr", content: "warning\n"},
+      }),
+    ).toMatchObject({
+      type: "tool_stream",
+      id: "call-1",
+      name: "bash",
+      stream: {type: "stderr", content: "warning\n"},
+    });
+  });
+
+  it("derives tool targets from common tool inputs and display data", () => {
+    expect(
+      agentEventToCliEvent({
+        type: "tool.call_started",
+        id: "call-bash",
+        name: "bash",
+        input: {command: "pnpm test"},
+      }),
+    ).toMatchObject({
+      type: "tool_start",
+      target: "pnpm test",
+    });
+
+    expect(
+      agentEventToCliEvent({
+        type: "tool.call_started",
+        id: "call-read",
+        name: "read_file",
+        input: {path: "src/index.ts"},
+      }),
+    ).toMatchObject({
+      type: "tool_start",
+      target: "src/index.ts",
+    });
+
+    expect(
+      agentEventToCliEvent({
+        type: "tool.call_completed",
+        id: "call-grep",
+        name: "grep",
+        display: {title: "ToolCallState", summary: "2 matches"},
+      }),
+    ).toMatchObject({
+      type: "tool_done",
+      target: "ToolCallState",
+    });
+
+    expect(
+      agentEventToCliEvent({
+        type: "tool.call_failed",
+        id: "call-fetch",
+        name: "web_fetch",
+        error: "Network permission is required.",
+        data: {requestedUrl: "https://example.com/"},
+      }),
+    ).toMatchObject({
+      type: "tool_error",
+      target: "https://example.com/",
+    });
+  });
 });

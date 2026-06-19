@@ -44,7 +44,7 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
       continue;
     }
 
-    const fence = line.match(/^```(\S+)?\s*$/);
+    const fence = line.match(/^```\s*([^\s`]*)?.*$/);
     if (fence) {
       const codeLines: string[] = [];
       index += 1;
@@ -58,7 +58,7 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
       }
       blocks.push({
         type: "code",
-        language: fence[1],
+        language: normalizeFenceLanguage(fence[1]),
         code: codeLines.join("\n"),
         closed,
       });
@@ -151,6 +151,11 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
   }
 
   return blocks;
+}
+
+function normalizeFenceLanguage(language: string | undefined): string | undefined {
+  const normalized = language?.trim().toLowerCase();
+  return normalized ? normalized : undefined;
 }
 
 function looksLikeTableLine(line: string): boolean {

@@ -1,4 +1,4 @@
-import type {ToolResult} from "./types.js";
+import type {ToolResult, ToolStreamChunk} from "./types.js";
 
 /** Constructor-level options that configure ToolRunner behavior for all calls. */
 export type ToolRunnerOptions = {
@@ -43,6 +43,11 @@ export type ToolRunnerEvent =
   | (ToolRunnerEventBase & {
       type: "runner.tool.started";
       input?: unknown;
+    })
+  /** Emitted when a running tool has incremental output available for display. */
+  | (ToolRunnerEventBase & {
+      type: "runner.tool.streamed";
+      stream: ToolStreamChunk;
     })
   /** Emitted after a tool returns a successful ToolResult. */
   | (ToolRunnerTerminalEventBase & {

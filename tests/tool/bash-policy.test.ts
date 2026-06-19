@@ -53,6 +53,42 @@ describe("bashTool policy integration", () => {
     expect(result.ok ? result.data.stdout : "").toContain("policy-ok");
   });
 
+  it("streams stdout and stderr while executing commands", async () => {
+    const streams: Array<{type: string; content: string}> = [];
+    const result = await bashTool.execute(
+      {
+        reason: "test",
+        command: "node -e \"process.stdout.write('out'); process.stderr.write('err')\"",
+      },
+      {
+        workspaceRoot: process.cwd(),
+        workspaceProfile: profile,
+        commandPolicy: policy({
+          effect: "allow",
+          allowed: true,
+          risk: "low",
+          category: "verification",
+          ruleId: "test-allow",
+          reason: "Allowed by test.",
+        }),
+        emitStream: (chunk) => {
+          streams.push(chunk);
+        },
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      display: {summary: "exit 0"},
+    });
+    expect(streams).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({type: "stdout", content: "out"}),
+        expect.objectContaining({type: "stderr", content: "err"}),
+      ]),
+    );
+  });
+
   it("returns structured approval results without executing ask decisions", async () => {
     const result = await bashTool.execute(
       {reason: "test", command: "node -e \"throw new Error('should not run')\""},
