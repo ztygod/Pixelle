@@ -59,7 +59,21 @@ export const globTool: Tool<typeof globParameters, {paths: string[]}> = {
       context.signal,
     );
 
-    return okToolResult("Listed workspace files.", {paths});
+    return okToolResult(
+      "Listed workspace files.",
+      {paths},
+      {
+        kind: "list",
+        title: input.pattern ?? "workspace files",
+        target: input.pattern ?? "workspace files",
+        summary: `${paths.length} ${paths.length === 1 ? "file" : "files"}`,
+        preview: paths.slice(0, 20).join("\n"),
+        stats: {
+          files: paths.length,
+        },
+        truncated: paths.length >= maxResults,
+      },
+    );
   },
 };
 

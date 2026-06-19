@@ -15,6 +15,7 @@ export function ToolStatus({tool, debug}: ToolStatusProps) {
   const expanded =
     debug &&
     (hasLongDetail(tool.input) ||
+      hasLongDetail(tool.result) ||
       hasLongDetail(tool.output) ||
       hasLongDetail(tool.error));
   const preview = buildPreview(tool);
@@ -31,6 +32,9 @@ export function ToolStatus({tool, debug}: ToolStatusProps) {
           {tool.output !== undefined ? (
             <Text color={theme.muted}>output {formatUnknown(tool.output, 500)}</Text>
           ) : null}
+          {tool.result !== undefined ? (
+            <Text color={theme.muted}>result {formatUnknown(tool.result, 500)}</Text>
+          ) : null}
           {getPolicyDecision(tool) ? (
             <Text color={theme.muted}>
               policy {formatPolicyDecision(getPolicyDecision(tool))}
@@ -45,7 +49,7 @@ export function ToolStatus({tool, debug}: ToolStatusProps) {
 
 function ToolHeadline({tool}: {tool: ToolCallState}) {
   const title = getTitle(tool);
-  const presentation = getToolPresentation(tool.name);
+  const presentation = getToolPresentation(tool);
 
   if (tool.status === "pending" || tool.status === "running") {
     return (
@@ -81,7 +85,7 @@ function ToolHeadline({tool}: {tool: ToolCallState}) {
 }
 
 function ToolName({tool}: {tool: ToolCallState}) {
-  const presentation = getToolPresentation(tool.name);
+  const presentation = getToolPresentation(tool);
 
   return (
     <Text>
@@ -111,7 +115,13 @@ function PreviewBlock({preview}: {preview: PreviewText}) {
 
 function getTitle(tool: ToolCallState): string | undefined {
   return (
-    tool.target ?? tool.display?.title ?? getToolTarget(tool.input) ?? tool.description
+    tool.result?.display?.target ??
+    tool.display?.target ??
+    tool.target ??
+    tool.result?.display?.title ??
+    tool.display?.title ??
+    getToolTarget(tool.input) ??
+    tool.description
   );
 }
 
@@ -123,56 +133,63 @@ type ToolPresentation = {
   bold?: boolean;
 };
 
-function getToolPresentation(name: string): ToolPresentation {
+function getToolPresentation(tool: ToolCallState): ToolPresentation {
   const presentations: Record<string, Omit<ToolPresentation, "label">> = {
-    bash: {
+    command: {
       icon: "▸",
       color: "yellow",
       detailColor: theme.faint,
       bold: true,
     },
-    read_file: {
+    file: {
       icon: "▤",
       color: "cyan",
       detailColor: theme.muted,
     },
-    grep: {
+    search: {
       icon: "⌕",
       color: "magenta",
       detailColor: theme.muted,
       bold: true,
     },
-    web_fetch: {
+    network: {
       icon: "◌",
       color: "blue",
       detailColor: theme.muted,
     },
-    write_file: {
-      icon: "✚",
+    edit: {
+      icon: "✎",
       color: "green",
       detailColor: theme.muted,
       bold: true,
     },
-    edit_file: {
-      icon: "✎",
-      color: "green",
-      detailColor: theme.muted,
-    },
-    glob: {
+    list: {
       icon: "⌘",
       color: "gray",
       detailColor: theme.muted,
     },
+    json: {
+      icon: "◇",
+      color: theme.accent,
+      detailColor: theme.muted,
+    },
+    text: {
+      icon: "◇",
+      color: theme.accent,
+      detailColor: theme.muted,
+    },
   };
-  const presentation = presentations[name] ?? {
+  const kind = tool.result?.display?.kind ?? tool.display?.kind;
+  const presentation = kind ? presentations[kind] : undefined;
+  const fallback = presentation ?? {
     icon: "◇",
     color: theme.accent,
     detailColor: theme.muted,
   };
 
   return {
-    ...presentation,
-    label: formatToolName(name),
+    ...fallback,
+    label: formatToolName(tool.name),
   };
 }
 
@@ -191,11 +208,22 @@ function getTerminalSummary(tool: ToolCallState): string | undefined {
       return formatPolicyDecision(policyDecision);
     }
 
-    return tool.display?.summary ?? tool.error ?? tool.errorCode ?? "Failed";
+    return (
+      tool.result?.display?.summary ??
+      tool.display?.summary ??
+      tool.result?.message ??
+      tool.error ??
+      tool.errorCode ??
+      "Failed"
+    );
   }
 
   return (
-    tool.display?.summary ?? tool.summary ?? formatUnknown(tool.output ?? "done", 80)
+    tool.result?.display?.summary ??
+    tool.display?.summary ??
+    tool.result?.message ??
+    tool.summary ??
+    formatUnknown(tool.output ?? tool.result?.data ?? "done", 80)
   );
 }
 
@@ -223,10 +251,11 @@ type PreviewText = {
 
 function buildPreview(tool: ToolCallState): PreviewText | undefined {
   const streamPreview = buildStreamPreview(tool);
+  const display = tool.result?.display ?? tool.display;
   const fallbackText =
     tool.status === "error"
-      ? streamPreview?.text || tool.display?.preview
-      : streamPreview?.text || tool.display?.preview;
+      ? streamPreview?.text || display?.preview
+      : streamPreview?.text || display?.preview;
 
   if (!fallbackText) {
     return undefined;
@@ -234,7 +263,7 @@ function buildPreview(tool: ToolCallState): PreviewText | undefined {
 
   const kind = streamPreview?.kind ?? "preview";
   const truncated = truncatePreview(fallbackText);
-  const displayTruncated = tool.display?.truncated && !truncated.notice;
+  const displayTruncated = display?.truncated && !truncated.notice;
 
   return {
     kind,
@@ -259,7 +288,9 @@ function buildStreamPreview(tool: ToolCallState): PreviewText | undefined {
   const streams = preferredType
     ? tool.streams.filter((stream) => stream.type === preferredType)
     : tool.streams;
-  const text = streams.map((stream) => stream.content).join("");
+  const text = streams
+    .map((stream) => ("content" in stream ? (stream.content ?? "") : ""))
+    .join("");
 
   if (!text) {
     return undefined;

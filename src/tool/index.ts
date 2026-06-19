@@ -47,6 +47,7 @@ export type {
   ToolParameterSchema,
   ToolPermissions,
   ToolResultDisplay,
+  ToolResultDisplayKind,
   ToolStreamChunk,
 } from "./types.js";
 

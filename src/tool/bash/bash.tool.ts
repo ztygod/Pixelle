@@ -112,13 +112,16 @@ export const bashTool: Tool<typeof bashParameters, BashResult> = {
     const preferredOutput = result.stderr || result.stdout;
 
     return okToolResult("Executed shell command.", result, {
+      kind: "command",
       title: input.command,
+      target: input.command,
       summary: `exit ${result.exitCode ?? "unknown"}${result.timedOut ? " · timed out" : ""}`,
       preview: preferredOutput,
       stats: {
         exitCode: result.exitCode ?? "null",
-        stdout: result.stdout.length,
-        stderr: result.stderr.length,
+        stdoutBytes: result.stdout.length,
+        stderrBytes: result.stderr.length,
+        timedOut: result.timedOut,
       },
       truncated:
         result.stdout.length >= maxOutputLength ||

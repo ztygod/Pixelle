@@ -71,11 +71,26 @@ export const editFileTool: Tool<
       ? await context.fileWriter.writeFile(safePath.relativePath, next)
       : await fallbackWrite(context, safePath.relativePath, next);
 
-    return okToolResult("Edited file content.", {
-      path: written.path,
-      replacements: input.replaceAll ? count : 1,
-      bytesWritten: written.bytesWritten,
-    });
+    const replacements = input.replaceAll ? count : 1;
+
+    return okToolResult(
+      "Edited file content.",
+      {
+        path: written.path,
+        replacements,
+        bytesWritten: written.bytesWritten,
+      },
+      {
+        kind: "edit",
+        title: written.path,
+        target: written.path,
+        summary: `${replacements} ${replacements === 1 ? "replacement" : "replacements"}`,
+        stats: {
+          replacements,
+          bytesWritten: written.bytesWritten,
+        },
+      },
+    );
   },
 };
 

@@ -4,6 +4,7 @@ import type {
   CliMessage,
   ImagePreviewState,
   ToolCallState,
+  ToolStreamState,
   TraceState,
   VerificationState,
 } from "../types.js";
@@ -94,6 +95,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         showHelp: false,
       };
 
+    case "conversation.user_message":
     case "user_message":
       return {
         ...state,
@@ -102,7 +104,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         messages: [
           ...state.messages,
           {
-            id: event.id ?? createId("user"),
+            id: event.id ? String(event.id) : createId("user"),
             role: "user",
             content: event.content,
             createdAt: eventCreatedAt,
@@ -111,8 +113,10 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         ],
       };
 
+    case "conversation.assistant_delta":
     case "assistant_delta": {
-      const existing = state.messages.find((message) => message.id === event.messageId);
+      const messageId = String(event.messageId);
+      const existing = state.messages.find((message) => message.id === messageId);
       if (!existing) {
         return {
           ...state,
@@ -121,7 +125,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
           messages: [
             ...state.messages,
             {
-              id: event.messageId,
+              id: messageId,
               role: "assistant",
               content: event.delta,
               createdAt: eventCreatedAt,
@@ -137,7 +141,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         ...state,
         ...viewEventStats,
         messages: state.messages.map((message) =>
-          message.id === event.messageId
+          message.id === messageId
             ? {
                 ...message,
                 content: message.content + event.delta,
@@ -151,8 +155,10 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
       };
     }
 
+    case "conversation.assistant_stage":
     case "assistant_stage": {
-      const existing = state.messages.find((message) => message.id === event.messageId);
+      const messageId = String(event.messageId);
+      const existing = state.messages.find((message) => message.id === messageId);
       if (!existing) {
         return {
           ...state,
@@ -161,7 +167,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
           messages: [
             ...state.messages,
             {
-              id: event.messageId,
+              id: messageId,
               role: "assistant",
               content: "",
               createdAt: eventCreatedAt,
@@ -178,7 +184,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         ...viewEventStats,
         showHelp: false,
         messages: state.messages.map((message) =>
-          message.id === event.messageId
+          message.id === messageId
             ? {
                 ...message,
                 stage: event.stage,
@@ -189,12 +195,13 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
       };
     }
 
+    case "conversation.assistant_done":
     case "assistant_done":
       return {
         ...state,
         ...viewEventStats,
         messages: state.messages.map((message) =>
-          message.id === event.messageId
+          message.id === String(event.messageId)
             ? {
                 ...message,
                 streaming: false,
@@ -204,24 +211,50 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         ),
       };
 
-    case "tool_start":
+    case "tool.call_started":
+    case "tool_start": {
+      const display = "display" in event ? event.display : undefined;
       return {
         ...state,
         ...viewEventStats,
         tools: [
-          ...state.tools.filter((tool) => tool.id !== event.id),
+          ...state.tools.filter((tool) => tool.id !== String(event.id)),
           {
-            id: event.id,
+            id: String(event.id),
             name: event.name,
-            target: event.target,
+            target: display?.target ?? event.target,
             status: event.status ?? "running",
             input: event.input,
             description: event.description,
+            display,
             createdAt: eventCreatedAt,
             order: eventOrder,
             startedAt: event.status === "pending" ? undefined : eventCreatedAt,
           },
         ],
+      };
+    }
+
+    case "tool.call_completed":
+      return {
+        ...state,
+        ...viewEventStats,
+        tools: state.tools.map((tool) => {
+          const display = event.result?.display ?? event.display;
+          return tool.id === String(event.id)
+            ? {
+                ...tool,
+                status: "success",
+                result: event.result,
+                target: display?.target ?? event.target ?? tool.target,
+                output: event.result?.data ?? event.output,
+                summary: event.result?.message ?? event.summary,
+                display,
+                completedAt: eventCreatedAt,
+                durationMs: event.durationMs ?? getDurationMs(tool, eventCreatedAt),
+              }
+            : tool;
+        }),
       };
 
     case "tool_done":
@@ -233,7 +266,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             ? {
                 ...tool,
                 status: "success",
-                target: event.target ?? tool.target,
+                target: event.display?.target ?? event.target ?? tool.target,
                 output: event.output,
                 summary: event.summary,
                 display: event.display,
@@ -242,6 +275,30 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
               }
             : tool,
         ),
+      };
+
+    case "tool.call_failed":
+      return {
+        ...state,
+        ...viewEventStats,
+        tools: state.tools.map((tool) => {
+          const display = event.result?.display ?? event.display;
+          return tool.id === String(event.id)
+            ? {
+                ...tool,
+                status: "error",
+                result: event.result,
+                target: display?.target ?? event.target ?? tool.target,
+                error: event.result?.message ?? event.error,
+                errorCode: event.result?.code ?? event.code,
+                errorData: event.result?.data ?? event.data,
+                display,
+                completedAt: eventCreatedAt,
+                durationMs: event.durationMs ?? getDurationMs(tool, eventCreatedAt),
+              }
+            : tool;
+        }),
+        lastError: event.result?.message ?? event.error,
       };
 
     case "tool_error":
@@ -253,7 +310,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             ? {
                 ...tool,
                 status: "error",
-                target: event.target ?? tool.target,
+                target: event.display?.target ?? event.target ?? tool.target,
                 error: event.error,
                 errorCode: event.code,
                 errorData: event.data,
@@ -266,12 +323,13 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         lastError: event.error,
       };
 
+    case "tool.call_stream":
     case "tool_stream":
       return {
         ...state,
         ...viewEventStats,
         tools: state.tools.map((tool) =>
-          tool.id === event.id
+          tool.id === String(event.id)
             ? {
                 ...tool,
                 streams: [...(tool.streams ?? []), event.stream],
@@ -298,6 +356,32 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         ],
       };
 
+    case "change_set.applied":
+      return {
+        ...state,
+        ...viewEventStats,
+        changeSets: [
+          ...state.changeSets,
+          {
+            id: event.id,
+            files:
+              event.changes?.map((file) => ({
+                path: file.path,
+                beforeContent: file.beforeContent,
+                afterContent: file.afterContent,
+                status: file.status,
+              })) ??
+              event.files.map((filePath) => ({
+                path: filePath,
+                status: "modified" as const,
+              })),
+            checkpointPath: event.checkpointPath,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
+          },
+        ],
+      };
+
     case "change_set":
       return {
         ...state,
@@ -308,6 +392,38 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             id: event.id,
             files: event.files,
             checkpointPath: event.checkpointPath,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
+          },
+        ],
+      };
+
+    case "verification.started":
+      return {
+        ...state,
+        ...viewEventStats,
+        verifications: [
+          ...state.verifications,
+          {
+            id: createId("verification"),
+            status: "running",
+            commands: event.commands,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
+          },
+        ],
+      };
+
+    case "verification.completed":
+      return {
+        ...state,
+        ...viewEventStats,
+        verifications: [
+          ...state.verifications,
+          {
+            id: createId("verification"),
+            status: event.passed ? "passed" : "failed",
+            commands: event.commands,
             createdAt: eventCreatedAt,
             order: eventOrder,
           },
@@ -330,6 +446,21 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         ],
       };
 
+    case "trace.persisted":
+      return {
+        ...state,
+        ...viewEventStats,
+        traces: [
+          ...state.traces,
+          {
+            id: createId("trace"),
+            path: event.path,
+            createdAt: eventCreatedAt,
+            order: eventOrder,
+          },
+        ],
+      };
+
     case "trace":
       return {
         ...state,
@@ -345,6 +476,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
         ],
       };
 
+    case "runtime.error":
     case "error":
       return {
         ...state,
@@ -360,6 +492,12 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             order: eventOrder,
           },
         ],
+      };
+
+    default:
+      return {
+        ...state,
+        ...viewEventStats,
       };
   }
 }
@@ -408,19 +546,25 @@ function compactDisplay<TDisplay extends {preview?: string} | undefined>(
   };
 }
 
-function compactStreams<TStream extends {content: string}[] | undefined>(
-  streams: TStream,
-): TStream {
+function compactStreams(
+  streams: ToolStreamState[] | undefined,
+): ToolStreamState[] | undefined {
   if (!streams?.length) {
     return streams;
   }
 
-  const compacted = streams.map((stream) => ({
-    ...stream,
-    content: truncateText(stream.content, MAX_TOOL_PAYLOAD_LENGTH),
-  }));
+  const compacted = streams.map((stream): ToolStreamState => {
+    if (!("content" in stream) || typeof stream.content !== "string") {
+      return stream;
+    }
 
-  return compacted.slice(-80) as TStream;
+    return {
+      ...stream,
+      content: truncateText(stream.content, MAX_TOOL_PAYLOAD_LENGTH),
+    };
+  });
+
+  return compacted.slice(-80);
 }
 
 function compactPayload(value: unknown): unknown {

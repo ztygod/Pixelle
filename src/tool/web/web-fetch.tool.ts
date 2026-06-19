@@ -105,7 +105,9 @@ export const webFetchTool: Tool<typeof webFetchParameters, WebFetchResultData> =
           maxLength,
         },
         {
+          kind: "network",
           title: details.finalUrl,
+          target: details.finalUrl,
           summary: `${details.status} ${details.statusText || "OK"} · ${details.contentType ?? "unknown content type"}`,
           preview: text,
           stats: {

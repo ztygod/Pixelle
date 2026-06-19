@@ -39,7 +39,10 @@ import {
   normalizeConfig,
   stringifyToolResult,
 } from "./runtime-utils.js";
-import {emitToolRunnerEventAsAgentEvent} from "./tool-runner-events.js";
+import {
+  emitFinalToolResultAsAgentEvent,
+  emitRunnerLiveEventAsAgentEvent,
+} from "./tool-runner-events.js";
 import type {
   AgentContextProvider,
   AgentMiddleware,
@@ -761,6 +764,7 @@ export class Agent {
           type: "tool.call_completed",
           id: toolCall.id,
           name: toolCall.name,
+          result: toolResult.result,
           output: toolResult.result.data,
           summary: toolResult.result.message,
           display: toolResult.result.display,
@@ -775,6 +779,7 @@ export class Agent {
           type: "tool.call_failed",
           id: toolCall.id,
           name: toolCall.name,
+          result: toolResult.result,
           error: toolResult.result.message,
           code: toolResult.result.code,
           data: toolResult.result.data,
@@ -788,7 +793,12 @@ export class Agent {
     return toolResult;
   }
 
-  /** Handles ToolRunner events for the default runner without duplicating Agent events. */
+  /** Handles default ToolRunner events without exposing raw terminal results.
+   *
+   * Live runner events are safe to publish immediately. Terminal runner events
+   * are cached for their timing/metadata only; the public terminal Agent event
+   * is emitted after afterTool middleware has produced the final ToolResult.
+   */
   private emitToolRunnerEvent(event: ToolRunnerEvent): void {
     const traceId =
       typeof event.metadata?.traceId === "string" ? event.metadata.traceId : undefined;
@@ -800,11 +810,13 @@ export class Agent {
         );
         return;
       }
+
+      return;
     }
 
     const options = traceId ? this.runOptionsByTraceId.get(traceId) : undefined;
 
-    emitToolRunnerEventAsAgentEvent({
+    emitRunnerLiveEventAsAgentEvent({
       eventBus: this.eventBus,
       event,
       options: options ?? {},
@@ -853,63 +865,12 @@ export class Agent {
       return;
     }
 
-    emitToolRunnerEventAsAgentEvent({
+    emitFinalToolResultAsAgentEvent({
       eventBus: this.eventBus,
-      event: this.withToolRunnerEventResult(terminalEvent, result),
+      runnerEvent: terminalEvent,
+      result,
       options: options ?? {},
     });
-  }
-
-  /** Rebuilds a terminal runner event using the Agent's final post-middleware result. */
-  private withToolRunnerEventResult(
-    event: Exclude<
-      ToolRunnerEvent,
-      {type: "runner.tool.started"} | {type: "runner.tool.streamed"}
-    >,
-    result: AgentToolResult["result"],
-  ): Exclude<
-    ToolRunnerEvent,
-    {type: "runner.tool.started"} | {type: "runner.tool.streamed"}
-  > {
-    const base = {
-      callId: event.callId,
-      toolName: event.toolName,
-      startedAt: event.startedAt,
-      endedAt: event.endedAt,
-      durationMs: event.durationMs,
-      result,
-      timeoutMs: event.timeoutMs,
-      metadata: event.metadata,
-    };
-
-    if (result.ok) {
-      return {
-        ...base,
-        type: "runner.tool.completed",
-      };
-    }
-
-    if (result.code === "TOOL_TIMEOUT") {
-      return {
-        ...base,
-        type: "runner.tool.timed_out",
-        errorCode: "TOOL_TIMEOUT",
-      };
-    }
-
-    if (result.code === "TOOL_ABORTED") {
-      return {
-        ...base,
-        type: "runner.tool.aborted",
-        errorCode: "TOOL_ABORTED",
-      };
-    }
-
-    return {
-      ...base,
-      type: "runner.tool.failed",
-      errorCode: result.code,
-    };
   }
 
   /** Creates a stable key for pending runner terminal events within one trace. */

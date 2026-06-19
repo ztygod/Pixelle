@@ -1,4 +1,10 @@
-import type {BaseEvent, EventBus} from "../events/index.js";
+import type {BaseEvent, EventBus, PixelleEvent} from "../events/index.js";
+import type {
+  ToolResult,
+  ToolResultDisplay,
+  ToolResultDisplayKind,
+  ToolStreamChunk,
+} from "../tool/index.js";
 
 export type RuntimeCommandEvent = BaseEvent<"runtime_command"> & {
   command: string;
@@ -7,6 +13,7 @@ export type RuntimeCommandEvent = BaseEvent<"runtime_command"> & {
 };
 
 export type CliEvent =
+  | PixelleEvent
   | BaseEvent<"cli_clear">
   | BaseEvent<"cli_debug_toggle">
   | BaseEvent<"cli_help_toggle">
@@ -100,18 +107,16 @@ export type CliMessage = {
 export type ToolCallStatus = "pending" | "running" | "success" | "done" | "error";
 
 export type ToolResultDisplayState = {
+  kind?: ToolResultDisplayKind;
   title?: string;
+  target?: string;
   summary?: string;
   preview?: string;
-  stats?: Record<string, string | number>;
+  stats?: Record<string, string | number | boolean>;
   truncated?: boolean;
-};
+} & ToolResultDisplay;
 
-export type ToolStreamState = {
-  type: "stdout" | "stderr" | "data";
-  content: string;
-  metadata?: Record<string, unknown>;
-};
+export type ToolStreamState = ToolStreamChunk;
 
 export type ToolCallState = {
   id: string;
@@ -120,6 +125,7 @@ export type ToolCallState = {
   status: ToolCallStatus;
   input?: unknown;
   output?: unknown;
+  result?: ToolResult;
   error?: string;
   errorCode?: string;
   errorData?: unknown;

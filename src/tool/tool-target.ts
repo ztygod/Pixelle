@@ -37,17 +37,17 @@ function inferTargetFromValue(toolName: string, value: unknown): string | undefi
 function getTargetKeys(toolName: string): readonly string[] {
   switch (toolName) {
     case "bash":
-      return ["command", "title", "cwd"];
+      return ["target", "command", "title", "cwd"];
     case "read_file":
     case "write_file":
     case "edit_file":
-      return ["path", "title"];
+      return ["target", "path", "title"];
     case "grep":
-      return ["pattern", "path", "title"];
+      return ["target", "pattern", "path", "title"];
     case "glob":
-      return ["pattern", "path", "title"];
+      return ["target", "pattern", "path", "title"];
     case "web_fetch":
-      return ["url", "finalUrl", "requestedUrl", "title"];
+      return ["target", "url", "finalUrl", "requestedUrl", "title"];
     default:
       return [
         "target",

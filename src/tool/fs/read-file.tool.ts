@@ -47,7 +47,9 @@ export const readFileTool: Tool<
         content,
       },
       {
+        kind: "file",
         title: safePath.relativePath,
+        target: safePath.relativePath,
         summary: `${lineCount} ${lineCount === 1 ? "line" : "lines"} · ${formatBytes(Buffer.byteLength(content, "utf8"))}`,
         stats: {
           lines: lineCount,

@@ -67,7 +67,9 @@ export const grepTool: Tool<typeof grepParameters, {matches: GrepMatch[]}> = {
       "Searched workspace file contents.",
       {matches},
       {
+        kind: "search",
         title: input.pattern,
+        target: input.pattern,
         summary: `${matches.length} ${matches.length === 1 ? "match" : "matches"}`,
         preview: matches
           .slice(0, 20)

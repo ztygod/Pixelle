@@ -133,6 +133,62 @@ describe("CLI timeline ordering", () => {
     });
   });
 
+  it("reduces direct Pixelle tool events without the CliEvent adapter", () => {
+    const state = [
+      {
+        type: "tool.call_started" as const,
+        id: "tool-1",
+        name: "grep",
+        input: {pattern: "ToolResult"},
+        createdAt: 1,
+      },
+      {
+        type: "tool.call_stream" as const,
+        id: "tool-1",
+        name: "grep",
+        stream: {type: "progress" as const, label: "searching", percent: 50},
+        createdAt: 2,
+      },
+      {
+        type: "tool.call_completed" as const,
+        id: "tool-1",
+        name: "grep",
+        result: {
+          ok: true as const,
+          message: "Searched workspace file contents.",
+          data: {matches: []},
+          display: {
+            kind: "search" as const,
+            target: "ToolResult",
+            summary: "0 matches",
+          },
+        },
+        durationMs: 12,
+        createdAt: 3,
+      },
+    ].reduce(
+      (current, event) => reduceCliState(current, {type: "event", event}),
+      initialCliState,
+    );
+
+    expect(selectTimelineItems(state)).toHaveLength(1);
+    expect(state.tools[0]).toMatchObject({
+      status: "success",
+      target: "ToolResult",
+      result: {
+        ok: true,
+        message: "Searched workspace file contents.",
+      },
+      display: {
+        kind: "search",
+        target: "ToolResult",
+        summary: "0 matches",
+      },
+      durationMs: 12,
+      streams: [{type: "progress", label: "searching", percent: 50}],
+    });
+  });
+
   it("stores the tool target across the tool lifecycle", () => {
     const state = [
       {

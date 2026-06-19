@@ -197,6 +197,11 @@ describe("Agent runtime loop", () => {
       type: "tool.call_completed",
       id: "call-1",
       name: "echo",
+      result: {
+        ok: true,
+        message: "Echoed.",
+        data: {text: "hello"},
+      },
       output: {text: "hello"},
       summary: "Echoed.",
     });
@@ -244,6 +249,12 @@ describe("Agent runtime loop", () => {
       type: "tool.call_failed",
       id: "fail-1",
       name: "fail",
+      result: {
+        ok: false,
+        message: "Tool failed.",
+        code: "TOOL_EXECUTION_FAILED",
+        data: {x: 1},
+      },
       error: "Tool failed.",
       code: "TOOL_EXECUTION_FAILED",
       data: {x: 1},
@@ -300,6 +311,11 @@ describe("Agent runtime loop", () => {
     expect(collectToolEvents(events)[1]).toMatchObject({
       type: "tool.call_completed",
       id: "mw-1",
+      result: {
+        ok: true,
+        message: "Updated.",
+        data: {text: "updated"},
+      },
       output: {text: "updated"},
       summary: "Updated.",
     });
