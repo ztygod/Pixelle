@@ -6,6 +6,7 @@ export type ToolSuccessResult<TData = unknown> = {
   ok: true;
   message: string;
   data: TData;
+  display?: ToolResultDisplay;
 };
 
 /** Error result returned by a tool when the failure should be reported to the model. */
@@ -14,10 +15,27 @@ export type ToolErrorResult<TData = unknown> = {
   message: string;
   code: string;
   data?: TData;
+  display?: ToolResultDisplay;
 };
 
 /** Normalized result shape produced by every tool implementation. */
 export type ToolResult<TData = unknown> = ToolSuccessResult<TData> | ToolErrorResult;
+
+/** Optional UI-oriented metadata tools can return without changing their data contract. */
+export type ToolResultDisplay = {
+  title?: string;
+  summary?: string;
+  preview?: string;
+  stats?: Record<string, string | number>;
+  truncated?: boolean;
+};
+
+/** Incremental output chunk emitted while a tool is still running. */
+export type ToolStreamChunk = {
+  type: "stdout" | "stderr" | "data";
+  content: string;
+  metadata?: Record<string, unknown>;
+};
 
 /** Zod schema used to validate model-provided tool input before execution. */
 export type ToolParameterSchema = z.ZodTypeAny;
@@ -53,6 +71,7 @@ export type ToolContext = {
   fileWriter?: ToolFileWriter;
   workspaceProfile?: WorkspaceProfile;
   commandPolicy?: CommandPolicyLike;
+  emitStream?: (chunk: ToolStreamChunk) => void | Promise<void>;
 };
 
 /** Implementation function for a tool after ToolRunner validates its input. */

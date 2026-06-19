@@ -1,4 +1,5 @@
 import type {PixelleEvent} from "../events/index.js";
+import {inferToolTarget} from "../tool/tool-target.js";
 import type {CliEvent} from "./types.js";
 
 export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined {
@@ -36,6 +37,7 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         type: "tool_start",
         id: String(event.id),
         name: event.name,
+        target: inferToolTarget(event.name, event.target, event.input),
         input: event.input,
         description: event.description,
         status: event.status,
@@ -46,8 +48,10 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         type: "tool_done",
         id: String(event.id),
         name: event.name,
+        target: inferToolTarget(event.name, event.target, event.display, event.output),
         output: event.output,
         summary: event.summary,
+        display: event.display,
         createdAt: event.createdAt,
       };
     case "tool.call_failed":
@@ -55,9 +59,19 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         type: "tool_error",
         id: String(event.id),
         name: event.name,
+        target: inferToolTarget(event.name, event.target, event.display, event.data),
         error: event.error,
         code: event.code,
         data: event.data,
+        display: event.display,
+        createdAt: event.createdAt,
+      };
+    case "tool.call_stream":
+      return {
+        type: "tool_stream",
+        id: String(event.id),
+        name: event.name,
+        stream: event.stream,
         createdAt: event.createdAt,
       };
     case "runtime.error":

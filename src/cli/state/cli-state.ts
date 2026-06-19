@@ -213,6 +213,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
           {
             id: event.id,
             name: event.name,
+            target: event.target,
             status: event.status ?? "running",
             input: event.input,
             description: event.description,
@@ -232,8 +233,10 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             ? {
                 ...tool,
                 status: "success",
+                target: event.target ?? tool.target,
                 output: event.output,
                 summary: event.summary,
+                display: event.display,
                 completedAt: eventCreatedAt,
                 durationMs: getDurationMs(tool, eventCreatedAt),
               }
@@ -250,15 +253,33 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
             ? {
                 ...tool,
                 status: "error",
+                target: event.target ?? tool.target,
                 error: event.error,
                 errorCode: event.code,
                 errorData: event.data,
+                display: event.display,
                 completedAt: eventCreatedAt,
                 durationMs: getDurationMs(tool, eventCreatedAt),
               }
             : tool,
         ),
         lastError: event.error,
+      };
+
+    case "tool_stream":
+      return {
+        ...state,
+        ...viewEventStats,
+        tools: state.tools.map((tool) =>
+          tool.id === event.id
+            ? {
+                ...tool,
+                streams: [...(tool.streams ?? []), event.stream],
+                createdAt: tool.createdAt,
+                order: tool.order,
+              }
+            : tool,
+        ),
       };
 
     case "image_preview":
@@ -364,12 +385,42 @@ function compactCliState(state: CliViewState): CliViewState {
       input: compactPayload(tool.input),
       output: compactPayload(tool.output),
       errorData: compactPayload(tool.errorData),
+      display: compactDisplay(tool.display),
+      streams: compactStreams(tool.streams),
     })),
     images: state.images.slice(-MAX_IMAGES),
     changeSets: state.changeSets.slice(-MAX_CHANGE_SETS),
     verifications: state.verifications.slice(-MAX_VERIFICATIONS),
     traces: state.traces.slice(-MAX_TRACES),
   };
+}
+
+function compactDisplay<TDisplay extends {preview?: string} | undefined>(
+  display: TDisplay,
+): TDisplay {
+  if (!display?.preview) {
+    return display;
+  }
+
+  return {
+    ...display,
+    preview: truncateText(display.preview, MAX_TOOL_PAYLOAD_LENGTH),
+  };
+}
+
+function compactStreams<TStream extends {content: string}[] | undefined>(
+  streams: TStream,
+): TStream {
+  if (!streams?.length) {
+    return streams;
+  }
+
+  const compacted = streams.map((stream) => ({
+    ...stream,
+    content: truncateText(stream.content, MAX_TOOL_PAYLOAD_LENGTH),
+  }));
+
+  return compacted.slice(-80) as TStream;
 }
 
 function compactPayload(value: unknown): unknown {

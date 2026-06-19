@@ -57,7 +57,15 @@ function getMarker(item: CliTimelineItem): string {
   }
 
   if (item.kind === "tool") {
-    return item.tool.status === "error" ? icons.error : icons.tool;
+    if (item.tool.status === "error") {
+      return icons.error;
+    }
+
+    if (item.tool.status === "success" || item.tool.status === "done") {
+      return icons.done;
+    }
+
+    return icons.tool;
   }
 
   if (item.kind === "change_set") {

@@ -285,7 +285,7 @@ export abstract class BaseLLMClient {
 // Warning: (ae-forgotten-export) The symbol "bashParameters" needs to be exported by the entry point index.d.ts
 // Warning: (ae-forgotten-export) The symbol "BashResult" needs to be exported by the entry point index.d.ts
 //
-// @public (undocumented)
+// @public
 export const bashTool: Tool<typeof bashParameters, BashResult>;
 
 // @public (undocumented)
@@ -396,20 +396,26 @@ export type CreateAgentRuntimeFromConfigOptions = LoadAgentConfigOptions & Agent
 // @public
 export function createCommandPolicy(options?: CommandPolicyOptions): CommandPolicy;
 
-// @public (undocumented)
+// @public
 export function createDefaultToolRegistry(): ToolRegistry;
+
+// @public (undocumented)
+export const DEFAULT_WEB_FETCH_MAX_LENGTH = 20000;
+
+// @public (undocumented)
+export const DEFAULT_WEB_FETCH_TIMEOUT_MS = 15000;
 
 // Warning: (ae-forgotten-export) The symbol "editFileParameters" needs to be exported by the entry point index.d.ts
 //
-// @public (undocumented)
+// @public
 export const editFileTool: Tool<typeof editFileParameters, {
     path: string;
     replacements: number;
     bytesWritten: number;
 }>;
 
-// @public (undocumented)
-export function errorToolResult<TData = unknown>(message: string, code: string, data?: TData): ToolErrorResult<TData>;
+// @public
+export function errorToolResult<TData = unknown>(message: string, code: string, data?: TData, display?: ToolErrorResult<TData>["display"]): ToolErrorResult<TData>;
 
 // @public
 export class EventBus<TEvent extends BaseEvent> {
@@ -453,17 +459,20 @@ export type ExecutionTrace = {
 
 // Warning: (ae-forgotten-export) The symbol "globParameters" needs to be exported by the entry point index.d.ts
 //
-// @public (undocumented)
+// @public
 export const globTool: Tool<typeof globParameters, {
     paths: string[];
 }>;
 
 // Warning: (ae-forgotten-export) The symbol "grepParameters" needs to be exported by the entry point index.d.ts
 //
-// @public (undocumented)
+// @public
 export const grepTool: Tool<typeof grepParameters, {
     matches: GrepMatch[];
 }>;
+
+// @public
+export function inferToolTarget(toolName: string, ...candidates: unknown[]): string | undefined;
 
 // @public (undocumented)
 export class JsonCheckpointStore implements CheckpointStore {
@@ -521,7 +530,7 @@ export const LLMConfigSchema: z.ZodObject<{
     baseUrl: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 
-// @public (undocumented)
+// @public
 export type LLMToolParametersSchema = Record<string, unknown>;
 
 // @public
@@ -537,7 +546,13 @@ export type LoadAgentConfigOptions = {
 export type LoadPixelleConfigOptions = LoadAgentConfigOptions;
 
 // @public (undocumented)
-export function okToolResult<TData>(message: string, data: TData): ToolSuccessResult<TData>;
+export const MAX_WEB_FETCH_MAX_LENGTH = 200000;
+
+// @public (undocumented)
+export const MAX_WEB_FETCH_TIMEOUT_MS = 60000;
+
+// @public
+export function okToolResult<TData>(message: string, data: TData, display?: ToolSuccessResult<TData>["display"]): ToolSuccessResult<TData>;
 
 // @public (undocumented)
 export type PermissionConfig = {
@@ -563,7 +578,7 @@ export type PixelleEvent = AgentEvent | RuntimeEvent;
 
 // Warning: (ae-forgotten-export) The symbol "readFileParameters" needs to be exported by the entry point index.d.ts
 //
-// @public (undocumented)
+// @public
 export const readFileTool: Tool<typeof readFileParameters, {
     path: string;
     content: string;
@@ -624,10 +639,10 @@ export type TaskStep = {
 // @public (undocumented)
 export type TaskStepStatus = "pending" | "running" | "completed" | "failed";
 
-// @public (undocumented)
+// @public
 export function toLLMToolParametersSchema(parameters: ToolParameterSchema): LLMToolParametersSchema;
 
-// @public (undocumented)
+// @public
 export type Tool<TParameters extends ToolParameterSchema = ToolParameterSchema, TResult = unknown> = {
     definition: ToolDefinition & {
         parameters: TParameters;
@@ -635,7 +650,7 @@ export type Tool<TParameters extends ToolParameterSchema = ToolParameterSchema, 
     execute: ToolExecute<TParameters, TResult>;
 };
 
-// @public (undocumented)
+// @public
 export type ToolContext = {
     workspaceRoot: string;
     signal?: AbortSignal;
@@ -643,16 +658,17 @@ export type ToolContext = {
     fileWriter?: ToolFileWriter;
     workspaceProfile?: WorkspaceProfile;
     commandPolicy?: CommandPolicyLike;
+    emitStream?: (chunk: ToolStreamChunk) => void | Promise<void>;
 };
 
-// @public (undocumented)
+// @public
 export type ToolDefinition = {
     name: string;
     description: string;
     parameters: ToolParameterSchema;
 };
 
-// @public (undocumented)
+// @public
 export class ToolError extends Error {
     constructor(options: ToolErrorOptions);
     // (undocumented)
@@ -663,10 +679,10 @@ export class ToolError extends Error {
     readonly toolName?: string;
 }
 
-// @public (undocumented)
-export type ToolErrorCode = "TOOL_NOT_FOUND" | "TOOL_ALREADY_REGISTERED" | "TOOL_PERMISSION_DENIED" | "TOOL_APPROVAL_REQUIRED" | "TOOL_COMMAND_POLICY_DENIED" | "TOOL_INVALID_INPUT" | "TOOL_PATH_OUTSIDE_WORKSPACE" | "TOOL_EXECUTION_FAILED";
+// @public
+export type ToolErrorCode = "TOOL_NOT_FOUND" | "TOOL_ALREADY_REGISTERED" | "TOOL_PERMISSION_DENIED" | "TOOL_APPROVAL_REQUIRED" | "TOOL_COMMAND_POLICY_DENIED" | "TOOL_INVALID_INPUT" | "TOOL_PATH_OUTSIDE_WORKSPACE" | "TOOL_EXECUTION_FAILED" | "TOOL_TIMEOUT" | "TOOL_ABORTED";
 
-// @public (undocumented)
+// @public
 export type ToolErrorOptions = {
     code: ToolErrorCode;
     message: string;
@@ -675,18 +691,19 @@ export type ToolErrorOptions = {
     cause?: unknown;
 };
 
-// @public (undocumented)
+// @public
 export type ToolErrorResult<TData = unknown> = {
     ok: false;
     message: string;
     code: string;
     data?: TData;
+    display?: ToolResultDisplay;
 };
 
-// @public (undocumented)
+// @public
 export type ToolExecute<TParameters extends ToolParameterSchema = ToolParameterSchema, TResult = unknown> = (input: z.infer<TParameters>, context: ToolContext) => Promise<ToolResult<TResult>> | ToolResult<TResult>;
 
-// @public (undocumented)
+// @public
 export type ToolFileWriter = {
     writeFile(relativePath: string, content: string): Promise<{
         path: string;
@@ -694,10 +711,10 @@ export type ToolFileWriter = {
     }>;
 };
 
-// @public (undocumented)
+// @public
 export type ToolParameterSchema = z.ZodTypeAny;
 
-// @public (undocumented)
+// @public
 export type ToolPermissions = {
     readFile?: boolean;
     writeFile?: boolean;
@@ -705,41 +722,103 @@ export type ToolPermissions = {
     shell?: boolean;
 };
 
-// @public (undocumented)
+// @public
 export class ToolRegistry {
-    // (undocumented)
     get(name: string): RegisteredTool | undefined;
-    // (undocumented)
     list(): RegisteredTool[];
-    // (undocumented)
     listDefinitions(): ToolDefinition[];
     // Warning: (ae-forgotten-export) The symbol "RegisteredTool" needs to be exported by the entry point index.d.ts
-    //
-    // (undocumented)
     register(tool: RegisteredTool): void;
 }
 
-// @public (undocumented)
+// @public
 export type ToolResult<TData = unknown> = ToolSuccessResult<TData> | ToolErrorResult;
 
-// @public (undocumented)
+// @public
+export type ToolResultDisplay = {
+    title?: string;
+    summary?: string;
+    preview?: string;
+    stats?: Record<string, string | number>;
+    truncated?: boolean;
+};
+
+// @public
 export class ToolRunner {
-    constructor(registry: ToolRegistry);
-    // (undocumented)
-    run(name: string, input: unknown, context: ToolContext): Promise<ToolResult>;
+    constructor(registry: ToolRegistry, options?: ToolRunnerOptions);
+    run(name: string, input: unknown, context: ToolContext, options?: ToolRunOptions): Promise<ToolResult>;
 }
 
+// Warning: (ae-forgotten-export) The symbol "ToolRunnerEventBase" needs to be exported by the entry point index.d.ts
+// Warning: (ae-forgotten-export) The symbol "ToolRunnerTerminalEventBase" needs to be exported by the entry point index.d.ts
+//
 // @public (undocumented)
+export type ToolRunnerEvent =
+/** Emitted before registry lookup, validation, or tool execution starts. */
+(ToolRunnerEventBase & {
+    type: "runner.tool.started";
+    input?: unknown;
+})
+/** Emitted when a running tool has incremental output available for display. */
+| (ToolRunnerEventBase & {
+    type: "runner.tool.streamed";
+    stream: ToolStreamChunk;
+})
+/** Emitted after a tool returns a successful ToolResult. */
+| (ToolRunnerTerminalEventBase & {
+    type: "runner.tool.completed";
+})
+/** Emitted after validation or execution returns a non-control failure. */
+| (ToolRunnerTerminalEventBase & {
+    type: "runner.tool.failed";
+    errorCode: string;
+})
+/** Emitted when ToolRunner's timeout control wins the execution race. */
+| (ToolRunnerTerminalEventBase & {
+    type: "runner.tool.timed_out";
+    errorCode: "TOOL_TIMEOUT";
+})
+/** Emitted when an external or context abort signal cancels execution. */
+| (ToolRunnerTerminalEventBase & {
+    type: "runner.tool.aborted";
+    errorCode: "TOOL_ABORTED";
+});
+
+// @public
+export type ToolRunnerOptions = {
+    defaultTimeoutMs?: number;
+    onEvent?: (event: ToolRunnerEvent) => void | Promise<void>;
+    now?: () => number;
+    createCallId?: () => string;
+};
+
+// @public
+export type ToolRunOptions = {
+    timeoutMs?: number | false;
+    signal?: AbortSignal;
+    callId?: string;
+    metadata?: Record<string, unknown>;
+};
+
+// @public
+export type ToolStreamChunk = {
+    type: "stdout" | "stderr" | "data";
+    content: string;
+    metadata?: Record<string, unknown>;
+};
+
+// @public
 export type ToolSuccessResult<TData = unknown> = {
     ok: true;
     message: string;
     data: TData;
+    display?: ToolResultDisplay;
 };
 
 // @public (undocumented)
 export function toPosixPath(filePath: string): string;
 
-// @public (undocumented)
+// @public
 export function toToolError(error: unknown, fallback: Omit<ToolErrorOptions, "cause">): ToolError;
 
 // @public (undocumented)
@@ -805,12 +884,10 @@ export class Verifier {
 }
 
 // Warning: (ae-forgotten-export) The symbol "webFetchParameters" needs to be exported by the entry point index.d.ts
+// Warning: (ae-forgotten-export) The symbol "WebFetchResultData" needs to be exported by the entry point index.d.ts
 //
-// @public (undocumented)
-export const webFetchTool: Tool<typeof webFetchParameters, {
-    url: string;
-    text: string;
-}>;
+// @public
+export const webFetchTool: Tool<typeof webFetchParameters, WebFetchResultData>;
 
 // @public (undocumented)
 export type WorkspaceProfile = {
@@ -829,7 +906,7 @@ export class WorkspaceScanner {
 
 // Warning: (ae-forgotten-export) The symbol "writeFileParameters" needs to be exported by the entry point index.d.ts
 //
-// @public (undocumented)
+// @public
 export const writeFileTool: Tool<typeof writeFileParameters, {
     path: string;
     bytesWritten: number;
@@ -847,7 +924,7 @@ export const writeFileTool: Tool<typeof writeFileParameters, {
 // src/runtime/policy/types.ts:59:3 - (ae-forgotten-export) The symbol "PolicyRisk" needs to be exported by the entry point index.d.ts
 // src/runtime/policy/types.ts:60:3 - (ae-forgotten-export) The symbol "CommandCategory" needs to be exported by the entry point index.d.ts
 // src/runtime/policy/types.ts:91:3 - (ae-forgotten-export) The symbol "CommandPolicyRule" needs to be exported by the entry point index.d.ts
-// src/tool/fs/grep-tool.ts:36:53 - (ae-forgotten-export) The symbol "GrepMatch" needs to be exported by the entry point index.d.ts
+// src/tool/fs/grep-tool.ts:37:53 - (ae-forgotten-export) The symbol "GrepMatch" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)
 

@@ -8,6 +8,7 @@ import {
   type ToolContext,
   type ToolFileWriter,
   type ToolPermissions,
+  type ToolStreamChunk,
   type ToolRegistry,
   type ToolResult,
 } from "../tool/index.js";
@@ -123,6 +124,7 @@ export function createToolContext(input: {
   fileWriter?: ToolFileWriter;
   workspaceProfile?: WorkspaceProfile;
   commandPolicy?: CommandPolicyLike;
+  emitStream?: (chunk: ToolStreamChunk) => void | Promise<void>;
 }): ToolContext {
   return {
     workspaceRoot: input.workspaceRoot,
@@ -131,6 +133,7 @@ export function createToolContext(input: {
     fileWriter: input.fileWriter,
     workspaceProfile: input.workspaceProfile,
     commandPolicy: input.commandPolicy,
+    emitStream: input.emitStream,
   };
 }
 

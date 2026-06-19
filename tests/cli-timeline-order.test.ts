@@ -85,4 +85,79 @@ describe("CLI timeline ordering", () => {
       },
     });
   });
+
+  it("appends tool stream chunks to the existing timeline item", () => {
+    const state = [
+      {
+        type: "tool_start" as const,
+        id: "tool-1",
+        name: "bash",
+        input: {command: "pnpm test"},
+        createdAt: 1,
+      },
+      {
+        type: "tool_stream" as const,
+        id: "tool-1",
+        name: "bash",
+        stream: {type: "stdout" as const, content: "running\n"},
+        createdAt: 2,
+      },
+      {
+        type: "tool_stream" as const,
+        id: "tool-1",
+        name: "bash",
+        stream: {type: "stderr" as const, content: "warning\n"},
+        createdAt: 3,
+      },
+      {
+        type: "tool_done" as const,
+        id: "tool-1",
+        name: "bash",
+        summary: "Executed shell command.",
+        display: {summary: "exit 0"},
+        createdAt: 4,
+      },
+    ].reduce(
+      (current, event) => reduceCliState(current, {type: "event", event}),
+      initialCliState,
+    );
+
+    expect(selectTimelineItems(state)).toHaveLength(1);
+    expect(state.tools[0]).toMatchObject({
+      status: "success",
+      display: {summary: "exit 0"},
+      streams: [
+        {type: "stdout", content: "running\n"},
+        {type: "stderr", content: "warning\n"},
+      ],
+    });
+  });
+
+  it("stores the tool target across the tool lifecycle", () => {
+    const state = [
+      {
+        type: "tool_start" as const,
+        id: "tool-1",
+        name: "read_file",
+        target: "src/cli/types.ts",
+        input: {path: "src/cli/types.ts"},
+        createdAt: 1,
+      },
+      {
+        type: "tool_done" as const,
+        id: "tool-1",
+        name: "read_file",
+        summary: "Read file content.",
+        createdAt: 2,
+      },
+    ].reduce(
+      (current, event) => reduceCliState(current, {type: "event", event}),
+      initialCliState,
+    );
+
+    expect(state.tools[0]).toMatchObject({
+      status: "success",
+      target: "src/cli/types.ts",
+    });
+  });
 });

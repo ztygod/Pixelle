@@ -10,6 +10,12 @@ type AgentStage = "thinking" | "planning" | "executing" | "complete";
 
 type ToolCallStatus = "pending" | "running" | "success" | "done" | "error";
 
+type ToolStreamChunk = {
+  type: "stdout" | "stderr" | "data";
+  content: string;
+  metadata?: Record<string, unknown>;
+};
+
 type EventChangedFileStatus = "created" | "modified" | "deleted";
 
 type EventChangedFile = {
@@ -78,6 +84,7 @@ type AgentEvent =
   | (BaseEvent<"tool.call_started"> & {
       id: ToolCallId | string;
       name: string;
+      target?: string;
       input?: unknown;
       description?: string;
       status?: Extract<ToolCallStatus, "pending" | "running">;
@@ -85,15 +92,36 @@ type AgentEvent =
   | (BaseEvent<"tool.call_completed"> & {
       id: ToolCallId | string;
       name: string;
+      target?: string;
       output?: unknown;
       summary?: string;
+      display?: {
+        title?: string;
+        summary?: string;
+        preview?: string;
+        stats?: Record<string, string | number>;
+        truncated?: boolean;
+      };
     })
   | (BaseEvent<"tool.call_failed"> & {
       id: ToolCallId | string;
       name: string;
+      target?: string;
       error: string;
       code?: string;
       data?: unknown;
+      display?: {
+        title?: string;
+        summary?: string;
+        preview?: string;
+        stats?: Record<string, string | number>;
+        truncated?: boolean;
+      };
+    })
+  | (BaseEvent<"tool.call_stream"> & {
+      id: ToolCallId | string;
+      name: string;
+      stream: ToolStreamChunk;
     })
   | (BaseEvent<"runtime.status_changed"> & {
       status: "idle" | "running" | "waiting" | "complete" | "error";

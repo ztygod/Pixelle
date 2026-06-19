@@ -125,6 +125,16 @@ export class ToolRunner {
       const executionContext: ToolContext = {
         ...context,
         signal: control.signal,
+        emitStream: (stream) =>
+          this.emitEvent({
+            type: "runner.tool.streamed",
+            callId,
+            toolName: name,
+            startedAt,
+            timeoutMs,
+            metadata: options.metadata,
+            stream,
+          }),
       };
       const outcome = await Promise.race([
         Promise.resolve(tool.execute(parsedInput.data, executionContext)),
@@ -319,11 +329,19 @@ function toTerminalEvent(
   event: Omit<
     Extract<
       ToolRunnerEvent,
-      {type: Exclude<ToolRunnerEvent["type"], "runner.tool.started">}
+      {
+        type: Exclude<
+          ToolRunnerEvent["type"],
+          "runner.tool.started" | "runner.tool.streamed"
+        >;
+      }
     >,
     "type" | "errorCode"
   >,
-): Exclude<ToolRunnerEvent, {type: "runner.tool.started"}> {
+): Exclude<
+  ToolRunnerEvent,
+  {type: "runner.tool.started"} | {type: "runner.tool.streamed"}
+> {
   if (event.result.ok) {
     return {
       ...event,

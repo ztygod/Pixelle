@@ -241,6 +241,47 @@ describe("ToolRunner", () => {
     });
   });
 
+  it("emits stream events from tool context", async () => {
+    const registry = new ToolRegistry();
+    registry.register({
+      definition: {
+        name: "streamer",
+        description: "Streams output.",
+        parameters: z.object({}),
+      },
+      execute: async (_input, context) => {
+        await context.emitStream?.({type: "stdout", content: "hello\n"});
+        await context.emitStream?.({type: "stderr", content: "warn\n"});
+
+        return okToolResult("Streamed.", {ok: true}, {summary: "done"});
+      },
+    });
+    const events: ToolRunnerEvent[] = [];
+
+    const result = await new ToolRunner(registry, {
+      createCallId: () => "call-1",
+      onEvent: (event) => {
+        events.push(event);
+      },
+    }).run("streamer", {}, {workspaceRoot: process.cwd()});
+
+    expect(result).toMatchObject({ok: true, display: {summary: "done"}});
+    expect(events.map((event) => event.type)).toEqual([
+      "runner.tool.started",
+      "runner.tool.streamed",
+      "runner.tool.streamed",
+      "runner.tool.completed",
+    ]);
+    expect(events[1]).toMatchObject({
+      type: "runner.tool.streamed",
+      callId: "call-1",
+      stream: {type: "stdout", content: "hello\n"},
+    });
+    expect(events[2]).toMatchObject({
+      stream: {type: "stderr", content: "warn\n"},
+    });
+  });
+
   it("returns TOOL_TIMEOUT when the runner timeout wins", async () => {
     const registry = new ToolRegistry();
     registry.register({

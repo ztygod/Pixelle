@@ -30,6 +30,7 @@ export type CliEvent =
   | (BaseEvent<"tool_start"> & {
       id: string;
       name: string;
+      target?: string;
       input?: unknown;
       description?: string;
       status?: Extract<ToolCallStatus, "pending" | "running">;
@@ -37,15 +38,24 @@ export type CliEvent =
   | (BaseEvent<"tool_done"> & {
       id: string;
       name: string;
+      target?: string;
       output?: unknown;
       summary?: string;
+      display?: ToolResultDisplayState;
     })
   | (BaseEvent<"tool_error"> & {
       id: string;
       name: string;
+      target?: string;
       error: string;
       code?: string;
       data?: unknown;
+      display?: ToolResultDisplayState;
+    })
+  | (BaseEvent<"tool_stream"> & {
+      id: string;
+      name: string;
+      stream: ToolStreamState;
     })
   | (BaseEvent<"image_preview"> & {
       id?: string;
@@ -89,9 +99,24 @@ export type CliMessage = {
 
 export type ToolCallStatus = "pending" | "running" | "success" | "done" | "error";
 
+export type ToolResultDisplayState = {
+  title?: string;
+  summary?: string;
+  preview?: string;
+  stats?: Record<string, string | number>;
+  truncated?: boolean;
+};
+
+export type ToolStreamState = {
+  type: "stdout" | "stderr" | "data";
+  content: string;
+  metadata?: Record<string, unknown>;
+};
+
 export type ToolCallState = {
   id: string;
   name: string;
+  target?: string;
   status: ToolCallStatus;
   input?: unknown;
   output?: unknown;
@@ -100,6 +125,8 @@ export type ToolCallState = {
   errorData?: unknown;
   description?: string;
   summary?: string;
+  display?: ToolResultDisplayState;
+  streams?: ToolStreamState[];
   createdAt: number;
   order: number;
   startedAt?: number;

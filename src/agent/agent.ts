@@ -23,6 +23,7 @@ import {
   type ToolRunnerEvent,
   type ToolRegistry,
   type ToolPermissions,
+  type ToolStreamChunk,
 } from "../tool/index.js";
 import {buildRuntimeContext, buildSystemPrompt} from "./context.js";
 import {AgentMiddlewarePipeline} from "./middleware.js";
@@ -78,7 +79,10 @@ export class Agent {
   private readonly runOptionsByTraceId = new Map<string, RunInternalOptions>();
   private readonly pendingToolRunnerTerminalEvents = new Map<
     string,
-    Exclude<ToolRunnerEvent, {type: "runner.tool.started"}>
+    Exclude<
+      ToolRunnerEvent,
+      {type: "runner.tool.started"} | {type: "runner.tool.streamed"}
+    >
   >();
 
   /** Creates an agent runtime from explicit dependencies and runtime configuration. */
@@ -728,6 +732,9 @@ export class Agent {
         fileWriter: context.fileWriter,
         workspaceProfile: context.workspaceProfile,
         commandPolicy: this.commandPolicy,
+        emitStream: this.usesToolRunnerEventAdapter
+          ? undefined
+          : (stream) => this.emitToolCallStream(toolCall, metadata, options, stream),
       }),
       {
         callId: toolCall.id,
@@ -756,6 +763,7 @@ export class Agent {
           name: toolCall.name,
           output: toolResult.result.data,
           summary: toolResult.result.message,
+          display: toolResult.result.display,
           metadata,
         },
         options,
@@ -770,6 +778,7 @@ export class Agent {
           error: toolResult.result.message,
           code: toolResult.result.code,
           data: toolResult.result.data,
+          display: toolResult.result.display,
           metadata,
         },
         options,
@@ -783,7 +792,7 @@ export class Agent {
   private emitToolRunnerEvent(event: ToolRunnerEvent): void {
     const traceId =
       typeof event.metadata?.traceId === "string" ? event.metadata.traceId : undefined;
-    if (event.type !== "runner.tool.started") {
+    if (event.type !== "runner.tool.started" && event.type !== "runner.tool.streamed") {
       if (traceId) {
         this.pendingToolRunnerTerminalEvents.set(
           this.toolRunnerEventKey(traceId, event.callId),
@@ -800,6 +809,26 @@ export class Agent {
       event,
       options: options ?? {},
     });
+  }
+
+  /** Emits stream chunks for externally supplied ToolRunner instances. */
+  private emitToolCallStream(
+    toolCall: AgentToolCall,
+    metadata: Record<string, unknown>,
+    options: RunInternalOptions,
+    stream: ToolStreamChunk,
+  ): void {
+    emitAgentEvent(
+      this.eventBus,
+      {
+        type: "tool.call_stream",
+        id: toolCall.id,
+        name: toolCall.name,
+        stream,
+        metadata,
+      },
+      options,
+    );
   }
 
   /** Emits the final Agent tool event after afterTool middleware has finalized the result. */
@@ -833,9 +862,15 @@ export class Agent {
 
   /** Rebuilds a terminal runner event using the Agent's final post-middleware result. */
   private withToolRunnerEventResult(
-    event: Exclude<ToolRunnerEvent, {type: "runner.tool.started"}>,
+    event: Exclude<
+      ToolRunnerEvent,
+      {type: "runner.tool.started"} | {type: "runner.tool.streamed"}
+    >,
     result: AgentToolResult["result"],
-  ): Exclude<ToolRunnerEvent, {type: "runner.tool.started"}> {
+  ): Exclude<
+    ToolRunnerEvent,
+    {type: "runner.tool.started"} | {type: "runner.tool.streamed"}
+  > {
     const base = {
       callId: event.callId,
       toolName: event.toolName,
