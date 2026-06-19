@@ -151,9 +151,13 @@ export type ImagePreviewState = {
 
 export type ChangedFileState = {
   path: string;
+  oldPath?: string;
   beforeContent?: string;
   afterContent?: string;
   status: "created" | "modified" | "deleted";
+  diff?: string;
+  addedLines?: number;
+  removedLines?: number;
 };
 
 export type ChangeSetState = {

@@ -1,6 +1,6 @@
 import type {PixelleEvent} from "../events/index.js";
 import {inferToolTarget} from "../tool/tool-target.js";
-import type {CliEvent} from "./types.js";
+import type {ChangedFileState, CliEvent} from "./types.js";
 
 export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined {
   switch (event.type) {
@@ -100,12 +100,7 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
         type: "change_set",
         id: event.id,
         files:
-          event.changes?.map((file) => ({
-            path: file.path,
-            beforeContent: file.beforeContent,
-            afterContent: file.afterContent,
-            status: file.status,
-          })) ??
+          event.changes?.map(normalizeChangedFile) ??
           event.files.map((filePath) => ({
             path: filePath,
             status: "modified" as const,
@@ -136,4 +131,24 @@ export function agentEventToCliEvent(event: PixelleEvent): CliEvent | undefined 
     default:
       return undefined;
   }
+}
+
+function normalizeChangedFile(
+  file: {
+    path: string;
+    beforeContent?: string;
+    afterContent?: string;
+    status: ChangedFileState["status"];
+  } & Partial<ChangedFileState>,
+): ChangedFileState {
+  return {
+    path: file.path,
+    oldPath: file.oldPath,
+    beforeContent: file.beforeContent,
+    afterContent: file.afterContent,
+    status: file.status,
+    diff: file.diff,
+    addedLines: file.addedLines,
+    removedLines: file.removedLines,
+  };
 }

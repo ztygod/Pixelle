@@ -1,5 +1,6 @@
 import type {
   ChangeSetState,
+  ChangedFileState,
   CliEvent,
   CliMessage,
   ImagePreviewState,
@@ -365,12 +366,7 @@ function reduceCliEvent(state: CliViewState, event: CliEvent): CliViewState {
           {
             id: event.id,
             files:
-              event.changes?.map((file) => ({
-                path: file.path,
-                beforeContent: file.beforeContent,
-                afterContent: file.afterContent,
-                status: file.status,
-              })) ??
+              event.changes?.map(normalizeChangedFile) ??
               event.files.map((filePath) => ({
                 path: filePath,
                 status: "modified" as const,
@@ -509,6 +505,26 @@ function getDurationMs(tool: ToolCallState, completedAt: number): number | undef
   }
 
   return completedAt - startedAt;
+}
+
+function normalizeChangedFile(
+  file: {
+    path: string;
+    beforeContent?: string;
+    afterContent?: string;
+    status: ChangedFileState["status"];
+  } & Partial<ChangedFileState>,
+): ChangedFileState {
+  return {
+    path: file.path,
+    oldPath: file.oldPath,
+    beforeContent: file.beforeContent,
+    afterContent: file.afterContent,
+    status: file.status,
+    diff: file.diff,
+    addedLines: file.addedLines,
+    removedLines: file.removedLines,
+  };
 }
 
 function compactCliState(state: CliViewState): CliViewState {
