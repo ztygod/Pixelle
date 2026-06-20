@@ -1,4 +1,40 @@
-export {Agent, createAgentRuntime, createAgentRuntimeFromConfig} from "./agent.js";
+export {
+  Agent,
+  CodingAgent,
+  createAgentRuntime,
+  createAgentRuntimeFromConfig,
+} from "./agent.js";
+export {
+  AgentObserver,
+  AgentRunState,
+  ChangeRuntime,
+  ContextManager,
+  ModelRuntime,
+  RuntimePolicy,
+  ToolRuntime,
+  VerificationPipeline,
+  WorkspaceService,
+  createAgentObserver,
+  createChangeRuntime,
+  createContextManager,
+  createModelRuntime,
+  createNoopMemory,
+  createRuntimePolicy,
+  createToolRuntime,
+  createVerificationPipeline,
+  createWorkspaceService,
+} from "./runtime/index.js";
+export type {
+  AgentMemory,
+  AgentRunStateOptions,
+  ChangeRuntimeOptions,
+  ContextManagerOptions,
+  ModelRuntimeOptions,
+  RuntimePolicyOptions,
+  ToolRuntimeOptions,
+  VerificationPipelineOptions,
+  WorkspaceServiceOptions,
+} from "./runtime/index.js";
 export type {
   AgentContextProvider,
   AgentContextValue,

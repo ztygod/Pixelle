@@ -1,15 +1,13 @@
 import type {AgentConfig} from "../config/index.js";
 import type {EventBus, PixelleEvent} from "../events/index.js";
 import type {BaseLLMClient} from "../llm/index.js";
-import type {LLMTool, LLMUsage} from "../llm/types.js";
+import type {LLMUsage} from "../llm/types.js";
 import type {CommandPolicyLike, WorkspaceProfile} from "../runtime/index.js";
 import {
-  toLLMToolParametersSchema,
   type ToolContext,
   type ToolFileWriter,
   type ToolPermissions,
   type ToolStreamChunk,
-  type ToolRegistry,
   type ToolResult,
 } from "../tool/index.js";
 import type {AgentRunInput, AgentRuntimeConfig, RunInternalOptions} from "./types.js";
@@ -92,15 +90,6 @@ export function emitAgentEvent(
 ): void {
   const publishedEvent = eventBus.emit(event);
   options.eventSink?.(publishedEvent ?? event);
-}
-
-/** Converts registered runtime tools into provider-neutral LLM tool schemas. */
-export function buildLLMTools(toolRegistry: ToolRegistry): LLMTool[] {
-  return toolRegistry.listDefinitions().map((definition) => ({
-    name: definition.name,
-    description: definition.description,
-    inputSchema: toLLMToolParametersSchema(definition.parameters),
-  }));
 }
 
 /** Merges conservative defaults, agent-level permissions, and per-run overrides. */

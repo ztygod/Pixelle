@@ -35,6 +35,17 @@ import type {
 } from "../runtime/index.js";
 import type {EventBus} from "../events/index.js";
 import type {Agent} from "./agent.js";
+import type {
+  AgentMemory,
+  AgentObserver,
+  ChangeRuntime,
+  ContextManager,
+  ModelRuntime,
+  RuntimePolicy,
+  ToolRuntime,
+  VerificationPipeline,
+  WorkspaceService,
+} from "./runtime/index.js";
 
 /** Reason why an agent run stopped. */
 export type AgentStopReason = "completed" | "max_iterations" | "aborted" | "error";
@@ -170,6 +181,15 @@ export type AgentRuntimeConfig = {
 /** Constructor options for wiring the agent to LLM, tools, events, and hooks. */
 export type AgentOptions = {
   config: AgentRuntimeConfig | AgentConfig;
+  model?: ModelRuntime;
+  tools?: ToolRuntime;
+  context?: ContextManager;
+  workspace?: WorkspaceService;
+  memory?: AgentMemory;
+  policy?: RuntimePolicy;
+  changes?: ChangeRuntime;
+  verification?: VerificationPipeline;
+  observer?: AgentObserver;
   llm?: BaseLLMClient;
   toolRegistry?: ToolRegistry;
   toolRunner?: ToolRunner;
