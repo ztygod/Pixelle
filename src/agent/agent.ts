@@ -1,121 +1,171 @@
-import {randomUUID} from "node:crypto";
-
 import {loadAgentConfig, type AgentConfig} from "../config/index.js";
 import {EventBus, type PixelleEvent} from "../events/index.js";
-import {LLMClient, type BaseLLMClient} from "../llm/index.js";
-import type {LLMMessage, LLMUsage} from "../llm/types.js";
-import {
-  ChangeTracker,
-  createCommandPolicy,
-  JsonCheckpointStore,
-  JsonTraceStore,
-  Verifier,
-  WorkspaceScanner,
-  type ChangeSet,
-  type CommandPolicyLike,
-  type TaskRun,
-  type VerificationResult,
-  type WorkspaceProfile,
-} from "../runtime/index.js";
-import {
-  createDefaultToolRegistry,
-  ToolRunner,
-  type ToolRunnerEvent,
-  type ToolRegistry,
-  type ToolPermissions,
-  type ToolStreamChunk,
-} from "../tool/index.js";
-import {buildRuntimeContext, buildSystemPrompt} from "./context.js";
 import {AgentMiddlewarePipeline} from "./middleware.js";
 import {
-  buildLLMTools,
-  createEventMetadata,
-  createToolContext,
-  DEFAULT_MAX_ITERATIONS,
-  emitAgentEvent,
-  mergePermissions,
-  mergeUsage,
-  missingLLMClient,
-  normalizeConfig,
-  stringifyToolResult,
-} from "./runtime-utils.js";
-import {
-  emitFinalToolResultAsAgentEvent,
-  emitRunnerLiveEventAsAgentEvent,
-} from "./tool-runner-events.js";
+  AgentRunState,
+  createAgentObserver,
+  createChangeRuntime,
+  createContextManager,
+  createModelRuntime,
+  createNoopMemory,
+  createRuntimePolicy,
+  createToolRuntime,
+  createVerificationPipeline,
+  createWorkspaceService,
+  registerToolRuntimeRun,
+  unregisterToolRuntimeRun,
+  type AgentMemory,
+  type AgentObserver,
+  type ChangeRuntime,
+  type ContextManager,
+  type ModelRuntime,
+  type RuntimePolicy,
+  type ToolRuntime,
+  type VerificationPipeline,
+  type WorkspaceService,
+} from "./runtime/index.js";
+import {DEFAULT_MAX_ITERATIONS, normalizeConfig} from "./runtime-utils.js";
 import type {
-  AgentContextProvider,
   AgentMiddleware,
-  AgentModelRequest,
-  AgentModelResponse,
   AgentOptions,
-  AgentRunContext,
   AgentRunInput,
   AgentRunResult,
   AgentRuntimeConfig,
-  AgentStopReason,
-  AgentToolCall,
-  AgentToolResult,
   CreateAgentRuntimeFromConfigOptions,
   RunInternalOptions,
   StreamQueueItem,
 } from "./types.js";
 
-/** Orchestrates model calls, tool execution, context injection, events, and middleware. */
+/**
+ * Thin orchestrator for the modular coding-agent runtime.
+ *
+ * The Agent coordinates model calls, tool execution, context management,
+ * workspace preparation, change tracking, verification, events, and middleware.
+ * Concrete runtime behavior is delegated to dedicated runtime modules.
+ */
 export class Agent {
+  // Normalized runtime configuration for this agent instance.
   readonly config: AgentRuntimeConfig;
+
+  // Shared event bus used to publish Pixelle runtime events.
   readonly eventBus: EventBus<PixelleEvent>;
 
-  private readonly llm: BaseLLMClient;
-  private readonly toolRegistry: ToolRegistry;
-  private readonly toolRunner: ToolRunner;
-  private readonly usesToolRunnerEventAdapter: boolean;
-  private readonly middleware: AgentMiddleware[];
-  private readonly middlewarePipeline: AgentMiddlewarePipeline;
-  private readonly contextProviders: AgentContextProvider[];
-  private readonly permissions: ToolPermissions;
-  private readonly traceStore?: AgentOptions["traceStore"];
-  private readonly checkpointStore?: AgentOptions["checkpointStore"];
-  private readonly workspaceScanner: WorkspaceScanner;
-  private readonly verifier: Verifier;
-  private readonly commandPolicy: CommandPolicyLike;
-  private readonly runOptionsByTraceId = new Map<string, RunInternalOptions>();
-  private readonly pendingToolRunnerTerminalEvents = new Map<
-    string,
-    Exclude<
-      ToolRunnerEvent,
-      {type: "runner.tool.started"} | {type: "runner.tool.streamed"}
-    >
-  >();
+  // Handles model requests, streaming, retries, and response normalization.
+  private readonly model: ModelRuntime;
 
-  /** Creates an agent runtime from explicit dependencies and runtime configuration. */
+  // Manages tool schemas, tool execution, permissions, and tool results.
+  private readonly tools: ToolRuntime;
+
+  // Builds and updates the model-visible context for each run.
+  private readonly context: ContextManager;
+
+  // Prepares and inspects the current workspace.
+  private readonly workspace: WorkspaceService;
+
+  // Loads and stores agent, project, or user memory.
+  private readonly memory: AgentMemory;
+
+  // Centralizes runtime permissions, command policy, and safety decisions.
+  private readonly policy: RuntimePolicy;
+
+  // Tracks file changes, checkpoints, diffs, and rollback behavior.
+  private readonly changes: ChangeRuntime;
+
+  // Runs verification and repair flows after agent execution.
+  private readonly verification: VerificationPipeline;
+
+  // Publishes lifecycle events for UI, streaming, and observers.
+  private readonly observer: AgentObserver;
+
+  // Mutable list of middleware registered on this agent instance.
+  private readonly middleware: AgentMiddleware[];
+
+  // Executes middleware hooks around runs, model calls, and tool calls.
+  private readonly middlewarePipeline: AgentMiddlewarePipeline;
+
+  /**
+   * Creates an agent runtime from explicit dependencies and runtime configuration.
+   *
+   * Missing dependencies are initialized with the default modular runtime
+   * implementations, while injected dependencies can override any subsystem.
+   */
   constructor(options: AgentOptions) {
     this.config = normalizeConfig(options.config);
-    this.llm =
-      options.llm ??
-      (this.config.llm ? new LLMClient(this.config.llm) : missingLLMClient());
-    this.toolRegistry = options.toolRegistry ?? createDefaultToolRegistry();
     this.eventBus = options.eventBus ?? new EventBus<PixelleEvent>();
-    this.usesToolRunnerEventAdapter = !options.toolRunner;
-    this.toolRunner =
-      options.toolRunner ??
-      new ToolRunner(this.toolRegistry, {
-        onEvent: (event) => {
-          this.emitToolRunnerEvent(event);
-        },
-      });
     this.middleware = [...(options.middleware ?? [])];
     this.middlewarePipeline = new AgentMiddlewarePipeline(this.middleware);
-    this.contextProviders = [...(options.contextProviders ?? [])];
-    this.permissions = mergePermissions(this.config.permissions, options.permissions);
-    this.traceStore = options.traceStore;
-    this.checkpointStore = options.checkpointStore;
-    this.workspaceScanner = options.workspaceScanner ?? new WorkspaceScanner();
-    this.commandPolicy = options.commandPolicy ?? createCommandPolicy();
-    this.verifier = options.verifier ?? new Verifier(this.commandPolicy);
+
+    this.observer = options.observer ?? createAgentObserver({eventBus: this.eventBus});
+    this.policy =
+      options.policy ??
+      createRuntimePolicy({
+        config: this.config.permissions,
+        permissions: options.permissions,
+        commandPolicy: options.commandPolicy,
+      });
+    this.workspace =
+      options.workspace ??
+      createWorkspaceService({
+        workspaceRoot: this.config.runtime.workspaceDir,
+        scanner: options.workspaceScanner,
+      });
+    this.memory = options.memory ?? createNoopMemory();
+    this.changes =
+      options.changes ??
+      createChangeRuntime({
+        config: this.config,
+        workspace: this.workspace,
+        policy: this.policy,
+        observer: this.observer,
+        checkpointStore: options.checkpointStore,
+      });
+    this.tools =
+      options.tools ??
+      createToolRuntime({
+        config: this.config,
+        workspace: this.workspace,
+        policy: this.policy,
+        changes: this.changes,
+        observer: this.observer,
+        middleware: this.middlewarePipeline,
+        toolRegistry: options.toolRegistry,
+        toolRunner: options.toolRunner,
+      });
+    this.model =
+      options.model ??
+      createModelRuntime({
+        config: this.config,
+        llm: options.llm,
+        middleware: this.middlewarePipeline,
+        observer: this.observer,
+      });
+    this.context =
+      options.context ??
+      createContextManager({
+        config: this.config,
+        workspace: this.workspace,
+        memory: this.memory,
+        observer: this.observer,
+        contextProviders: options.contextProviders,
+      });
+    this.verification =
+      options.verification ??
+      createVerificationPipeline({
+        config: this.config,
+        workspace: this.workspace,
+        policy: this.policy,
+        tools: this.tools,
+        model: this.model,
+        context: this.context,
+        changes: this.changes,
+        observer: this.observer,
+        verifier: options.verifier,
+      });
   }
 
-  /** Registers middleware and returns a disposer for removing it. */
+  /**
+   * Registers middleware and returns a disposer that removes it.
+   */
   use(middleware: AgentMiddleware): () => void {
     this.middleware.push(middleware);
 
@@ -127,12 +177,16 @@ export class Agent {
     };
   }
 
-  /** Runs the agent to completion and returns the final transcript and metadata. */
+  /**
+   * Runs the agent to completion and returns the final result.
+   */
   run(input: AgentRunInput): Promise<AgentRunResult> {
     return this.runInternal(input, {});
   }
 
-  /** Streams lifecycle events while the same underlying run executes. */
+  /**
+   * Runs the agent and yields lifecycle events as they are produced.
+   */
   async *stream(input: AgentRunInput): AsyncIterable<PixelleEvent> {
     const queue: StreamQueueItem[] = [];
     const waiters: Array<() => void> = [];
@@ -175,991 +229,114 @@ export class Agent {
     }
   }
 
-  /** Runs the full agent workflow, including model/tool loop, verification, and tracing. */
+  /**
+   * Executes the full agent workflow for a single run.
+   *
+   * The workflow prepares runtime state, builds model context, executes
+   * model/tool iterations, verifies the result, optionally rolls back changes,
+   * and returns the final run result.
+   */
   private async runInternal(
     input: AgentRunInput,
     options: RunInternalOptions,
   ): Promise<AgentRunResult> {
-    const runId = options.runId ?? randomUUID();
-    const sessionId = options.sessionId ?? runId;
-    const traceId = options.traceId ?? randomUUID();
+    const run = new AgentRunState({
+      agent: this,
+      config: this.config,
+      input,
+      internalOptions: options,
+    });
     const maxIterations =
       input.maxIterations ?? this.config.runtime.maxIterations ?? DEFAULT_MAX_ITERATIONS;
-    const context = this.createRunContext({
-      input,
-      runId,
-      sessionId,
-      traceId,
-    });
-    const messages: LLMMessage[] = [];
-    const toolResults: AgentToolResult[] = [];
-    const changes: ChangeSet[] = [];
-    const verification: VerificationResult[] = [];
-    const task = createTaskRun(runId);
-    const traceStore =
-      this.config.trace?.enabled === false
-        ? this.traceStore
-        : (this.traceStore ??
-          new JsonTraceStore(
-            this.config.trace?.directory ?? this.config.runtime.workspaceDir,
-            runId,
-          ));
-    const checkpointStore =
-      this.checkpointStore ??
-      new JsonCheckpointStore(
-        this.config.trace?.directory ?? this.config.runtime.workspaceDir,
-        runId,
-      );
-    const changeTracker = new ChangeTracker({
-      runId,
-      workspaceRoot: this.config.runtime.workspaceDir,
-      checkpointStore,
-    });
-    let checkpointPath: string | undefined;
-    let workspaceProfile: WorkspaceProfile | undefined;
-    let content = "";
-    let stopReason: AgentStopReason = "completed";
-    let usage: LLMUsage | undefined;
 
-    this.runOptionsByTraceId.set(traceId, options);
+    registerToolRuntimeRun(run);
 
     try {
-      context.traceStore = traceStore;
-      context.fileWriter = changeTracker;
-      await traceStore?.start({
-        runId,
-        sessionId,
-        traceId,
-        prompt: input.prompt,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        events: [],
-        modelCalls: [],
-        toolCalls: [],
-        changeSets: changes,
-        verificationResults: verification,
-      });
-      this.emitRunStarted(input, sessionId, traceId, options);
-      this.emitTaskStarted(task, input, sessionId, traceId, options);
-      await this.middlewarePipeline.beforeAgentRun(context);
+      this.observer.runStarted(run);
+      await this.middlewarePipeline.beforeAgentRun(run.context);
 
-      workspaceProfile = await this.workspaceScanner.scan(
-        this.config.runtime.workspaceDir,
-        input.signal,
-      );
-      context.workspaceProfile = workspaceProfile;
-      context.input.context = [
-        ...(context.input.context ?? []),
-        {
-          title: "Workspace Profile",
-          priority: 100,
-          content: JSON.stringify(workspaceProfile, null, 2),
-        },
-      ];
-      await traceStore?.update((trace) => {
-        trace.workspaceProfile = workspaceProfile;
-      });
+      run.task.status = "planning";
+      await this.workspace.prepare(run);
+      this.changes.prepare(run);
+      await this.context.prepare(run);
 
-      await this.addInitialMessages(messages, context, options);
-      const tools = buildLLMTools(this.toolRegistry);
+      run.task.status = "executing";
+      while (run.canContinue(maxIterations)) {
+        run.nextIteration();
+        this.observer.assistantStage(run);
 
-      // The core loop alternates model responses and tool results until the
-      // model stops requesting tools or a runtime guard stops the run.
-      for (let iteration = 1; iteration <= maxIterations; iteration += 1) {
-        if (input.signal?.aborted) {
-          stopReason = "aborted";
-          break;
-        }
-
-        context.iteration = iteration;
-        this.emitAssistantStage(context, iteration, options);
-
-        const response = await this.generateModelResponse({
-          context,
-          iteration,
-          messages,
-          tools,
-          options,
-        });
-        usage = mergeUsage(usage, response.usage);
-        content = response.content || content;
-
-        messages.push({
-          role: "assistant",
-          content: response.content,
-          toolCalls: response.toolCalls,
-        });
+        const response = await this.model.generate(
+          {
+            messages: this.context.buildModelRequest(run),
+            tools: this.tools.schemas(),
+          },
+          run,
+        );
+        this.context.appendAssistantResponse(run, response);
 
         if (!response.toolCalls.length) {
-          stopReason = "completed";
+          run.complete(response.content);
           break;
         }
 
-        for (const toolCall of response.toolCalls) {
-          const toolResult = await this.runTool(
-            {...toolCall, iteration},
-            context,
-            options,
-          );
-          toolResults.push(toolResult);
-          messages.push({
-            role: "tool",
-            toolCallId: toolResult.call.id,
-            name: toolResult.call.name,
-            content: stringifyToolResult(toolResult.result),
-          });
-        }
-
-        const checkpoint = await changeTracker.checkpoint();
-        if (checkpoint.changeSet) {
-          changes.push(checkpoint.changeSet);
-          checkpointPath = checkpoint.path ?? checkpointPath;
-          this.emitChangeSetApplied(
-            checkpoint.changeSet,
-            checkpoint.path,
-            context,
-            options,
-          );
-          await traceStore?.update((trace) => {
-            trace.changeSets = changes;
-          });
-        }
-
-        if (iteration === maxIterations) {
-          stopReason = "max_iterations";
-        }
+        const toolResults = await this.tools.execute(
+          run,
+          response.toolCalls.map((toolCall) => ({
+            ...toolCall,
+            iteration: run.iteration,
+          })),
+        );
+        this.context.appendToolResults(run, toolResults);
+        await this.changes.checkpoint(run);
       }
 
-      const verificationEnabled =
-        input.verification?.enabled ??
-        this.config.verification?.enabled ??
-        input.mode !== "ask";
-      if (verificationEnabled && workspaceProfile) {
-        task.status = "verifying";
-        const selectedCommands = this.verifier.selectCommands(
-          workspaceProfile,
-          input.verification?.commands?.length
-            ? input.verification.commands
-            : this.config.verification?.commands,
-        );
-        this.emitVerificationStarted(
-          selectedCommands,
-          input,
-          sessionId,
-          traceId,
-          options,
-        );
-        verification.push(
-          ...(await this.verifier.verify(
-            this.config.runtime.workspaceDir,
-            workspaceProfile,
-            {
-              commands: input.verification?.commands?.length
-                ? input.verification.commands
-                : this.config.verification?.commands,
-              signal: input.signal,
-            },
-          )),
-        );
-        this.emitVerificationCompleted(verification, input, sessionId, traceId, options);
-        await traceStore?.update((trace) => {
-          trace.verificationResults = verification;
-        });
+      if (input.signal?.aborted) {
+        run.stopReason = "aborted";
+      } else if (run.iteration >= maxIterations && run.stopReason === "completed") {
+        run.stopReason = "max_iterations";
+      }
 
-        let failedVerification = verification.find((result) => !result.passed);
-        const maxRepairAttempts =
-          input.maxRepairAttempts ?? this.config.runtime.maxRepairAttempts;
-        for (
-          let repairAttempt = 1;
-          failedVerification && repairAttempt <= maxRepairAttempts;
-          repairAttempt += 1
-        ) {
-          if (context.iteration >= maxIterations || input.signal?.aborted) {
-            break;
-          }
-
-          task.status = "repairing";
-          messages.push({
-            role: "user",
-            content: buildRepairPrompt(failedVerification, repairAttempt),
-          });
-
-          context.iteration += 1;
-          this.emitAssistantStage(context, context.iteration, options);
-          const repairResponse = await this.generateModelResponse({
-            context,
-            iteration: context.iteration,
-            messages,
-            tools,
-            options,
-          });
-          usage = mergeUsage(usage, repairResponse.usage);
-          content = repairResponse.content || content;
-          messages.push({
-            role: "assistant",
-            content: repairResponse.content,
-            toolCalls: repairResponse.toolCalls,
-          });
-
-          for (const toolCall of repairResponse.toolCalls) {
-            const toolResult = await this.runTool(
-              {...toolCall, iteration: context.iteration},
-              context,
-              options,
-            );
-            toolResults.push(toolResult);
-            messages.push({
-              role: "tool",
-              toolCallId: toolResult.call.id,
-              name: toolResult.call.name,
-              content: stringifyToolResult(toolResult.result),
-            });
-          }
-
-          const checkpoint = await changeTracker.checkpoint();
-          if (checkpoint.changeSet) {
-            changes.push(checkpoint.changeSet);
-            checkpointPath = checkpoint.path ?? checkpointPath;
-            this.emitChangeSetApplied(
-              checkpoint.changeSet,
-              checkpoint.path,
-              context,
-              options,
-            );
-          }
-
-          const repairVerification = await this.verifier.verify(
-            this.config.runtime.workspaceDir,
-            workspaceProfile,
-            {
-              commands: input.verification?.commands?.length
-                ? input.verification.commands
-                : this.config.verification?.commands,
-              signal: input.signal,
-            },
-          );
-          verification.push(...repairVerification);
-          this.emitVerificationCompleted(
-            repairVerification,
-            input,
-            sessionId,
-            traceId,
-            options,
-          );
-          await traceStore?.update((trace) => {
-            trace.changeSets = changes;
-            trace.verificationResults = verification;
-          });
-          failedVerification = repairVerification.find((result) => !result.passed);
-        }
-
-        if (failedVerification) {
-          stopReason = "error";
-          content =
-            `${content}\n\nVerification failed: ${failedVerification.command}`.trim();
-        } else {
-          stopReason = "completed";
-        }
+      if (run.stopReason !== "aborted") {
+        await this.verification.verifyAndRepair(run, maxIterations);
       }
 
       if (
-        stopReason !== "completed" &&
-        (input.rollbackOnFailure ?? this.config.runtime.rollbackOnFailure) &&
-        changes.length > 0
+        run.stopReason !== "completed" &&
+        (input.rollbackOnFailure ?? this.config.runtime.rollbackOnFailure)
       ) {
-        task.status = "rolled_back";
-        for (const changeSet of [...changes].reverse()) {
-          this.emitChangeSetRollbackStarted(changeSet, context, options);
-          await changeTracker.rollback(changeSet);
-          this.emitChangeSetRollbackCompleted(changeSet, context, options);
-        }
+        await this.changes.rollback(run);
       } else {
-        task.status = stopReason === "completed" ? "completed" : "failed";
+        run.task.status = run.stopReason === "completed" ? "completed" : "failed";
       }
-      task.updatedAt = Date.now();
+      run.task.updatedAt = Date.now();
+      await this.context.save(run);
 
       const result = await this.middlewarePipeline.afterAgentRun(
-        {
-          runId,
-          sessionId,
-          traceId,
-          content,
-          messages,
-          toolResults,
-          usage,
-          iterations: context.iteration,
-          stopReason,
-          task,
-          changes,
-          verification,
-          workspaceProfile,
-          tracePath: traceStore?.tracePath,
-          checkpointPath,
-        },
-        context,
+        run.toResult(),
+        run.context,
       );
-
-      this.emitRunStopped(input, runId, sessionId, traceId, stopReason, options);
-      await traceStore?.update((trace) => {
-        const {messages: resultMessages, ...serializableResult} = result;
-        trace.events = this.eventsForTrace(traceId);
-        trace.finalResult = {
-          ...serializableResult,
-          messageCount: resultMessages.length,
-        };
-      });
-      this.emitTracePersisted(traceStore?.tracePath, input, sessionId, traceId, options);
+      this.observer.runCompleted(run);
       return result;
     } catch (error) {
-      stopReason = input.signal?.aborted ? "aborted" : "error";
-      task.status = "failed";
-      task.updatedAt = Date.now();
-      this.emitRunFailed(input, sessionId, traceId, stopReason, error, options);
-      await traceStore?.update((trace) => {
-        trace.events = this.eventsForTrace(traceId);
-        trace.error = error instanceof Error ? error.message : "Agent run failed.";
-      });
-
-      return {
-        runId,
-        sessionId,
-        traceId,
-        content,
-        messages,
-        toolResults,
-        usage,
-        iterations: context.iteration,
-        stopReason,
-        task,
-        changes,
-        verification,
-        workspaceProfile,
-        tracePath: traceStore?.tracePath,
-        checkpointPath,
-        error,
-      };
+      run.fail(error);
+      run.task.status = "failed";
+      run.task.updatedAt = Date.now();
+      this.observer.runFailed(run, error);
+      return run.toResult();
     } finally {
-      this.runOptionsByTraceId.delete(traceId);
-      this.deletePendingToolRunnerEvents(traceId);
+      unregisterToolRuntimeRun(run);
     }
-  }
-
-  /** Creates the mutable per-run context passed to middleware and context providers. */
-  private createRunContext(input: {
-    input: AgentRunInput;
-    runId: string;
-    sessionId: string;
-    traceId: string;
-  }): AgentRunContext {
-    return {
-      agent: this,
-      config: this.config,
-      input: input.input,
-      iteration: 0,
-      runId: input.runId,
-      sessionId: input.sessionId,
-      signal: input.input.signal,
-      traceId: input.traceId,
-    };
-  }
-
-  /** Builds and appends the initial system, historical, and user messages. */
-  private async addInitialMessages(
-    messages: LLMMessage[],
-    context: AgentRunContext,
-    options: RunInternalOptions,
-  ): Promise<void> {
-    const contextText = await buildRuntimeContext({
-      context,
-      contextProviders: this.contextProviders,
-      eventBus: this.eventBus,
-      options,
-    });
-    const systemPrompt = buildSystemPrompt(context, contextText);
-
-    messages.push({role: "system", content: systemPrompt});
-    messages.push(...(context.input.messages ?? []));
-    messages.push({role: "user", content: context.input.prompt});
-  }
-
-  /** Runs model middleware, calls the LLM, records trace data, and returns model output. */
-  private async generateModelResponse(input: {
-    context: AgentRunContext;
-    iteration: number;
-    messages: LLMMessage[];
-    tools: ReturnType<typeof buildLLMTools>;
-    options: RunInternalOptions;
-  }): Promise<AgentModelResponse> {
-    const request = await this.middlewarePipeline.beforeModel(
-      {
-        messages: input.messages,
-        tools: input.tools,
-        timeoutMs: this.config.llm?.timeoutMs,
-        maxRetries: this.config.llm?.maxRetries,
-        iteration: input.iteration,
-        runId: input.context.runId,
-      },
-      input.context,
-    );
-    const rawResponse = await this.generateStreamingModelResponse(
-      request,
-      input.context,
-      input.options,
-    );
-    await input.context.traceStore?.update((trace) => {
-      trace.modelCalls.push({
-        request: createTraceModelRequest(request),
-        response: {
-          ...createTraceModelResponse(rawResponse),
-          iteration: input.iteration,
-          runId: input.context.runId,
-        },
-        createdAt: Date.now(),
-      });
-    });
-
-    return this.middlewarePipeline.afterModel(
-      {
-        ...rawResponse,
-        iteration: input.iteration,
-        runId: input.context.runId,
-      },
-      input.context,
-    );
-  }
-
-  /** Streams model output when supported and falls back to generate() when needed. */
-  private async generateStreamingModelResponse(
-    request: Parameters<BaseLLMClient["stream"]>[0],
-    context: AgentRunContext,
-    options: RunInternalOptions,
-  ): Promise<AgentModelResponse> {
-    let streamedContent = "";
-    let emittedContent = false;
-    let finalResponse: AgentModelResponse | undefined;
-
-    try {
-      for await (const chunk of this.llm.stream(request)) {
-        if (chunk.type === "content_delta") {
-          streamedContent += chunk.content;
-          emittedContent = true;
-          emitAgentEvent(
-            this.eventBus,
-            {
-              type: "conversation.assistant_delta",
-              messageId: context.runId,
-              delta: chunk.content,
-              stage: "thinking",
-              metadata: createEventMetadata(
-                context.input,
-                context.sessionId,
-                context.traceId,
-              ),
-            },
-            options,
-          );
-          continue;
-        }
-
-        if (chunk.type === "done") {
-          finalResponse = {
-            ...chunk.response,
-            content: chunk.response.content || streamedContent,
-            iteration: context.iteration,
-            runId: context.runId,
-          };
-        }
-      }
-    } catch (error) {
-      if (emittedContent) {
-        throw error;
-      }
-
-      const response = await this.llm.generate(request);
-      return {
-        ...response,
-        iteration: context.iteration,
-        runId: context.runId,
-      };
-    }
-
-    if (!finalResponse) {
-      const response = await this.llm.generate(request);
-      return {
-        ...response,
-        iteration: context.iteration,
-        runId: context.runId,
-      };
-    }
-
-    return finalResponse;
-  }
-
-  /** Executes one model-requested tool call through middleware and ToolRunner. */
-  private async runTool(
-    call: AgentToolCall,
-    context: AgentRunContext,
-    options: RunInternalOptions,
-  ): Promise<AgentToolResult> {
-    const toolCall = await this.middlewarePipeline.beforeTool(call, context);
-    const metadata = createEventMetadata(
-      context.input,
-      context.sessionId,
-      context.traceId,
-    );
-
-    if (!this.usesToolRunnerEventAdapter) {
-      emitAgentEvent(
-        this.eventBus,
-        {
-          type: "tool.call_started",
-          id: toolCall.id,
-          name: toolCall.name,
-          input: toolCall.arguments,
-          status: "running",
-          metadata,
-        },
-        options,
-      );
-    }
-
-    // ToolRunner owns schema validation and tool-level error normalization.
-    const result = await this.toolRunner.run(
-      toolCall.name,
-      toolCall.arguments,
-      createToolContext({
-        workspaceRoot: this.config.runtime.workspaceDir,
-        signal: context.input.signal,
-        basePermissions: this.permissions,
-        runPermissions: context.input.permissions,
-        fileWriter: context.fileWriter,
-        workspaceProfile: context.workspaceProfile,
-        commandPolicy: this.commandPolicy,
-        emitStream: this.usesToolRunnerEventAdapter
-          ? undefined
-          : (stream) => this.emitToolCallStream(toolCall, metadata, options, stream),
-      }),
-      {
-        callId: toolCall.id,
-        metadata,
-      },
-    );
-    const toolResult = await this.middlewarePipeline.afterTool(
-      {call: toolCall, result},
-      context,
-    );
-    await context.traceStore?.update((trace) => {
-      trace.toolCalls.push(toolResult);
-    });
-
-    if (this.usesToolRunnerEventAdapter) {
-      this.emitFinalToolRunnerEvent(toolCall.id, metadata, toolResult.result);
-      return toolResult;
-    }
-
-    if (toolResult.result.ok) {
-      emitAgentEvent(
-        this.eventBus,
-        {
-          type: "tool.call_completed",
-          id: toolCall.id,
-          name: toolCall.name,
-          result: toolResult.result,
-          output: toolResult.result.data,
-          summary: toolResult.result.message,
-          display: toolResult.result.display,
-          metadata,
-        },
-        options,
-      );
-    } else {
-      emitAgentEvent(
-        this.eventBus,
-        {
-          type: "tool.call_failed",
-          id: toolCall.id,
-          name: toolCall.name,
-          result: toolResult.result,
-          error: toolResult.result.message,
-          code: toolResult.result.code,
-          data: toolResult.result.data,
-          display: toolResult.result.display,
-          metadata,
-        },
-        options,
-      );
-    }
-
-    return toolResult;
-  }
-
-  /** Handles default ToolRunner events without exposing raw terminal results.
-   *
-   * Live runner events are safe to publish immediately. Terminal runner events
-   * are cached for their timing/metadata only; the public terminal Agent event
-   * is emitted after afterTool middleware has produced the final ToolResult.
-   */
-  private emitToolRunnerEvent(event: ToolRunnerEvent): void {
-    const traceId =
-      typeof event.metadata?.traceId === "string" ? event.metadata.traceId : undefined;
-    if (event.type !== "runner.tool.started" && event.type !== "runner.tool.streamed") {
-      if (traceId) {
-        this.pendingToolRunnerTerminalEvents.set(
-          this.toolRunnerEventKey(traceId, event.callId),
-          event,
-        );
-        return;
-      }
-
-      return;
-    }
-
-    const options = traceId ? this.runOptionsByTraceId.get(traceId) : undefined;
-
-    emitRunnerLiveEventAsAgentEvent({
-      eventBus: this.eventBus,
-      event,
-      options: options ?? {},
-    });
-  }
-
-  /** Emits stream chunks for externally supplied ToolRunner instances. */
-  private emitToolCallStream(
-    toolCall: AgentToolCall,
-    metadata: Record<string, unknown>,
-    options: RunInternalOptions,
-    stream: ToolStreamChunk,
-  ): void {
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "tool.call_stream",
-        id: toolCall.id,
-        name: toolCall.name,
-        stream,
-        metadata,
-      },
-      options,
-    );
-  }
-
-  /** Emits the final Agent tool event after afterTool middleware has finalized the result. */
-  private emitFinalToolRunnerEvent(
-    callId: string,
-    metadata: Record<string, unknown>,
-    result: AgentToolResult["result"],
-  ): void {
-    const traceId = typeof metadata.traceId === "string" ? metadata.traceId : undefined;
-    const terminalEvent = traceId
-      ? this.pendingToolRunnerTerminalEvents.get(this.toolRunnerEventKey(traceId, callId))
-      : undefined;
-    const options = traceId ? this.runOptionsByTraceId.get(traceId) : undefined;
-
-    if (traceId) {
-      this.pendingToolRunnerTerminalEvents.delete(
-        this.toolRunnerEventKey(traceId, callId),
-      );
-    }
-
-    if (!terminalEvent) {
-      return;
-    }
-
-    emitFinalToolResultAsAgentEvent({
-      eventBus: this.eventBus,
-      runnerEvent: terminalEvent,
-      result,
-      options: options ?? {},
-    });
-  }
-
-  /** Creates a stable key for pending runner terminal events within one trace. */
-  private toolRunnerEventKey(traceId: string, callId: string): string {
-    return `${traceId}:${callId}`;
-  }
-
-  /** Removes any pending terminal runner events left behind by an ending run. */
-  private deletePendingToolRunnerEvents(traceId: string): void {
-    const prefix = `${traceId}:`;
-
-    for (const key of this.pendingToolRunnerTerminalEvents.keys()) {
-      if (key.startsWith(prefix)) {
-        this.pendingToolRunnerTerminalEvents.delete(key);
-      }
-    }
-  }
-
-  /** Emits the standard run-start lifecycle events. */
-  private emitRunStarted(
-    input: AgentRunInput,
-    sessionId: string,
-    traceId: string,
-    options: RunInternalOptions,
-  ): void {
-    const metadata = createEventMetadata(input, sessionId, traceId);
-
-    emitAgentEvent(
-      this.eventBus,
-      {type: "runtime.session_started", sessionId, metadata},
-      options,
-    );
-    emitAgentEvent(
-      this.eventBus,
-      {type: "runtime.status_changed", status: "running", metadata},
-      options,
-    );
-    emitAgentEvent(
-      this.eventBus,
-      {type: "conversation.user_message", content: input.prompt, metadata},
-      options,
-    );
-  }
-
-  /** Emits the standard run-stop lifecycle events for completed or non-error stops. */
-  private emitRunStopped(
-    input: AgentRunInput,
-    runId: string,
-    sessionId: string,
-    traceId: string,
-    stopReason: AgentStopReason,
-    options: RunInternalOptions,
-  ): void {
-    const metadata = createEventMetadata(input, sessionId, traceId);
-
-    emitAgentEvent(
-      this.eventBus,
-      {type: "conversation.assistant_done", messageId: runId, metadata},
-      options,
-    );
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "runtime.status_changed",
-        status: stopReason === "completed" ? "complete" : "waiting",
-        detail: stopReason,
-        metadata,
-      },
-      options,
-    );
-    emitAgentEvent(
-      this.eventBus,
-      {type: "runtime.session_stopped", sessionId, metadata},
-      options,
-    );
-  }
-
-  /** Emits error lifecycle events when the agent run fails unexpectedly. */
-  private emitRunFailed(
-    input: AgentRunInput,
-    sessionId: string,
-    traceId: string,
-    stopReason: AgentStopReason,
-    error: unknown,
-    options: RunInternalOptions,
-  ): void {
-    const metadata = createEventMetadata(input, sessionId, traceId);
-
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "runtime.error",
-        message: error instanceof Error ? error.message : "Agent run failed.",
-        detail: error,
-        metadata,
-      },
-      options,
-    );
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "runtime.status_changed",
-        status: "error",
-        detail: stopReason,
-        metadata,
-      },
-      options,
-    );
-    emitAgentEvent(
-      this.eventBus,
-      {type: "runtime.session_stopped", sessionId, metadata},
-      options,
-    );
-  }
-
-  /** Emits the assistant stage event for the current model/tool loop iteration. */
-  private emitAssistantStage(
-    context: AgentRunContext,
-    iteration: number,
-    options: RunInternalOptions,
-  ): void {
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "conversation.assistant_stage",
-        messageId: context.runId,
-        stage: iteration === 1 ? "thinking" : "executing",
-        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
-      },
-      options,
-    );
-  }
-
-  /** Emits the task-started event used by runtime observers. */
-  private emitTaskStarted(
-    task: TaskRun,
-    input: AgentRunInput,
-    sessionId: string,
-    traceId: string,
-    options: RunInternalOptions,
-  ): void {
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "task.started",
-        taskId: task.id,
-        prompt: input.prompt,
-        metadata: createEventMetadata(input, sessionId, traceId),
-      },
-      options,
-    );
-  }
-
-  /** Emits change-set events after tracked workspace changes are checkpointed. */
-  private emitChangeSetApplied(
-    changeSet: ChangeSet,
-    checkpointPath: string | undefined,
-    context: AgentRunContext,
-    options: RunInternalOptions,
-  ): void {
-    const files = changeSet.files.map((file) => file.path);
-    const metadata = createEventMetadata(
-      context.input,
-      context.sessionId,
-      context.traceId,
-    );
-
-    emitAgentEvent(
-      this.eventBus,
-      {type: "change_set.created", id: changeSet.id, files, metadata},
-      options,
-    );
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "change_set.applied",
-        id: changeSet.id,
-        files,
-        changes: changeSet.files,
-        checkpointPath,
-        metadata,
-      },
-      options,
-    );
-  }
-
-  /** Emits the rollback-started event for a change set. */
-  private emitChangeSetRollbackStarted(
-    changeSet: ChangeSet,
-    context: AgentRunContext,
-    options: RunInternalOptions,
-  ): void {
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "change_set.rollback_started",
-        id: changeSet.id,
-        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
-      },
-      options,
-    );
-  }
-
-  /** Emits the rollback-completed event for a change set. */
-  private emitChangeSetRollbackCompleted(
-    changeSet: ChangeSet,
-    context: AgentRunContext,
-    options: RunInternalOptions,
-  ): void {
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "change_set.rollback_completed",
-        id: changeSet.id,
-        metadata: createEventMetadata(context.input, context.sessionId, context.traceId),
-      },
-      options,
-    );
-  }
-
-  /** Emits the verification-started event with selected verification commands. */
-  private emitVerificationStarted(
-    commands: readonly string[],
-    input: AgentRunInput,
-    sessionId: string,
-    traceId: string,
-    options: RunInternalOptions,
-  ): void {
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "verification.started",
-        commands,
-        metadata: createEventMetadata(input, sessionId, traceId),
-      },
-      options,
-    );
-  }
-
-  /** Emits the verification-completed event for one verification batch. */
-  private emitVerificationCompleted(
-    results: readonly VerificationResult[],
-    input: AgentRunInput,
-    sessionId: string,
-    traceId: string,
-    options: RunInternalOptions,
-  ): void {
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "verification.completed",
-        passed: results.every((result) => result.passed),
-        commands: results.map((result) => result.command),
-        metadata: createEventMetadata(input, sessionId, traceId),
-      },
-      options,
-    );
-  }
-
-  /** Emits the trace-persisted event when trace storage produced a file path. */
-  private emitTracePersisted(
-    tracePath: string | undefined,
-    input: AgentRunInput,
-    sessionId: string,
-    traceId: string,
-    options: RunInternalOptions,
-  ): void {
-    if (!tracePath) {
-      return;
-    }
-
-    emitAgentEvent(
-      this.eventBus,
-      {
-        type: "trace.persisted",
-        path: tracePath,
-        metadata: createEventMetadata(input, sessionId, traceId),
-      },
-      options,
-    );
-  }
-
-  /** Returns current EventBus history filtered to one trace for trace persistence. */
-  private eventsForTrace(traceId: string): PixelleEvent[] {
-    return this.eventBus.history().filter((event) => event.metadata?.traceId === traceId);
   }
 }
 
-/** Creates a default agent runtime from either full options or loaded config. */
+/**
+ * Alias kept for consumers that prefer the explicit CodingAgent name.
+ */
+export const CodingAgent = Agent;
+
+/**
+ * Creates an agent runtime from either full agent options or a loaded config.
+ */
 export function createAgentRuntime(options: AgentOptions): Agent;
 export function createAgentRuntime(config: AgentConfig): Agent;
 export function createAgentRuntime(input: AgentOptions | AgentConfig): Agent {
@@ -1170,7 +347,9 @@ export function createAgentRuntime(input: AgentOptions | AgentConfig): Agent {
   return new Agent(input as AgentOptions);
 }
 
-/** Creates the product runtime by loading Pixelle config from pixelle.toml. */
+/**
+ * Creates the product runtime by loading Pixelle config from pixelle.toml.
+ */
 export async function createAgentRuntimeFromConfig(
   options: CreateAgentRuntimeFromConfigOptions = {},
 ): Promise<Agent> {
@@ -1181,117 +360,4 @@ export async function createAgentRuntimeFromConfig(
     ...injections,
     config,
   });
-}
-
-/** Creates the initial task record tracked through the agent run lifecycle. */
-function createTaskRun(runId: string): TaskRun {
-  const now = Date.now();
-
-  return {
-    id: runId,
-    runId,
-    status: "created",
-    createdAt: now,
-    updatedAt: now,
-    steps: [
-      {id: "scan", title: "Scan workspace", status: "pending"},
-      {id: "execute", title: "Execute agent loop", status: "pending"},
-      {id: "verify", title: "Verify result", status: "pending"},
-    ],
-  };
-}
-
-/** Builds the prompt used to ask the model to repair a failed verification command. */
-function buildRepairPrompt(failure: VerificationResult, repairAttempt: number): string {
-  const output = [failure.stderr, failure.stdout].filter(Boolean).join("\n\n");
-
-  return [
-    `Verification failed on repair attempt ${repairAttempt}.`,
-    `Command: ${failure.command}`,
-    `Exit code: ${failure.exitCode ?? "none"}`,
-    "Fix the issue using the available tools, then stop when the change is ready for verification.",
-    "Verification output:",
-    output.slice(0, 12_000),
-  ].join("\n\n");
-}
-
-const TRACE_MESSAGE_CONTENT_LIMIT = 4_000;
-const TRACE_TOOL_ARGUMENT_LIMIT = 4_000;
-const TRACE_TOOL_COUNT_LIMIT = 32;
-
-function createTraceModelRequest(request: AgentModelRequest): AgentModelRequest {
-  return {
-    ...request,
-    messages: request.messages.map(createTraceMessage),
-    tools: request.tools?.slice(0, TRACE_TOOL_COUNT_LIMIT),
-  };
-}
-
-function createTraceModelResponse(response: AgentModelResponse): AgentModelResponse {
-  return {
-    ...response,
-    content: truncateTraceString(response.content, TRACE_MESSAGE_CONTENT_LIMIT),
-    toolCalls: response.toolCalls.map((toolCall) => ({
-      ...toolCall,
-      arguments: truncateTraceRecord(toolCall.arguments, TRACE_TOOL_ARGUMENT_LIMIT),
-    })),
-  };
-}
-
-function createTraceMessage(message: LLMMessage): LLMMessage {
-  if (message.role === "assistant") {
-    return {
-      ...message,
-      content:
-        message.content === undefined
-          ? undefined
-          : truncateTraceString(message.content, TRACE_MESSAGE_CONTENT_LIMIT),
-      toolCalls: message.toolCalls?.map((toolCall) => ({
-        ...toolCall,
-        arguments: truncateTraceRecord(toolCall.arguments, TRACE_TOOL_ARGUMENT_LIMIT),
-      })),
-    };
-  }
-
-  return {
-    ...message,
-    content: truncateTraceString(message.content, TRACE_MESSAGE_CONTENT_LIMIT),
-  };
-}
-
-function truncateTraceString(value: string, limit: number): string {
-  if (value.length <= limit) {
-    return value;
-  }
-
-  return `${value.slice(0, limit)}\n\n[trace truncated ${value.length - limit} chars]`;
-}
-
-function truncateTraceJson(value: unknown, limit: number): unknown {
-  const serialized = safeJsonStringify(value);
-  if (!serialized || serialized.length <= limit) {
-    return value;
-  }
-
-  return `[trace truncated ${serialized.length - limit} chars] ${serialized.slice(0, limit)}`;
-}
-
-function truncateTraceRecord(
-  value: Record<string, unknown>,
-  limit: number,
-): Record<string, unknown> {
-  const truncated = truncateTraceJson(value, limit);
-  if (typeof truncated === "string") {
-    return {__pixelleTraceTruncated: truncated};
-  }
-
-  return value;
-}
-
-function safeJsonStringify(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
 }

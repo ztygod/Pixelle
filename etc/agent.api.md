@@ -129,6 +129,13 @@ export type AgentContextValue = string | {
 };
 
 // @public
+export type AgentMemory = {
+    loadRunMemory?(run: AgentRunState): Promise<readonly AgentContextValue[]> | readonly AgentContextValue[];
+    loadProjectMemory?(run: AgentRunState): Promise<readonly AgentContextValue[]> | readonly AgentContextValue[];
+    saveRunMemory?(run: AgentRunState): Promise<void> | void;
+};
+
+// @public
 export type AgentMiddleware = {
     beforeAgentRun?(context: AgentRunContext): void | Promise<void>;
     afterAgentRun?(result: AgentRunResult, context: AgentRunContext): AgentRunResult | void | Promise<AgentRunResult | void>;
@@ -163,8 +170,40 @@ export type AgentModelTrace = {
 };
 
 // @public
+export class AgentObserver {
+    // Warning: (ae-forgotten-export) The symbol "AgentObserverOptions" needs to be exported by the entry point index.d.ts
+    constructor(options: AgentObserverOptions);
+    assistantDelta(run: AgentRunState, delta: string): void;
+    assistantStage(run: AgentRunState): void;
+    changeSetApplied(run: AgentRunState, changeSet: ChangeSet, checkpointPath?: string): void;
+    changeSetRollbackCompleted(run: AgentRunState, changeSet: ChangeSet): void;
+    changeSetRollbackStarted(run: AgentRunState, changeSet: ChangeSet): void;
+    contextBuilt(run: AgentRunState, tokenEstimate: number): void;
+    get eventBus(): EventBus<PixelleEvent>;
+    metadata(run: AgentRunState): Record<string, unknown>;
+    modelCompleted(_run: AgentRunState, _response: AgentModelResponse): void;
+    runCompleted(run: AgentRunState): void;
+    runFailed(run: AgentRunState, error: unknown): void;
+    runStarted(run: AgentRunState): void;
+    toolCompleted(run: AgentRunState, call: AgentToolCall, result: ToolResult): void;
+    toolStarted(run: AgentRunState, call: AgentToolCall): void;
+    toolStreamed(run: AgentRunState, call: AgentToolCall, stream: ToolStreamChunk): void;
+    verificationCompleted(run: AgentRunState, results: readonly VerificationResult[]): void;
+    verificationStarted(run: AgentRunState, commands: readonly string[]): void;
+}
+
+// @public
 export type AgentOptions = {
     config: AgentRuntimeConfig | AgentConfig;
+    model?: ModelRuntime;
+    tools?: ToolRuntime;
+    context?: ContextManager;
+    workspace?: WorkspaceService;
+    memory?: AgentMemory;
+    policy?: RuntimePolicy;
+    changes?: ChangeRuntime;
+    verification?: VerificationPipeline;
+    observer?: AgentObserver;
     llm?: BaseLLMClient;
     toolRegistry?: ToolRegistry;
     toolRunner?: ToolRunner;
@@ -235,6 +274,43 @@ export type AgentRunResult = {
 };
 
 // @public
+export class AgentRunState {
+    constructor(options: AgentRunStateOptions);
+    canContinue(maxIterations: number): boolean;
+    readonly changes: ChangeSet[];
+    checkpointPath?: string;
+    complete(content?: string): void;
+    content: string;
+    readonly context: AgentRunContext;
+    error?: unknown;
+    fail(error?: unknown): void;
+    readonly input: AgentRunInput;
+    // Warning: (ae-forgotten-export) The symbol "RunInternalOptions" needs to be exported by the entry point index.d.ts
+    readonly internalOptions: RunInternalOptions;
+    iteration: number;
+    readonly messages: LLMMessage[];
+    nextIteration(): number;
+    readonly runId: string;
+    readonly sessionId: string;
+    stopReason: AgentStopReason;
+    readonly task: TaskRun;
+    readonly toolResults: AgentToolResult[];
+    toResult(): AgentRunResult;
+    readonly traceId: string;
+    usage?: LLMUsage;
+    readonly verification: VerificationResult[];
+    workspaceProfile?: WorkspaceProfile;
+}
+
+// @public
+export type AgentRunStateOptions = {
+    agent: AgentRunContext["agent"];
+    config: AgentRuntimeConfig;
+    input: AgentRunInput;
+    internalOptions?: RunInternalOptions;
+};
+
+// @public
 export type AgentRuntimeConfig = {
     llm?: AgentConfig["llm"];
     runtime: RuntimeConfig;
@@ -301,6 +377,23 @@ export type ChangedFile = {
 // @public (undocumented)
 export type ChangedFileStatus = "created" | "modified" | "deleted";
 
+// @public
+export class ChangeRuntime {
+    constructor(options: ChangeRuntimeOptions);
+    checkpoint(run: AgentRunState): Promise<void>;
+    prepare(run: AgentRunState): ToolFileWriter;
+    rollback(run: AgentRunState): Promise<void>;
+}
+
+// @public
+export type ChangeRuntimeOptions = {
+    config: AgentRuntimeConfig;
+    workspace: WorkspaceService;
+    policy: RuntimePolicy;
+    observer: AgentObserver;
+    checkpointStore?: CheckpointStore;
+};
+
 // @public (undocumented)
 export type ChangeSet = {
     id: string;
@@ -334,6 +427,9 @@ export type CheckpointStore = {
     readonly checkpointRoot?: string;
     save(changeSet: ChangeSet): Promise<string | undefined>;
 };
+
+// @public
+export const CodingAgent: typeof Agent;
 
 // @public
 export class CommandPolicy implements CommandPolicyLike {
@@ -382,6 +478,29 @@ export type CommandPolicyOptions = {
 };
 
 // @public
+export class ContextManager {
+    constructor(options: ContextManagerOptions);
+    appendAssistantResponse(run: AgentRunState, response: AgentModelResponse): void;
+    appendRepairPrompt(run: AgentRunState, content: string): void;
+    appendToolResults(run: AgentRunState, toolResults: readonly AgentToolResult[]): void;
+    buildModelRequest(run: AgentRunState): readonly LLMMessage[];
+    prepare(run: AgentRunState): Promise<void>;
+    save(run: AgentRunState): Promise<void>;
+}
+
+// @public
+export type ContextManagerOptions = {
+    config: AgentRuntimeConfig;
+    workspace: WorkspaceService;
+    memory: AgentMemory;
+    observer: AgentObserver;
+    contextProviders?: readonly AgentContextProvider[];
+};
+
+// @public
+export function createAgentObserver(options: AgentObserverOptions): AgentObserver;
+
+// @public
 export function createAgentRuntime(options: AgentOptions): Agent;
 
 // @public (undocumented)
@@ -394,10 +513,34 @@ export function createAgentRuntimeFromConfig(options?: CreateAgentRuntimeFromCon
 export type CreateAgentRuntimeFromConfigOptions = LoadAgentConfigOptions & AgentRuntimeInjectionOptions;
 
 // @public
+export function createChangeRuntime(options: ChangeRuntimeOptions): ChangeRuntime;
+
+// @public
 export function createCommandPolicy(options?: CommandPolicyOptions): CommandPolicy;
 
 // @public
+export function createContextManager(options: ContextManagerOptions): ContextManager;
+
+// @public
 export function createDefaultToolRegistry(): ToolRegistry;
+
+// @public
+export function createModelRuntime(options: ModelRuntimeOptions): ModelRuntime;
+
+// @public
+export function createNoopMemory(): AgentMemory;
+
+// @public
+export function createRuntimePolicy(options: RuntimePolicyOptions): RuntimePolicy;
+
+// @public
+export function createToolRuntime(options: ToolRuntimeOptions): ToolRuntime;
+
+// @public
+export function createVerificationPipeline(options: VerificationPipelineOptions): VerificationPipeline;
+
+// @public
+export function createWorkspaceService(options: WorkspaceServiceOptions): WorkspaceService;
 
 // @public (undocumented)
 export const DEFAULT_WEB_FETCH_MAX_LENGTH = 20000;
@@ -552,6 +695,20 @@ export const MAX_WEB_FETCH_MAX_LENGTH = 200000;
 export const MAX_WEB_FETCH_TIMEOUT_MS = 60000;
 
 // @public
+export class ModelRuntime {
+    constructor(options: ModelRuntimeOptions);
+    generate(input: Omit<LLMGenerateInput, "timeoutMs" | "maxRetries">, run: AgentRunState): Promise<AgentModelResponse>;
+}
+
+// @public
+export type ModelRuntimeOptions = {
+    config: AgentRuntimeConfig;
+    llm?: BaseLLMClient;
+    middleware: AgentMiddlewarePipeline;
+    observer: AgentObserver;
+};
+
+// @public
 export function okToolResult<TData>(message: string, data: TData, display?: ToolSuccessResult<TData>["display"]): ToolSuccessResult<TData>;
 
 // @public (undocumented)
@@ -606,6 +763,20 @@ export const RuntimeConfigSchema: z.ZodObject<{
     workspaceDir: z.ZodString;
     rollbackOnFailure: z.ZodBoolean;
 }, z.core.$strip>;
+
+// @public
+export class RuntimePolicy {
+    constructor(options: RuntimePolicyOptions);
+    readonly commandPolicy: CommandPolicyLike;
+    toolPermissions(runPermissions?: ToolPermissions): ToolPermissions;
+}
+
+// @public
+export type RuntimePolicyOptions = {
+    config: AgentRuntimeConfig["permissions"];
+    permissions?: ToolPermissions;
+    commandPolicy?: CommandPolicyLike;
+};
 
 // @public (undocumented)
 export type SafeWorkspacePath = {
@@ -736,12 +907,17 @@ export type ToolResult<TData = unknown> = ToolSuccessResult<TData> | ToolErrorRe
 
 // @public
 export type ToolResultDisplay = {
+    kind?: ToolResultDisplayKind;
     title?: string;
+    target?: string;
     summary?: string;
     preview?: string;
-    stats?: Record<string, string | number>;
+    stats?: Record<string, string | number | boolean>;
     truncated?: boolean;
 };
+
+// @public (undocumented)
+export type ToolResultDisplayKind = "command" | "file" | "edit" | "search" | "list" | "network" | "text" | "json";
 
 // @public
 export class ToolRunner {
@@ -801,9 +977,42 @@ export type ToolRunOptions = {
 };
 
 // @public
+export class ToolRuntime {
+    constructor(options: ToolRuntimeOptions);
+    execute(run: AgentRunState, toolCalls: readonly AgentToolCall[]): Promise<AgentToolResult[]>;
+    // Warning: (ae-forgotten-export) The symbol "LLMTool" needs to be exported by the entry point index.d.ts
+    schemas(): LLMTool[];
+}
+
+// @public
+export type ToolRuntimeOptions = {
+    config: AgentRuntimeConfig;
+    workspace: WorkspaceService;
+    policy: RuntimePolicy;
+    changes: ChangeRuntime;
+    observer: AgentObserver;
+    middleware: AgentMiddlewarePipeline;
+    toolRegistry?: ToolRegistry;
+    toolRunner?: ToolRunner;
+};
+
+// @public
 export type ToolStreamChunk = {
-    type: "stdout" | "stderr" | "data";
+    type: "stdout" | "stderr" | "log";
     content: string;
+    level?: "debug" | "info" | "warn" | "error";
+    metadata?: Record<string, unknown>;
+} | {
+    type: "data";
+    data?: unknown;
+    content?: string;
+    metadata?: Record<string, unknown>;
+} | {
+    type: "progress";
+    label?: string;
+    current?: number;
+    total?: number;
+    percent?: number;
     metadata?: Record<string, unknown>;
 };
 
@@ -864,6 +1073,25 @@ export type VerificationOptions = {
     signal?: AbortSignal;
 };
 
+// @public
+export class VerificationPipeline {
+    constructor(options: VerificationPipelineOptions);
+    verifyAndRepair(run: AgentRunState, maxIterations: number): Promise<void>;
+}
+
+// @public
+export type VerificationPipelineOptions = {
+    config: AgentRuntimeConfig;
+    workspace: WorkspaceService;
+    policy: RuntimePolicy;
+    tools: ToolRuntime;
+    model: ModelRuntime;
+    context: ContextManager;
+    changes: ChangeRuntime;
+    observer: AgentObserver;
+    verifier?: Verifier;
+};
+
 // @public (undocumented)
 export type VerificationResult = {
     command: string;
@@ -904,6 +1132,19 @@ export class WorkspaceScanner {
     scan(workspaceRoot: string, signal?: AbortSignal): Promise<WorkspaceProfile>;
 }
 
+// @public
+export class WorkspaceService {
+    constructor(options: WorkspaceServiceOptions);
+    prepare(run: AgentRunState): Promise<WorkspaceProfile>;
+    get root(): string;
+}
+
+// @public
+export type WorkspaceServiceOptions = {
+    workspaceRoot: string;
+    scanner?: WorkspaceScanner;
+};
+
 // Warning: (ae-forgotten-export) The symbol "writeFileParameters" needs to be exported by the entry point index.d.ts
 //
 // @public
@@ -914,8 +1155,9 @@ export const writeFileTool: Tool<typeof writeFileParameters, {
 
 // Warnings were encountered during analysis:
 //
-// src/agent/types.ts:62:3 - (ae-forgotten-export) The symbol "LLMMessage" needs to be exported by the entry point index.d.ts
-// src/agent/types.ts:124:3 - (ae-forgotten-export) The symbol "LLMUsage" needs to be exported by the entry point index.d.ts
+// src/agent/runtime/model-runtime.ts:20:3 - (ae-forgotten-export) The symbol "AgentMiddlewarePipeline" needs to be exported by the entry point index.d.ts
+// src/agent/types.ts:73:3 - (ae-forgotten-export) The symbol "LLMMessage" needs to be exported by the entry point index.d.ts
+// src/agent/types.ts:135:3 - (ae-forgotten-export) The symbol "LLMUsage" needs to be exported by the entry point index.d.ts
 // src/config/types.ts:12:3 - (ae-forgotten-export) The symbol "LLMProvider" needs to be exported by the entry point index.d.ts
 // src/runtime/policy/types.ts:32:3 - (ae-forgotten-export) The symbol "PolicySource" needs to be exported by the entry point index.d.ts
 // src/runtime/policy/types.ts:33:3 - (ae-forgotten-export) The symbol "ApprovalMode" needs to be exported by the entry point index.d.ts
