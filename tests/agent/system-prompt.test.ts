@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vitest";
 
 import {Agent} from "../../src/agent/index.js";
+import {estimateTokens} from "../../src/context/index.js";
 import {EventBus, type PixelleEvent} from "../../src/events/index.js";
 import {BaseLLMClient} from "../../src/llm/index.js";
 import type {LLMGenerateInput, LLMResponse} from "../../src/llm/types.js";
@@ -153,7 +154,7 @@ describe("ContextManager system prompt", () => {
     expect(runtimeContext).toContain("## Input Provider\ninput provider facts");
     expect(contextBuilt).toMatchObject({
       type: "runtime.context_built",
-      tokenEstimate: Math.ceil(prompt.length / 4),
+      tokenEstimate: estimateTokens(prompt),
     });
   });
 });

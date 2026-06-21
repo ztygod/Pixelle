@@ -1,14 +1,18 @@
 import {describe, expect, it} from "vitest";
 
 import {
+  ApproxTokenEstimator,
   buildRuntimeContext,
   ContextCompressionPipeline,
   ContextCompressionResultFactory,
   ContextEngine,
   ContextRegistry,
   DefaultContextBudgetPolicy,
+  estimateTokens,
+  GptTokenEstimator,
   NoopContextCompressor,
   RuleBasedContextCompressor,
+  truncateTextToTokens,
   type ContextBudget,
   type ContextCompressionResult,
   type ContextCompressor,
@@ -59,6 +63,15 @@ class MarkingCompressor implements ContextCompressor {
 }
 
 describe("buildRuntimeContext", () => {
+  it("provides approximate and gpt-backed token estimators", () => {
+    const approx = new ApproxTokenEstimator();
+    const gpt = new GptTokenEstimator();
+
+    expect(approx.countText("hello world")).toBeGreaterThan(0);
+    expect(gpt.countText("hello world")).toBeGreaterThan(0);
+    expect(estimateTokens("hello world")).toBeGreaterThan(0);
+  });
+
   it("matches the default ContextEngine output", () => {
     const input = {
       systemPrompt: "Base.",
@@ -298,6 +311,8 @@ describe("buildRuntimeContext", () => {
 
     expect(compression).toMatchObject({
       estimatedContextChars: 5,
+      estimatedContextTokens: 5,
+      compressionLimitTokens: 68,
       thresholdRatio: 0.85,
       triggered: false,
     });
@@ -312,6 +327,8 @@ describe("buildRuntimeContext", () => {
       compressionThresholdRatio: 0.85,
       compressionTriggered: false,
       estimatedContextChars: 5,
+      estimatedContextTokens: 5,
+      compressionLimitTokens: 68,
     });
     expect(result.diagnostics?.compressionResults).toEqual([
       expect.objectContaining({
@@ -399,6 +416,17 @@ describe("buildRuntimeContext", () => {
         reason: "No compression applied.",
       }),
     ]);
+  });
+
+  it("truncates text to a token limit without exceeding the limit", () => {
+    const truncated = truncateTextToTokens(
+      "line-one\nline-two\nline-three",
+      10,
+      charTokenEstimator,
+    );
+
+    expect(charTokenEstimator.countText(truncated)).toBeLessThanOrEqual(10);
+    expect(truncated).toBe("line-one\n");
   });
 
   it("creates compression results through the shared factory", () => {
