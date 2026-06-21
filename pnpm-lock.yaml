@@ -22,6 +22,9 @@ importers:
       diff:
         specifier: ^9.0.0
         version: 9.0.0
+      gpt-tokenizer:
+        specifier: ^3.4.0
+        version: 3.4.0
       ink:
         specifier: ^7.0.3
         version: 7.0.5(@types/react@19.2.17)(react@19.2.7)
@@ -2095,6 +2098,12 @@ packages:
         integrity: sha512-jhIXaOzy1sb8IyocaruWSn1TjmnBVs8Ayhcy83rmxNJ8q2uWKCAj3CnJY+KpGSXCueAPc0i05kVvVKtP1t9S3g==,
       }
     engines: {node: ">=10"}
+
+  gpt-tokenizer@3.4.0:
+    resolution:
+      {
+        integrity: sha512-wxFLnhIXTDjYebd9A9pGl3e31ZpSypbpIJSOswbgop5jLte/AsZVDvjlbEuVFlsqZixVKqbcoNmRlFDf6pz/UQ==,
+      }
 
   graceful-fs@4.2.11:
     resolution:
@@ -4910,6 +4919,8 @@ snapshots:
       ignore: 5.3.2
       merge2: 1.4.1
       slash: 3.0.0
+
+  gpt-tokenizer@3.4.0: {}
 
   graceful-fs@4.2.11: {}
 

@@ -1,4 +1,10 @@
 import type {LLMMessage} from "../../llm/types.js";
+import {
+  ContextEngine,
+  RuleBasedContextCompressor,
+  type BuildContextDiagnostics,
+  type ContextSection,
+} from "../../context/index.js";
 import type {
   AgentContextProvider,
   AgentContextValue,
@@ -33,52 +39,98 @@ export type ContextManagerOptions = {
 /** Builds model context and owns transcript mutation for assistant/tool turns. */
 export class ContextManager {
   private readonly contextProviders: AgentContextProvider[];
+  private readonly contextEngine = new ContextEngine({
+    compressor: new RuleBasedContextCompressor(),
+  });
+  private readonly runStates = new WeakMap<AgentRunState, ContextManagerRunState>();
 
   /** Creates a context manager with static agent-level context providers. */
   constructor(private readonly options: ContextManagerOptions) {
     this.contextProviders = [...(options.contextProviders ?? [])];
   }
 
-  /** Builds the initial system, history, and user messages for a run. */
+  /** Initializes static context sources and the mutable transcript for a run. */
   async prepare(run: AgentRunState): Promise<void> {
-    const values = [
-      ...(await this.loadMemory(run)),
-      ...(run.input.context ?? []),
+    const sections = [
+      ...(await this.loadMemory(run)).map((value) => toContextSection(value, "memory")),
+      ...(run.input.context ?? []).map((value) => toContextSection(value, "user")),
       {
         title: "Workspace Profile",
         priority: 100,
         content: JSON.stringify(run.workspaceProfile, null, 2),
-      },
+        source: {kind: "workspace"},
+      } satisfies ContextSection,
     ];
+
+    /**
+     * Context providers are deferred runtime context producers.
+     *
+     * They are useful when some context cannot be passed as static input,
+     * and must be generated from the current AgentRunContext at run time.
+     *
+     * Common examples:
+     * - Git status provider:
+     *   injects current branch, modified files, staged files, or recent commits.
+     *
+     * - Run mode provider:
+     *   injects mode-specific rules, such as "plan mode: do not modify files".
+     *
+     * - Diagnostics provider:
+     *   injects recent test failures, lint errors, or command execution summaries.
+     *
+     * - External issue provider:
+     *   injects GitHub / Linear / Jira issue details related to the current task.
+     *
+     * A provider may return either:
+     * - a string, which will use provider.name as the context section title
+     * - an AgentContextValue object, which may define its own title, priority, and content
+     *
+     * The returned value is converted into a ContextSection and then passed to
+     * the generic src/context pipeline together with memory, user context, and
+     * workspace profile sections.
+     */
     const providers = [...this.contextProviders, ...(run.input.contextProviders ?? [])];
 
     for (const provider of providers) {
       const value = await provider.build(run.context);
-      values.push(
+      sections.push(
         typeof value === "string"
-          ? {title: provider.name, content: value}
-          : {title: value.title ?? provider.name, ...value},
+          ? {
+              title: provider.name,
+              content: value,
+              source: {kind: "provider", ref: provider.name},
+            }
+          : {
+              title: value.title ?? provider.name,
+              ...value,
+              source: {kind: "provider", ref: provider.name},
+            },
       );
     }
 
-    const contextText = truncateContext(
-      values.sort(compareContextValue).map(formatContextValue).filter(Boolean),
-      this.options.config.runtime.tokensLimit,
-    );
-    this.options.observer.contextBuilt(run, estimateTokens(contextText));
-    const systemPrompt = buildSystemPrompt(
-      run.input.systemPrompt ?? this.options.config.runtime.systemPrompt,
-      contextText,
-    );
-
-    run.messages.push({role: "system", content: systemPrompt});
+    this.initializeRunState(run, sections);
     run.messages.push(...(run.input.messages ?? []));
     run.messages.push({role: "user", content: run.input.prompt});
   }
 
-  /** Returns the current transcript to send to the model runtime. */
+  /** Builds a fresh model transcript with dynamic runtime context. */
   buildModelRequest(run: AgentRunState): readonly LLMMessage[] {
-    return run.messages;
+    const state = this.getRunState(run);
+    const projection = this.projectTranscript(run);
+    const result = this.contextEngine.build({
+      systemPrompt:
+        run.input.systemPrompt ??
+        this.options.config.runtime.systemPrompt ??
+        DEFAULT_SYSTEM_PROMPT,
+      outputInstructions: CLI_MARKDOWN_OUTPUT_INSTRUCTIONS,
+      sections: [...state.baseSections, ...projection.archivedToolSections],
+      tokenLimit: this.options.config.runtime.tokensLimit,
+    });
+
+    this.recordContextBuild(run, state, result.diagnostics);
+    this.options.observer.contextBuilt(run, result.tokenEstimate);
+
+    return [{role: "system", content: result.systemPrompt}, ...projection.messages];
   }
 
   /** Appends a normalized assistant response to the transcript. */
@@ -117,6 +169,80 @@ export class ContextManager {
     const projectMemory = await this.options.memory.loadProjectMemory?.(run);
     return [...(projectMemory ?? []), ...(runMemory ?? [])];
   }
+
+  private initializeRunState(
+    run: AgentRunState,
+    baseSections: readonly ContextSection[],
+  ): void {
+    const state: ContextManagerRunState = {
+      baseSections: [...baseSections],
+      contextBuilds: [],
+    };
+    this.runStates.set(run, state);
+    run.context.contextBuilds = state.contextBuilds;
+  }
+
+  private getRunState(run: AgentRunState): ContextManagerRunState {
+    const state = this.runStates.get(run);
+    if (state) {
+      return state;
+    }
+
+    const fallbackState: ContextManagerRunState = {
+      baseSections: [],
+      contextBuilds: [],
+    };
+    this.runStates.set(run, fallbackState);
+    run.context.contextBuilds = fallbackState.contextBuilds;
+    return fallbackState;
+  }
+
+  private recordContextBuild(
+    run: AgentRunState,
+    state: ContextManagerRunState,
+    diagnostics: BuildContextDiagnostics | undefined,
+  ): void {
+    state.lastBuildDiagnostics = diagnostics;
+    state.contextBuilds.push({iteration: run.iteration, diagnostics});
+    run.context.lastContextBuildDiagnostics = diagnostics;
+    run.context.contextBuilds = state.contextBuilds;
+  }
+
+  private projectTranscript(run: AgentRunState): TranscriptProjection {
+    const latestExchangeStart = findLatestCompletedToolExchangeStart(run.messages);
+    const messages: LLMMessage[] = [];
+    const archivedToolSections: ContextSection[] = [];
+
+    for (let index = 0; index < run.messages.length; index += 1) {
+      const message = run.messages[index];
+      if (!message || message.role === "system") {
+        continue;
+      }
+
+      if (isAssistantWithToolCalls(message)) {
+        const exchange = readToolExchange(run.messages, index);
+        if (exchange) {
+          if (index === latestExchangeStart) {
+            messages.push(message, ...exchange.toolMessages);
+          } else {
+            archivedToolSections.push(
+              ...exchange.toolMessages.map((toolMessage) =>
+                createToolResultSection(message, toolMessage),
+              ),
+            );
+          }
+          index = exchange.endIndex;
+          continue;
+        }
+      }
+
+      if (message.role !== "tool") {
+        messages.push(message);
+      }
+    }
+
+    return {messages, archivedToolSections};
+  }
 }
 
 /** Creates the default context manager. */
@@ -124,66 +250,110 @@ export function createContextManager(options: ContextManagerOptions): ContextMan
   return new ContextManager(options);
 }
 
-/** Estimates tokens using the runtime's coarse character-based heuristic. */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
-
-/** Combines the configured system prompt, CLI instructions, and runtime context. */
-function buildSystemPrompt(
-  systemPrompt: string | undefined,
-  contextText: string,
-): string {
-  const prompt = systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
-  const promptWithCliInstructions = `${prompt}\n\n${CLI_MARKDOWN_OUTPUT_INSTRUCTIONS}`;
-
-  if (!contextText) {
-    return promptWithCliInstructions;
-  }
-
-  return `${promptWithCliInstructions}\n\n# Runtime Context\n${contextText}`;
-}
-
-function formatContextValue(value: AgentContextValue): string {
+function toContextSection(
+  value: AgentContextValue,
+  source: "memory" | "user",
+): ContextSection {
   if (typeof value === "string") {
-    return value.trim();
+    return {content: value, source: {kind: source}};
   }
 
-  const content = value.content.trim();
-  if (!content) {
-    return "";
+  return {...value, source: {kind: source}};
+}
+
+type ContextManagerRunState = {
+  baseSections: ContextSection[];
+  contextBuilds: Array<{
+    iteration: number;
+    diagnostics?: BuildContextDiagnostics;
+  }>;
+  lastBuildDiagnostics?: BuildContextDiagnostics;
+};
+
+type TranscriptProjection = {
+  messages: LLMMessage[];
+  archivedToolSections: ContextSection[];
+};
+
+type AssistantToolMessage = Extract<LLMMessage, {role: "assistant"}> & {
+  toolCalls: NonNullable<Extract<LLMMessage, {role: "assistant"}>["toolCalls"]>;
+};
+
+type ToolMessage = Extract<LLMMessage, {role: "tool"}>;
+
+type ToolExchange = {
+  toolMessages: ToolMessage[];
+  endIndex: number;
+};
+
+function isAssistantWithToolCalls(message: LLMMessage): message is AssistantToolMessage {
+  return (
+    message.role === "assistant" &&
+    Array.isArray(message.toolCalls) &&
+    message.toolCalls.length > 0
+  );
+}
+
+function readToolExchange(
+  messages: readonly LLMMessage[],
+  assistantIndex: number,
+): ToolExchange | undefined {
+  const assistant = messages[assistantIndex];
+  if (!assistant || !isAssistantWithToolCalls(assistant)) {
+    return undefined;
   }
 
-  return value.title ? `## ${value.title}\n${content}` : content;
-}
+  const expectedIds = new Set(assistant.toolCalls.map((toolCall) => toolCall.id));
+  const toolMessages: ToolMessage[] = [];
+  let index = assistantIndex + 1;
 
-function compareContextValue(left: AgentContextValue, right: AgentContextValue): number {
-  return getContextPriority(right) - getContextPriority(left);
-}
-
-function getContextPriority(value: AgentContextValue): number {
-  return typeof value === "string" ? 0 : (value.priority ?? 0);
-}
-
-function truncateContext(blocks: string[], tokenLimit: number): string {
-  const maxChars = Math.max(0, Math.floor(tokenLimit * 4 * 0.35));
-  let remaining = maxChars;
-  const selectedBlocks: string[] = [];
-
-  for (const block of blocks) {
-    if (remaining <= 0) {
+  while (index < messages.length) {
+    const message = messages[index];
+    if (!message || message.role !== "tool" || !expectedIds.has(message.toolCallId)) {
       break;
     }
 
-    const separatorLength = selectedBlocks.length ? 2 : 0;
-    const allowed = remaining - separatorLength;
-    if (allowed <= 0) {
-      break;
-    }
+    toolMessages.push(message);
+    index += 1;
 
-    selectedBlocks.push(block.length > allowed ? block.slice(0, allowed) : block);
-    remaining -= Math.min(block.length, allowed) + separatorLength;
+    if (toolMessages.length === expectedIds.size) {
+      return {toolMessages, endIndex: index - 1};
+    }
   }
 
-  return selectedBlocks.join("\n\n");
+  return undefined;
+}
+
+function findLatestCompletedToolExchangeStart(
+  messages: readonly LLMMessage[],
+): number | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (readToolExchange(messages, index)) {
+      return index;
+    }
+  }
+
+  return undefined;
+}
+
+function createToolResultSection(
+  assistant: AssistantToolMessage,
+  toolMessage: ToolMessage,
+): ContextSection {
+  return {
+    id: `tool-result:${toolMessage.toolCallId}`,
+    replaceKey: `tool-result:${toolMessage.toolCallId}`,
+    title: `Tool Result: ${toolMessage.name}`,
+    priority: 40,
+    source: {kind: "tool", ref: toolMessage.toolCallId},
+    content: [
+      `Tool: ${toolMessage.name}`,
+      `Call ID: ${toolMessage.toolCallId}`,
+      assistant.content ? `Assistant: ${assistant.content}` : undefined,
+      "Result:",
+      toolMessage.content,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join("\n"),
+  };
 }

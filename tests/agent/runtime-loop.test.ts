@@ -207,6 +207,80 @@ describe("Agent runtime loop", () => {
     });
   });
 
+  it("rebuilds runtime context each model request and archives older tool results", async () => {
+    const workspaceRoot = await createWorkspace();
+    const registry = new ToolRegistry();
+    const beforeModelBuildCounts: number[] = [];
+    const longOutput = "0123456789".repeat(1_500);
+
+    registry.register({
+      definition: {
+        name: "large_output",
+        description: "Returns a large output.",
+        parameters: z.object({label: z.string()}),
+      },
+      execute: (input: {label: string}) =>
+        okToolResult("Large output.", {
+          label: input.label,
+          output: input.label === "first" ? longOutput : "short output",
+        }),
+    });
+
+    const llm = new QueueLLMClient([
+      {
+        content: "First call.",
+        toolCalls: [
+          {id: "call-first", name: "large_output", arguments: {label: "first"}},
+        ],
+      },
+      {
+        content: "Second call.",
+        toolCalls: [
+          {id: "call-second", name: "large_output", arguments: {label: "second"}},
+        ],
+      },
+      {content: "Done.", toolCalls: []},
+    ]);
+
+    const config = createConfig(workspaceRoot);
+    config.runtime.tokensLimit = 2_000;
+    config.runtime.maxIterations = 4;
+
+    const result = await new Agent({
+      config,
+      llm,
+      toolRegistry: registry,
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+      middleware: [
+        {
+          beforeModel: (_request, context) => {
+            beforeModelBuildCounts.push(context.contextBuilds?.length ?? 0);
+          },
+        },
+      ],
+    }).run({prompt: "Use large output."});
+
+    const thirdRequest = llm.requests[2];
+    const thirdSystemPrompt = thirdRequest?.messages[0]?.content ?? "";
+
+    expect(result.stopReason).toBe("completed");
+    expect(llm.requests).toHaveLength(3);
+    expect(beforeModelBuildCounts).toEqual([1, 2, 3]);
+    expect(thirdSystemPrompt).toContain("## Tool Result: large_output");
+    expect(thirdSystemPrompt).toContain("Call ID: call-first");
+    expect(thirdSystemPrompt).toContain("chars omitted");
+    expect(
+      thirdRequest?.messages.some(
+        (message) => message.role === "tool" && message.toolCallId === "call-first",
+      ),
+    ).toBe(false);
+    expect(thirdRequest?.messages.at(-1)).toMatchObject({
+      role: "tool",
+      toolCallId: "call-second",
+      name: "large_output",
+    });
+  });
+
   it("emits one failed tool event for execution failures through the ToolRunner adapter", async () => {
     const workspaceRoot = await createWorkspace();
     const registry = new ToolRegistry();
