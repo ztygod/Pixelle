@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vitest";
 
 import {Agent} from "../../src/agent/index.js";
+import {EventBus, type PixelleEvent} from "../../src/events/index.js";
 import {BaseLLMClient} from "../../src/llm/index.js";
 import type {LLMGenerateInput, LLMResponse} from "../../src/llm/types.js";
 import type {WorkspaceProfile} from "../../src/runtime/index.js";
@@ -64,5 +65,95 @@ describe("ContextManager system prompt", () => {
     expect(prompt).toContain("Base prompt.");
     expect(prompt).toContain("Do not use Markdown tables");
     expect(prompt).toContain("always include a language identifier");
+  });
+
+  it("keeps runtime context inputs compatible after context core extraction", async () => {
+    const workspaceRoot = process.cwd();
+    const llm = new CapturingLLMClient();
+    const eventBus = new EventBus<PixelleEvent>();
+    const events: PixelleEvent[] = [];
+    const profile: WorkspaceProfile = {
+      root: workspaceRoot,
+      packageManager: "pnpm",
+      scripts: {test: "vitest run"},
+      projectFiles: ["package.json"],
+      detectedFrameworks: ["typescript"],
+    };
+
+    eventBus.subscribe((event) => events.push(event));
+
+    await new Agent({
+      config: {
+        runtime: {
+          systemPrompt: "Config prompt.",
+          workspaceDir: workspaceRoot,
+          maxIterations: 1,
+          maxRepairAttempts: 0,
+          tokensLimit: 1000,
+          rollbackOnFailure: false,
+        },
+        permissions: {
+          readFile: true,
+          writeFile: false,
+          network: false,
+          shell: false,
+        },
+        verification: {
+          enabled: false,
+          commands: [],
+        },
+        trace: {
+          enabled: false,
+          directory: workspaceRoot,
+        },
+      },
+      llm,
+      eventBus,
+      memory: {
+        loadProjectMemory: () => [{title: "Project Memory", content: "project facts"}],
+        loadRunMemory: () => ["run facts"],
+      },
+      contextProviders: [
+        {
+          name: "Agent Provider",
+          build: () => "agent provider facts",
+        },
+      ],
+      workspaceScanner: {
+        async scan(): Promise<WorkspaceProfile> {
+          return profile;
+        },
+      },
+    }).run({
+      prompt: "test",
+      systemPrompt: "Input prompt.",
+      context: [{title: "User Context", content: "user facts", priority: 50}],
+      contextProviders: [
+        {
+          name: "Input Provider",
+          build: () => ({content: "input provider facts"}),
+        },
+      ],
+    });
+
+    const prompt = llm.request?.messages[0]?.content ?? "";
+    const contextBuilt = events.find((event) => event.type === "runtime.context_built");
+    const runtimeContext = prompt.split("# Runtime Context\n")[1] ?? "";
+
+    expect(prompt).toContain("Input prompt.");
+    expect(prompt).not.toContain("Config prompt.");
+    expect(prompt).toContain("Do not use Markdown tables");
+    expect(prompt).toContain("# Runtime Context");
+    expect(runtimeContext).toContain("## Workspace Profile");
+    expect(runtimeContext).toContain('"packageManager": "pnpm"');
+    expect(runtimeContext).toContain("## User Context\nuser facts");
+    expect(runtimeContext).toContain("## Project Memory\nproject facts");
+    expect(runtimeContext).toContain("run facts");
+    expect(runtimeContext).toContain("## Agent Provider\nagent provider facts");
+    expect(runtimeContext).toContain("## Input Provider\ninput provider facts");
+    expect(contextBuilt).toMatchObject({
+      type: "runtime.context_built",
+      tokenEstimate: Math.ceil(runtimeContext.length / 4),
+    });
   });
 });
