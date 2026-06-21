@@ -7,6 +7,7 @@ import type {
   VerificationConfig,
 } from "../config/index.js";
 import type {PixelleEvent} from "../events/index.js";
+import type {BuildContextDiagnostics} from "../context/index.js";
 import type {BaseLLMClient} from "../llm/index.js";
 import type {
   LLMGenerateInput,
@@ -99,6 +100,11 @@ export type AgentRunContext = {
   fileWriter?: ToolFileWriter;
   traceStore?: TraceStore;
   workspaceProfile?: WorkspaceProfile;
+  lastContextBuildDiagnostics?: BuildContextDiagnostics;
+  contextBuilds?: Array<{
+    iteration: number;
+    diagnostics?: BuildContextDiagnostics;
+  }>;
 };
 
 /** Model request enriched with agent trace data. */
