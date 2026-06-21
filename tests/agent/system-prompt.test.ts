@@ -153,7 +153,7 @@ describe("ContextManager system prompt", () => {
     expect(runtimeContext).toContain("## Input Provider\ninput provider facts");
     expect(contextBuilt).toMatchObject({
       type: "runtime.context_built",
-      tokenEstimate: Math.ceil(runtimeContext.length / 4),
+      tokenEstimate: Math.ceil(prompt.length / 4),
     });
   });
 });

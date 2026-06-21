@@ -2,11 +2,49 @@ import {describe, expect, it} from "vitest";
 
 import {
   buildRuntimeContext,
+  ContextCompressionPipeline,
+  ContextCompressionResultFactory,
   ContextEngine,
   ContextRegistry,
+  estimateTokens,
   DefaultContextBudgetPolicy,
   NoopContextCompressor,
+  RuleBasedContextCompressor,
+  type ContextBudget,
+  type ContextCompressionResult,
+  type ContextCompressor,
+  type ContextSection,
 } from "../src/context/index.js";
+
+class ThrowingCompressor implements ContextCompressor {
+  compress(): ContextCompressionResult {
+    throw new Error("Compressor should not run.");
+  }
+}
+
+class MarkingCompressor implements ContextCompressor {
+  compress(section: ContextSection, _budget: ContextBudget): ContextCompressionResult {
+    const compressedSection = {
+      ...section,
+      content: section.content.slice(
+        0,
+        Math.max(1, Math.floor(section.content.length / 2)),
+      ),
+    };
+
+    return {
+      section: compressedSection,
+      originalSection: section,
+      compressed: true,
+      originalChars: section.content.length,
+      compressedChars: compressedSection.content.length,
+      omittedChars: section.content.length - compressedSection.content.length,
+      savedChars: section.content.length - compressedSection.content.length,
+      compressionRatio: compressedSection.content.length / section.content.length,
+      reason: "Marked by test compressor.",
+    };
+  }
+}
 
 describe("buildRuntimeContext", () => {
   it("matches the default ContextEngine output", () => {
@@ -113,7 +151,8 @@ describe("buildRuntimeContext", () => {
       "partial",
       "dropped",
     ]);
-    expect(result.tokenEstimate).toBe(1);
+    expect(result.diagnostics?.contextTextTokens).toBe(1);
+    expect(result.tokenEstimate).toBe(estimateTokens(result.systemPrompt));
   });
 
   it("keeps fully injected sections separate from partial and dropped sections", () => {
@@ -138,14 +177,18 @@ describe("buildRuntimeContext", () => {
       expect.objectContaining({
         section: expect.objectContaining({id: "first"}),
         status: "included",
+        reason: "Section fits within the remaining context budget.",
       }),
       expect.objectContaining({
         section: expect.objectContaining({id: "second"}),
         status: "partial",
+        reason:
+          "Section exceeded the remaining context budget and was partially included.",
       }),
       expect.objectContaining({
         section: expect.objectContaining({id: "third"}),
         status: "dropped",
+        reason: "No remaining context budget for this section.",
       }),
     ]);
   });
@@ -197,6 +240,445 @@ describe("buildRuntimeContext", () => {
       }),
     );
 
-    expect(result).toEqual({section, compressed: false});
+    expect(result).toEqual({
+      section,
+      originalSection: section,
+      compressed: false,
+      originalChars: section.content.length,
+      compressedChars: section.content.length,
+      omittedChars: 0,
+      savedChars: 0,
+      compressionRatio: 1,
+      reason: "No compression applied.",
+    });
+  });
+
+  it("does not trigger compression below the configured threshold", () => {
+    const compressor = new ThrowingCompressor();
+    const pipeline = new ContextCompressionPipeline({
+      compressor,
+      thresholdRatio: 0.85,
+    });
+    const compression = pipeline.compress(
+      [{id: "short", content: "short"}],
+      new DefaultContextBudgetPolicy().createBudget({
+        sections: [],
+        tokenLimit: 100,
+      }),
+    );
+    const result = new ContextEngine({
+      compressionPipeline: pipeline,
+    }).build({
+      systemPrompt: "Base.",
+      sections: [{id: "short", content: "short"}],
+      tokenLimit: 100,
+    });
+
+    expect(compression).toMatchObject({
+      estimatedContextChars: 5,
+      thresholdRatio: 0.85,
+      triggered: false,
+    });
+    expect(compression.sections).toEqual([{id: "short", content: "short"}]);
+    expect(compression.results).toEqual([
+      expect.objectContaining({
+        compressed: false,
+        reason: "Compression was not triggered.",
+      }),
+    ]);
+    expect(result.diagnostics).toMatchObject({
+      compressionThresholdRatio: 0.85,
+      compressionTriggered: false,
+      estimatedContextChars: 5,
+    });
+    expect(result.diagnostics?.compressionResults).toEqual([
+      expect.objectContaining({
+        section: expect.objectContaining({id: "short"}),
+        compressed: false,
+        originalChars: 5,
+        compressedChars: 5,
+        reason: "Compression was not triggered.",
+      }),
+    ]);
+  });
+
+  it("triggers compression above the configured threshold and exposes diagnostics", () => {
+    const pipeline = new ContextCompressionPipeline({
+      compressor: new MarkingCompressor(),
+      thresholdRatio: 0.5,
+    });
+    const result = new ContextEngine({
+      compressionPipeline: pipeline,
+    }).build({
+      systemPrompt: "Base prompt.",
+      outputInstructions: "Use Markdown.",
+      sections: [{id: "long", content: "abcdefghijklmnop", source: {kind: "tool"}}],
+      tokenLimit: 6,
+    });
+
+    expect(result.contextText).toBe("abcdefgh");
+    expect(result.tokenEstimate).toBe(estimateTokens(result.systemPrompt));
+    expect(result.diagnostics).toMatchObject({
+      budget: {
+        tokenLimit: 6,
+        runtimeContextRatio: 0.35,
+        maxContextChars: 8,
+      },
+      estimatedContextChars: 16,
+      compressionThresholdRatio: 0.5,
+      compressionTriggered: true,
+      contextTextTokens: estimateTokens(result.contextText),
+      systemPromptTokens: estimateTokens(result.systemPrompt),
+    });
+    expect(result.diagnostics?.compressionResults).toEqual([
+      expect.objectContaining({
+        originalSection: expect.objectContaining({id: "long"}),
+        section: expect.objectContaining({id: "long", content: "abcdefgh"}),
+        compressed: true,
+        originalChars: 16,
+        compressedChars: 8,
+        omittedChars: 8,
+        savedChars: 8,
+        compressionRatio: 0.5,
+        reason: "Marked by test compressor.",
+      }),
+    ]);
+  });
+
+  it("uses a default noop compression pipeline when no compressor is provided", () => {
+    const compression = new ContextCompressionPipeline({thresholdRatio: 0}).compress(
+      [{id: "plain", content: "plain"}],
+      new DefaultContextBudgetPolicy().createBudget({
+        sections: [],
+        tokenLimit: 1,
+      }),
+    );
+
+    expect(compression.triggered).toBe(true);
+    expect(compression.sections).toEqual([{id: "plain", content: "plain"}]);
+    expect(compression.results).toEqual([
+      expect.objectContaining({
+        compressed: false,
+        reason: "No compression applied.",
+      }),
+    ]);
+  });
+
+  it("creates compression results through the shared factory", () => {
+    const factory = new ContextCompressionResultFactory();
+    const original = {content: "abcdefghij"};
+    const compressed = {content: "abc"};
+
+    expect(factory.skipped(original, "skip")).toMatchObject({
+      section: original,
+      originalSection: original,
+      compressed: false,
+      reason: "skip",
+    });
+    expect(factory.compressed(compressed, original, "compressed")).toMatchObject({
+      section: compressed,
+      originalSection: original,
+      compressed: true,
+      originalChars: 10,
+      compressedChars: 3,
+      savedChars: 7,
+      omittedChars: 7,
+      compressionRatio: 0.3,
+      reason: "compressed",
+    });
+  });
+
+  it("rule-based compressor only compresses long tool and file sections", () => {
+    const compressor = new RuleBasedContextCompressor({
+      maxSectionChars: 80,
+      headChars: 20,
+      tailChars: 10,
+    });
+    const longContent = "abcdefghijklmnopqrstuvwxyz".repeat(10);
+    const kinds = ["user", "memory", "workspace", "provider", "system"] as const;
+
+    for (const kind of kinds) {
+      const section = {content: longContent, source: {kind}};
+      expect(compressor.compress(section, budgetFor(section))).toMatchObject({
+        section,
+        originalSection: section,
+        compressed: false,
+        reason: "Section source is not compressible.",
+      });
+    }
+
+    for (const kind of ["tool", "file"] as const) {
+      const section = {content: longContent, source: {kind}};
+      const result = compressor.compress(section, budgetFor(section));
+
+      expect(result.compressed).toBe(true);
+      expect(result.section.content).toContain("abcdefghij");
+      expect(result.section.content).toContain("uvwxyz");
+      expect(result.section.content).toMatch(
+        /\[\.\.\.\d+ chars omitted by rule-based-head-tail compressor\.\.\.\]/,
+      );
+      expect(result.section.content.length).toBeLessThan(longContent.length);
+      expect(result.section.content.length).toBeLessThanOrEqual(80);
+      expect(result).toMatchObject({
+        strategy: "rule-based-head-tail",
+        maxSectionChars: 80,
+      });
+      expect(result.omittedChars).toBeGreaterThan(0);
+      expect(result.savedChars).toBeGreaterThan(0);
+      expect(result.compressionRatio).toBeLessThan(1);
+    }
+  });
+
+  it("reports omitted original chars separately from saved chars", () => {
+    const compressor = new RuleBasedContextCompressor({
+      maxSectionChars: 90,
+      minSectionChars: 90,
+      maxSectionRatio: 1,
+      headChars: 20,
+      tailChars: 20,
+      preserveLineBoundaries: false,
+    });
+    const section = {
+      content: "0123456789".repeat(30),
+      source: {kind: "tool" as const},
+    };
+    const result = compressor.compress(section, {
+      tokenLimit: 1_000,
+      runtimeContextRatio: 0.35,
+      maxContextChars: 90,
+    });
+    const markerMatch = /\[\.\.\.(\d+) chars omitted/.exec(result.section.content);
+
+    expect(result.compressed).toBe(true);
+    expect(markerMatch?.[1]).toBe(String(result.omittedChars));
+    expect(result.omittedChars).toBeGreaterThan(result.savedChars ?? 0);
+    expect(result.savedChars).toBe(result.originalChars - result.compressedChars);
+    expect(result.section.content.length).toBeLessThanOrEqual(
+      result.maxSectionChars ?? 0,
+    );
+  });
+
+  it("supports explicit zero head or tail retention", () => {
+    const section = {
+      content: "HEAD-".repeat(20) + "TAIL-".repeat(20),
+      source: {kind: "tool" as const},
+    };
+    const tailOnly = new RuleBasedContextCompressor({
+      maxSectionChars: 80,
+      minSectionChars: 80,
+      maxSectionRatio: 1,
+      headChars: 0,
+      tailChars: 20,
+      preserveLineBoundaries: false,
+    }).compress(section, {
+      tokenLimit: 1_000,
+      runtimeContextRatio: 0.35,
+      maxContextChars: 80,
+    });
+    const headOnly = new RuleBasedContextCompressor({
+      maxSectionChars: 80,
+      minSectionChars: 80,
+      maxSectionRatio: 1,
+      headChars: 20,
+      tailChars: 0,
+      preserveLineBoundaries: false,
+    }).compress(section, {
+      tokenLimit: 1_000,
+      runtimeContextRatio: 0.35,
+      maxContextChars: 80,
+    });
+
+    expect(tailOnly.section.content.startsWith("\n\n[...")).toBe(true);
+    expect(tailOnly.section.content).toContain("TAIL-");
+    expect(headOnly.section.content.startsWith("HEAD-")).toBe(true);
+    expect(headOnly.section.content.endsWith("compressor...]\n\n")).toBe(true);
+  });
+
+  it("uses default head-heavy allocation when head and tail are both zero", () => {
+    const section = {
+      content: "abcdefghijklmnopqrstuvwxyz".repeat(20),
+      source: {kind: "file" as const},
+    };
+    const result = new RuleBasedContextCompressor({
+      maxSectionChars: 100,
+      minSectionChars: 100,
+      maxSectionRatio: 1,
+      headChars: 0,
+      tailChars: 0,
+      preserveLineBoundaries: false,
+    }).compress(section, {
+      tokenLimit: 1_000,
+      runtimeContextRatio: 0.35,
+      maxContextChars: 100,
+    });
+    const markerStart = result.section.content.indexOf("[...");
+    const markerEnd = result.section.content.indexOf("]\n\n");
+    const head = result.section.content.slice(0, markerStart);
+    const tail = result.section.content.slice(markerEnd + 3);
+
+    expect(head.length).toBeGreaterThan(tail.length);
+    expect(result.section.content.length).toBeLessThanOrEqual(100);
+  });
+
+  it("uses ContextBudget to resolve dynamic per-section compression limits", () => {
+    const compressor = new RuleBasedContextCompressor({
+      maxSectionChars: 500,
+      minSectionChars: 80,
+      maxSectionRatio: 0.25,
+      headChars: 60,
+      tailChars: 40,
+      preserveLineBoundaries: false,
+    });
+    const section = {
+      content: "0123456789".repeat(100),
+      source: {kind: "tool" as const},
+    };
+    const smallBudgetResult = compressor.compress(section, {
+      tokenLimit: 100,
+      runtimeContextRatio: 0.35,
+      maxContextChars: 400,
+    });
+    const largeBudgetResult = compressor.compress(section, {
+      tokenLimit: 10_000,
+      runtimeContextRatio: 0.35,
+      maxContextChars: 20_000,
+    });
+
+    expect(smallBudgetResult.compressed).toBe(true);
+    expect(smallBudgetResult.maxSectionChars).toBe(100);
+    expect(smallBudgetResult.section.content.length).toBeLessThanOrEqual(100);
+    expect(largeBudgetResult.compressed).toBe(true);
+    expect(largeBudgetResult.maxSectionChars).toBe(500);
+    expect(largeBudgetResult.section.content.length).toBeGreaterThan(
+      smallBudgetResult.section.content.length,
+    );
+  });
+
+  it("does not compress tool or file sections below the dynamic limit", () => {
+    const compressor = new RuleBasedContextCompressor({
+      maxSectionChars: 500,
+      minSectionChars: 1,
+      maxSectionRatio: 1,
+    });
+    const section = {
+      content: "short tool output",
+      source: {kind: "tool" as const},
+    };
+    const result = compressor.compress(section, budgetFor(section));
+
+    expect(result).toMatchObject({
+      section,
+      originalSection: section,
+      compressed: false,
+      reason: "Section is within the dynamic section limit (17 <= 140 chars).",
+      strategy: "rule-based-head-tail",
+      maxSectionChars: 140,
+    });
+  });
+
+  it("preserves line boundaries for head and tail slices when configured", () => {
+    const compressor = new RuleBasedContextCompressor({
+      maxSectionChars: 120,
+      minSectionChars: 120,
+      maxSectionRatio: 1,
+      headChars: 40,
+      tailChars: 40,
+      preserveLineBoundaries: true,
+    });
+    const section = {
+      content: [
+        "head-line-1",
+        "head-line-2",
+        "head-line-3",
+        "middle-line".repeat(12),
+        "tail-line-1",
+        "tail-line-2",
+      ].join("\n"),
+      source: {kind: "file" as const},
+    };
+    const result = compressor.compress(section, {
+      tokenLimit: 1_000,
+      runtimeContextRatio: 0.35,
+      maxContextChars: 120,
+    });
+
+    expect(result.compressed).toBe(true);
+    expect(result.section.content).toContain("head-line-1\nhead-line-2\n");
+    expect(result.section.content).not.toContain("head-line-3");
+    expect(result.section.content).toContain("tail-line-1\ntail-line-2");
+  });
+
+  it("falls back to plain line slicing when line preservation would keep too little", () => {
+    const compressor = new RuleBasedContextCompressor({
+      maxSectionChars: 80,
+      minSectionChars: 80,
+      maxSectionRatio: 1,
+      headChars: 10,
+      tailChars: 10,
+      preserveLineBoundaries: true,
+    });
+    const section = {
+      content: `ab\n${"c".repeat(120)}\n${"d".repeat(120)}\nij`,
+      source: {kind: "tool" as const},
+    };
+    const result = compressor.compress(section, {
+      tokenLimit: 1_000,
+      runtimeContextRatio: 0.35,
+      maxContextChars: 80,
+    });
+
+    expect(result.section.content).toContain("ab\nccccc");
+    expect(result.section.content).toContain("ddddd\nij");
+  });
+
+  it("normalizes invalid rule-based compressor options without throwing", () => {
+    const compressor = new RuleBasedContextCompressor({
+      maxSectionChars: 0,
+      minSectionChars: 99_999,
+      maxSectionRatio: 10,
+      headChars: -1,
+      tailChars: -1,
+    });
+    const section = {
+      content: "x".repeat(20_000),
+      source: {kind: "tool" as const},
+    };
+    const result = compressor.compress(section, {
+      tokenLimit: 100,
+      runtimeContextRatio: 0.35,
+      maxContextChars: 140,
+    });
+
+    expect(result.compressed).toBe(true);
+    expect(result.section.content.trim().length).toBeGreaterThan(0);
+    expect(result.maxSectionChars).toBe(8_000);
+  });
+
+  it("keeps omission marker details visible through compressor output", () => {
+    const section = {
+      content: "abcdefghijklmnopqrstuvwxyz".repeat(20),
+      source: {kind: "tool" as const},
+    };
+    const result = new RuleBasedContextCompressor({
+      maxSectionChars: 100,
+      minSectionChars: 100,
+      maxSectionRatio: 1,
+      preserveLineBoundaries: false,
+    }).compress(section, {
+      tokenLimit: 1_000,
+      runtimeContextRatio: 0.35,
+      maxContextChars: 100,
+    });
+
+    expect(result.section.content).toMatch(
+      new RegExp(`\\[\\.\\.\\.${result.omittedChars} chars omitted`),
+    );
   });
 });
+
+function budgetFor(section: ContextSection): ContextBudget {
+  return new DefaultContextBudgetPolicy().createBudget({
+    sections: [section],
+    tokenLimit: 100,
+  });
+}

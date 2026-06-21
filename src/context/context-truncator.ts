@@ -46,7 +46,14 @@ export class ContextTruncator {
 
       if (remaining <= 0 || allowed <= 0) {
         droppedSections.push(block.section);
-        sectionUsages.push(createUsage(block, "dropped", 0));
+        sectionUsages.push(
+          createUsage(
+            block,
+            "dropped",
+            0,
+            "No remaining context budget for this section.",
+          ),
+        );
         remaining = 0;
         continue;
       }
@@ -55,14 +62,28 @@ export class ContextTruncator {
         selectedBlocks.push(block.text.slice(0, allowed));
         partialSections.push(block.section);
         droppedSections.push(block.section);
-        sectionUsages.push(createUsage(block, "partial", allowed));
+        sectionUsages.push(
+          createUsage(
+            block,
+            "partial",
+            allowed,
+            "Section exceeded the remaining context budget and was partially included.",
+          ),
+        );
         remaining = 0;
         continue;
       }
 
       selectedBlocks.push(block.text);
       includedSections.push(block.section);
-      sectionUsages.push(createUsage(block, "included", block.text.length));
+      sectionUsages.push(
+        createUsage(
+          block,
+          "included",
+          block.text.length,
+          "Section fits within the remaining context budget.",
+        ),
+      );
       remaining -= block.text.length + separatorLength;
     }
 
@@ -94,6 +115,7 @@ function createUsage(
   block: FormattedContextSection,
   status: ContextSectionUsage["status"],
   includedLength: number,
+  reason: string,
 ): ContextSectionUsage {
   return {
     section: block.section,
@@ -101,5 +123,6 @@ function createUsage(
     originalLength: block.section.content.length,
     includedLength,
     formattedLength: block.text.length,
+    reason,
   };
 }

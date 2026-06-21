@@ -52,6 +52,34 @@ export class ContextManager {
         source: {kind: "workspace"},
       } satisfies ContextSection,
     ];
+
+    /**
+     * Context providers are deferred runtime context producers.
+     *
+     * They are useful when some context cannot be passed as static input,
+     * and must be generated from the current AgentRunContext at run time.
+     *
+     * Common examples:
+     * - Git status provider:
+     *   injects current branch, modified files, staged files, or recent commits.
+     *
+     * - Run mode provider:
+     *   injects mode-specific rules, such as "plan mode: do not modify files".
+     *
+     * - Diagnostics provider:
+     *   injects recent test failures, lint errors, or command execution summaries.
+     *
+     * - External issue provider:
+     *   injects GitHub / Linear / Jira issue details related to the current task.
+     *
+     * A provider may return either:
+     * - a string, which will use provider.name as the context section title
+     * - an AgentContextValue object, which may define its own title, priority, and content
+     *
+     * The returned value is converted into a ContextSection and then passed to
+     * the generic src/context pipeline together with memory, user context, and
+     * workspace profile sections.
+     */
     const providers = [...this.contextProviders, ...(run.input.contextProviders ?? [])];
 
     for (const provider of providers) {
@@ -80,6 +108,7 @@ export class ContextManager {
       sections,
       tokenLimit: this.options.config.runtime.tokensLimit,
     });
+
     this.options.observer.contextBuilt(run, result.tokenEstimate);
 
     run.messages.push({role: "system", content: result.systemPrompt});

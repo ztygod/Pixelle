@@ -1,3 +1,4 @@
+import type {ContextCompressionPipeline} from "./context-compression-pipeline.js";
 import type {ContextBudgetPolicy} from "./context-budget.js";
 import type {ContextCompressor} from "./context-compressor.js";
 import type {ContextTruncator} from "./context-truncator.js";
@@ -41,6 +42,7 @@ export type BuildContextResult = {
   partialSections: ContextSection[];
   droppedSections: ContextSection[];
   sectionUsages: ContextSectionUsage[];
+  diagnostics?: BuildContextDiagnostics;
 };
 
 /** Runtime context budget derived from the model token limit. */
@@ -60,19 +62,42 @@ export type ContextSectionUsage = {
   originalLength: number;
   includedLength: number;
   formattedLength: number;
+  reason?: string;
 };
 
 /** Result returned by a context compressor. */
 export type ContextCompressionResult = {
   section: ContextSection;
+  originalSection: ContextSection;
   compressed: boolean;
+  originalChars: number;
+  compressedChars: number;
+  strategy?: string;
+  omittedChars?: number;
+  savedChars?: number;
+  compressionRatio?: number;
+  maxSectionChars?: number;
+  reason?: string;
+};
+
+/** Diagnostics produced while building runtime context. */
+export type BuildContextDiagnostics = {
+  budget: ContextBudget;
+  estimatedContextChars: number;
+  compressionThresholdRatio: number;
+  compressionTriggered: boolean;
+  compressionResults: ContextCompressionResult[];
+  contextTextTokens: number;
+  systemPromptTokens: number;
 };
 
 /** Optional strategy overrides for the class-based context engine. */
 export type ContextEngineOptions = {
   priorityPolicy?: ContextPriorityPolicy;
   budgetPolicy?: ContextBudgetPolicy;
+  compressionPipeline?: ContextCompressionPipeline;
   compressor?: ContextCompressor;
+  compressionThresholdRatio?: number;
   truncator?: ContextTruncator;
   assembler?: SystemPromptAssembler;
 };
