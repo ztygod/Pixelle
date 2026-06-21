@@ -4,7 +4,7 @@ import {ContextRegistry} from "./context-registry.js";
 import {ContextTruncator} from "./context-truncator.js";
 import {DefaultContextPriorityPolicy} from "./priority-policy.js";
 import {SystemPromptAssembler} from "./system-prompt-assembler.js";
-import {estimateTokens} from "./token-estimator.js";
+import {createDefaultTokenEstimator, type TokenEstimator} from "./token-estimator.js";
 import type {ContextBudgetPolicy} from "./context-budget.js";
 import type {ContextPriorityPolicy} from "./priority-policy.js";
 import type {
@@ -20,8 +20,10 @@ export class ContextEngine {
   private readonly compressionPipeline: ContextCompressionPipeline;
   private readonly truncator: ContextTruncator;
   private readonly assembler: SystemPromptAssembler;
+  private readonly tokenEstimator: TokenEstimator;
 
   constructor(options: ContextEngineOptions = {}) {
+    this.tokenEstimator = options.tokenEstimator ?? createDefaultTokenEstimator();
     this.priorityPolicy = options.priorityPolicy ?? new DefaultContextPriorityPolicy();
     this.budgetPolicy = options.budgetPolicy ?? new DefaultContextBudgetPolicy();
     this.compressionPipeline =
@@ -29,8 +31,10 @@ export class ContextEngine {
       new ContextCompressionPipeline({
         compressor: options.compressor,
         thresholdRatio: options.compressionThresholdRatio,
+        tokenEstimator: this.tokenEstimator,
       });
-    this.truncator = options.truncator ?? new ContextTruncator();
+    this.truncator =
+      options.truncator ?? new ContextTruncator({tokenEstimator: this.tokenEstimator});
     this.assembler = options.assembler ?? new SystemPromptAssembler();
   }
 
@@ -49,8 +53,8 @@ export class ContextEngine {
       outputInstructions: input.outputInstructions,
       contextText: truncation.contextText,
     });
-    const contextTextTokens = estimateTokens(truncation.contextText);
-    const systemPromptTokens = estimateTokens(systemPrompt);
+    const contextTextTokens = this.tokenEstimator.countText(truncation.contextText);
+    const systemPromptTokens = this.tokenEstimator.countText(systemPrompt);
 
     return {
       systemPrompt,
@@ -63,8 +67,10 @@ export class ContextEngine {
       diagnostics: {
         budget,
         estimatedContextChars: compression.estimatedContextChars,
+        estimatedContextTokens: compression.estimatedContextTokens,
         compressionThresholdRatio: compression.thresholdRatio,
         compressionTriggered: compression.triggered,
+        compressionLimitTokens: compression.compressionLimitTokens,
         compressionResults: compression.results,
         contextTextTokens,
         systemPromptTokens,

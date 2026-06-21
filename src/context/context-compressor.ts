@@ -1,10 +1,16 @@
+import {createDefaultTokenEstimator, type TokenEstimator} from "./token-estimator.js";
 import type {ContextBudget, ContextCompressionResult, ContextSection} from "./types.js";
 
 export type ContextCompressionMetadata = {
   strategy?: string;
   maxSectionChars?: number;
+  maxSectionTokens?: number;
   omittedChars?: number;
   savedChars?: number;
+  originalTokens?: number;
+  compressedTokens?: number;
+  savedTokens?: number;
+  tokenCompressionRatio?: number;
 };
 
 type HeadTailParts = {
@@ -22,6 +28,12 @@ export interface ContextCompressor {
 
 /** Creates normalized compression results for compressors and pipelines. */
 export class ContextCompressionResultFactory {
+  private readonly tokenEstimator: TokenEstimator;
+
+  constructor(tokenEstimator: TokenEstimator = createDefaultTokenEstimator()) {
+    this.tokenEstimator = tokenEstimator;
+  }
+
   unchanged(
     section: ContextSection,
     reason: string,
@@ -62,6 +74,15 @@ export class ContextCompressionResultFactory {
       originalSection.content.length > 0
         ? section.content.length / originalSection.content.length
         : 1;
+    const originalTokens =
+      metadata.originalTokens ?? this.tokenEstimator.countText(originalSection.content);
+    const compressedTokens =
+      metadata.compressedTokens ?? this.tokenEstimator.countText(section.content);
+    const savedTokens =
+      metadata.savedTokens ?? Math.max(0, originalTokens - compressedTokens);
+    const tokenCompressionRatio =
+      metadata.tokenCompressionRatio ??
+      (originalTokens > 0 ? compressedTokens / originalTokens : 1);
 
     return {
       section,
@@ -72,6 +93,10 @@ export class ContextCompressionResultFactory {
       omittedChars,
       savedChars,
       compressionRatio,
+      originalTokens,
+      compressedTokens,
+      savedTokens,
+      tokenCompressionRatio,
       ...metadata,
       reason,
     };
@@ -92,38 +117,62 @@ export class NoopContextCompressor implements ContextCompressor {
 }
 
 export type RuleBasedContextCompressorOptions = {
+  maxSectionTokens?: number;
+  minSectionTokens?: number;
   maxSectionChars?: number;
   minSectionChars?: number;
   maxSectionRatio?: number;
+  headTokenRatio?: number;
+  tailTokenRatio?: number;
   headChars?: number;
   tailChars?: number;
   preserveLineBoundaries?: boolean;
+  tokenEstimator?: TokenEstimator;
 };
 
 /** Conservative compressor for oversized tool and file context sections. */
 export class RuleBasedContextCompressor implements ContextCompressor {
+  private readonly maxSectionTokens: number;
+  private readonly minSectionTokens: number;
   private readonly maxSectionChars: number;
   private readonly minSectionChars: number;
   private readonly maxSectionRatio: number;
+  private readonly headTokenRatio: number;
+  private readonly tailTokenRatio: number;
   private readonly headChars: number;
   private readonly tailChars: number;
   private readonly preserveLineBoundaries: boolean;
   private readonly resultFactory: ContextCompressionResultFactory;
+  private readonly tokenEstimator: TokenEstimator;
 
   constructor(
     options: RuleBasedContextCompressorOptions = {},
-    resultFactory = new ContextCompressionResultFactory(),
+    resultFactory?: ContextCompressionResultFactory,
   ) {
+    this.tokenEstimator = options.tokenEstimator ?? createDefaultTokenEstimator();
+    const maxSectionTokens = this.positiveIntegerOrDefault(
+      options.maxSectionTokens,
+      8_000,
+    );
+    const minSectionTokens = this.positiveIntegerOrDefault(
+      options.minSectionTokens,
+      1_200,
+    );
     const maxSectionChars = this.positiveIntegerOrDefault(options.maxSectionChars, 8_000);
     const minSectionChars = this.positiveIntegerOrDefault(options.minSectionChars, 1_200);
 
+    this.maxSectionTokens = maxSectionTokens;
+    this.minSectionTokens = Math.min(minSectionTokens, maxSectionTokens);
     this.maxSectionChars = maxSectionChars;
     this.minSectionChars = Math.min(minSectionChars, maxSectionChars);
     this.maxSectionRatio = this.clampNumber(options.maxSectionRatio ?? 0.25, 0.05, 1);
+    this.headTokenRatio = this.clampNumber(options.headTokenRatio ?? 0.67, 0, 1);
+    this.tailTokenRatio = this.clampNumber(options.tailTokenRatio ?? 0.33, 0, 1);
     this.headChars = this.nonNegativeIntegerOrDefault(options.headChars, 4_000);
     this.tailChars = this.nonNegativeIntegerOrDefault(options.tailChars, 2_000);
     this.preserveLineBoundaries = options.preserveLineBoundaries ?? true;
-    this.resultFactory = resultFactory;
+    this.resultFactory =
+      resultFactory ?? new ContextCompressionResultFactory(this.tokenEstimator);
   }
 
   compress(section: ContextSection, budget: ContextBudget): ContextCompressionResult {
@@ -148,70 +197,110 @@ export class RuleBasedContextCompressor implements ContextCompressor {
     section: ContextSection,
     budget: ContextBudget,
   ): ContextCompressionResult {
-    return this.compressHeadTail(section, this.resolveMaxSectionChars(budget));
+    return this.compressHeadTail(section, this.resolveMaxSectionTokens(budget));
   }
 
   private compressFileSection(
     section: ContextSection,
     budget: ContextBudget,
   ): ContextCompressionResult {
-    return this.compressHeadTail(section, this.resolveMaxSectionChars(budget));
+    return this.compressHeadTail(section, this.resolveMaxSectionTokens(budget));
   }
 
-  private resolveMaxSectionChars(budget: ContextBudget): number {
-    const budgetBasedLimit = Math.floor(budget.maxContextChars * this.maxSectionRatio);
+  private resolveMaxSectionTokens(budget: ContextBudget): number {
+    const budgetBasedLimit = Math.floor(budget.maxInputTokens * this.maxSectionRatio);
 
     return this.clampInteger(
-      Math.min(this.maxSectionChars, budgetBasedLimit),
-      this.minSectionChars,
-      this.maxSectionChars,
+      Math.min(this.maxSectionTokens, budgetBasedLimit),
+      this.minSectionTokens,
+      this.maxSectionTokens,
     );
   }
 
   private compressHeadTail(
     section: ContextSection,
-    maxSectionChars: number,
+    maxSectionTokens: number,
   ): ContextCompressionResult {
     const strategy = "rule-based-head-tail";
+    const originalTokens = this.tokenEstimator.countText(section.content);
+    const maxSectionChars = this.clampInteger(
+      Math.min(this.maxSectionChars, maxSectionTokens * 4),
+      this.minSectionChars,
+      this.maxSectionChars,
+    );
 
     if (!section.content.trim()) {
       return this.resultFactory.unchanged(
         section,
         "Section content is empty after trimming.",
-        {strategy, maxSectionChars},
+        {
+          strategy,
+          maxSectionChars,
+          maxSectionTokens,
+          originalTokens,
+          compressedTokens: originalTokens,
+        },
       );
     }
 
-    if (section.content.length <= maxSectionChars) {
+    if (originalTokens <= maxSectionTokens) {
       return this.resultFactory.unchanged(
         section,
-        `Section is within the dynamic section limit (${section.content.length} <= ${maxSectionChars} chars).`,
-        {strategy, maxSectionChars},
+        `Section is within the dynamic section token limit (${originalTokens} <= ${maxSectionTokens} tokens).`,
+        {
+          strategy,
+          maxSectionChars,
+          maxSectionTokens,
+          originalTokens,
+          compressedTokens: originalTokens,
+        },
       );
     }
 
-    const parts = this.buildHeadTailContent(section.content, maxSectionChars, strategy);
+    const parts = this.buildHeadTailContent(
+      section.content,
+      maxSectionChars,
+      maxSectionTokens,
+      strategy,
+    );
+    const compressedTokens = this.tokenEstimator.countText(parts.content);
 
-    if (!parts.content.trim() || parts.content.length >= section.content.length) {
+    if (
+      !parts.content.trim() ||
+      parts.content.length >= section.content.length ||
+      compressedTokens >= originalTokens
+    ) {
       return this.resultFactory.unchanged(
         section,
         "Rule-based compression would not reduce this section.",
-        {strategy, maxSectionChars},
+        {
+          strategy,
+          maxSectionChars,
+          maxSectionTokens,
+          originalTokens,
+          compressedTokens: originalTokens,
+        },
       );
     }
 
     const compressedSection = {...section, content: parts.content};
     const savedChars = section.content.length - parts.content.length;
+    const savedTokens = originalTokens - compressedTokens;
 
     return this.resultFactory.compressed(
       compressedSection,
       section,
-      `Section exceeded dynamic section limit: ${section.content.length} chars -> ${parts.content.length} chars, omitted ${parts.omittedChars} original chars, saved ${savedChars} chars using rule-based-head-tail compression.`,
+      `Section exceeded dynamic section token limit: ${originalTokens} tokens -> ${compressedTokens} tokens, omitted ${parts.omittedChars} original chars, saved ${savedChars} chars and ${savedTokens} tokens using rule-based-head-tail compression.`,
       {
         strategy,
         maxSectionChars,
+        maxSectionTokens,
         omittedChars: parts.omittedChars,
         savedChars,
+        originalTokens,
+        compressedTokens,
+        savedTokens,
+        tokenCompressionRatio: originalTokens > 0 ? compressedTokens / originalTokens : 1,
       },
     );
   }
@@ -219,31 +308,49 @@ export class RuleBasedContextCompressor implements ContextCompressor {
   private buildHeadTailContent(
     content: string,
     maxSectionChars: number,
+    maxSectionTokens: number,
     strategy: string,
   ): HeadTailParts {
     let marker = this.createOmissionMarker(content.length, strategy);
     let availableContentChars = Math.max(0, maxSectionChars - marker.length);
     let budgets = this.allocateHeadTailBudgets(availableContentChars);
+    let tokenBudgets = this.allocateHeadTailTokenBudgets(maxSectionTokens, marker);
 
-    for (let attempts = 0; attempts < 8; attempts += 1) {
+    for (let attempts = 0; attempts < 12; attempts += 1) {
       const head =
-        budgets.headChars > 0 ? this.sliceHead(content, budgets.headChars) : "";
+        budgets.headChars > 0 && tokenBudgets.headTokens > 0
+          ? this.truncateHeadToTokens(
+              this.sliceHead(content, budgets.headChars),
+              tokenBudgets.headTokens,
+            )
+          : "";
       const tail =
-        budgets.tailChars > 0 ? this.sliceTail(content, budgets.tailChars) : "";
+        budgets.tailChars > 0 && tokenBudgets.tailTokens > 0
+          ? this.truncateTailToTokens(
+              this.sliceTail(content, budgets.tailChars),
+              tokenBudgets.tailTokens,
+            )
+          : "";
       const omittedChars = Math.max(0, content.length - head.length - tail.length);
       marker = this.createFittingOmissionMarker(omittedChars, strategy, maxSectionChars);
       const compressedContent = `${head}${marker}${tail}`;
 
-      if (compressedContent.length <= maxSectionChars) {
+      if (
+        compressedContent.length <= maxSectionChars &&
+        this.tokenEstimator.countText(compressedContent) <= maxSectionTokens
+      ) {
         return {head, tail, marker, content: compressedContent, omittedChars};
       }
 
       const overflow = compressedContent.length - maxSectionChars;
-      budgets = this.reduceHeadTailBudgets(budgets, overflow);
+      budgets = this.reduceHeadTailBudgets(budgets, Math.max(1, overflow));
+      tokenBudgets = this.reduceHeadTailTokenBudgets(tokenBudgets, 1);
       availableContentChars = Math.max(0, availableContentChars - overflow);
       if (
         budgets.headChars + budgets.tailChars <= 0 &&
-        marker.length <= maxSectionChars
+        tokenBudgets.headTokens + tokenBudgets.tailTokens <= 0 &&
+        marker.length <= maxSectionChars &&
+        this.tokenEstimator.countText(marker) <= maxSectionTokens
       ) {
         return {
           head: "",
@@ -266,6 +373,31 @@ export class RuleBasedContextCompressor implements ContextCompressor {
       marker: markerOnly,
       content: markerOnly,
       omittedChars: content.length,
+    };
+  }
+
+  private allocateHeadTailTokenBudgets(
+    maxSectionTokens: number,
+    marker: string,
+  ): {
+    headTokens: number;
+    tailTokens: number;
+  } {
+    const availableTokens = Math.max(
+      0,
+      maxSectionTokens - this.tokenEstimator.countText(marker),
+    );
+    if (availableTokens <= 0) {
+      return {headTokens: 0, tailTokens: 0};
+    }
+
+    const ratioTotal = this.headTokenRatio + this.tailTokenRatio;
+    const headRatio = ratioTotal > 0 ? this.headTokenRatio / ratioTotal : 0.67;
+    const headTokens = Math.floor(availableTokens * headRatio);
+
+    return {
+      headTokens,
+      tailTokens: Math.max(0, availableTokens - headTokens),
     };
   }
 
@@ -316,6 +448,64 @@ export class RuleBasedContextCompressor implements ContextCompressor {
     return this.preserveLineBoundaries
       ? this.sliceTailPreservingLines(content, maxChars)
       : content.slice(-maxChars);
+  }
+
+  private truncateHeadToTokens(content: string, maxTokens: number): string {
+    if (!content || maxTokens <= 0) {
+      return "";
+    }
+
+    if (this.tokenEstimator.countText(content) <= maxTokens) {
+      return content;
+    }
+
+    let low = 0;
+    let high = content.length;
+    let best = "";
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const candidate = content.slice(0, mid);
+      if (this.tokenEstimator.countText(candidate) <= maxTokens) {
+        best = candidate;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return this.preserveLineBoundaries
+      ? this.sliceHeadPreservingLines(best, best.length)
+      : best;
+  }
+
+  private truncateTailToTokens(content: string, maxTokens: number): string {
+    if (!content || maxTokens <= 0) {
+      return "";
+    }
+
+    if (this.tokenEstimator.countText(content) <= maxTokens) {
+      return content;
+    }
+
+    let low = 0;
+    let high = content.length;
+    let best = "";
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const candidate = content.slice(content.length - mid);
+      if (this.tokenEstimator.countText(candidate) <= maxTokens) {
+        best = candidate;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return this.preserveLineBoundaries
+      ? this.sliceTailPreservingLines(best, best.length)
+      : best;
   }
 
   private createOmissionMarker(omittedChars: number, strategy: string): string {
@@ -384,6 +574,20 @@ export class RuleBasedContextCompressor implements ContextCompressor {
     return {
       headChars: Math.max(0, budgets.headChars - remainingOverflow),
       tailChars: budgets.tailChars - tailReduction,
+    };
+  }
+
+  private reduceHeadTailTokenBudgets(
+    budgets: {headTokens: number; tailTokens: number},
+    overflow: number,
+  ): {headTokens: number; tailTokens: number} {
+    let remainingOverflow = Math.max(1, overflow);
+    const tailReduction = Math.min(budgets.tailTokens, remainingOverflow);
+    remainingOverflow -= tailReduction;
+
+    return {
+      headTokens: Math.max(0, budgets.headTokens - remainingOverflow),
+      tailTokens: budgets.tailTokens - tailReduction,
     };
   }
 

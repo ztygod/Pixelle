@@ -6,7 +6,6 @@ import {
   ContextCompressionResultFactory,
   ContextEngine,
   ContextRegistry,
-  estimateTokens,
   DefaultContextBudgetPolicy,
   NoopContextCompressor,
   RuleBasedContextCompressor,
@@ -14,7 +13,16 @@ import {
   type ContextCompressionResult,
   type ContextCompressor,
   type ContextSection,
+  type TokenEstimator,
 } from "../src/context/index.js";
+
+class CharTokenEstimator implements TokenEstimator {
+  countText(text: string): number {
+    return text.length;
+  }
+}
+
+const charTokenEstimator = new CharTokenEstimator();
 
 class ThrowingCompressor implements ContextCompressor {
   compress(): ContextCompressionResult {
@@ -38,9 +46,13 @@ class MarkingCompressor implements ContextCompressor {
       compressed: true,
       originalChars: section.content.length,
       compressedChars: compressedSection.content.length,
+      originalTokens: section.content.length,
+      compressedTokens: compressedSection.content.length,
       omittedChars: section.content.length - compressedSection.content.length,
       savedChars: section.content.length - compressedSection.content.length,
+      savedTokens: section.content.length - compressedSection.content.length,
       compressionRatio: compressedSection.content.length / section.content.length,
+      tokenCompressionRatio: compressedSection.content.length / section.content.length,
       reason: "Marked by test compressor.",
     };
   }
@@ -117,7 +129,7 @@ describe("buildRuntimeContext", () => {
     expect(result.contextText).toBe("## Notes\nkeep this");
   });
 
-  it("uses the existing 35 percent runtime context budget policy", () => {
+  it("builds a token-first runtime context budget policy", () => {
     expect(
       new DefaultContextBudgetPolicy().createBudget({
         sections: [],
@@ -125,19 +137,25 @@ describe("buildRuntimeContext", () => {
       }),
     ).toEqual({
       tokenLimit: 100,
+      maxContextTokens: 100,
+      reservedOutputTokens: 20,
+      maxInputTokens: 80,
       runtimeContextRatio: 0.35,
-      maxContextChars: 140,
+      maxContextChars: 320,
     });
   });
 
   it("truncates over-budget runtime context and records included, partial, and dropped sections", () => {
-    const result = buildRuntimeContext({
+    const result = new ContextEngine({
+      budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
+      tokenEstimator: charTokenEstimator,
+    }).build({
       systemPrompt: "Base.",
       sections: [
         {id: "first", content: "abcdefghij", priority: 10},
         {id: "second", content: "klmnopqrst", priority: 9},
       ],
-      tokenLimit: 3,
+      tokenLimit: 4,
     });
 
     expect(result.contextText).toBe("abcd");
@@ -151,19 +169,22 @@ describe("buildRuntimeContext", () => {
       "partial",
       "dropped",
     ]);
-    expect(result.diagnostics?.contextTextTokens).toBe(1);
-    expect(result.tokenEstimate).toBe(estimateTokens(result.systemPrompt));
+    expect(result.diagnostics?.contextTextTokens).toBe(4);
+    expect(result.tokenEstimate).toBe(charTokenEstimator.countText(result.systemPrompt));
   });
 
   it("keeps fully injected sections separate from partial and dropped sections", () => {
-    const result = buildRuntimeContext({
+    const result = new ContextEngine({
+      budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
+      tokenEstimator: charTokenEstimator,
+    }).build({
       systemPrompt: "Base.",
       sections: [
         {id: "first", content: "abc", priority: 10},
         {id: "second", content: "defghij", priority: 9},
         {id: "third", content: "klm", priority: 8},
       ],
-      tokenLimit: 5,
+      tokenLimit: 7,
     });
 
     expect(result.contextText).toBe("abc\n\nde");
@@ -240,7 +261,7 @@ describe("buildRuntimeContext", () => {
       }),
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       section,
       originalSection: section,
       compressed: false,
@@ -258,6 +279,7 @@ describe("buildRuntimeContext", () => {
     const pipeline = new ContextCompressionPipeline({
       compressor,
       thresholdRatio: 0.85,
+      tokenEstimator: charTokenEstimator,
     });
     const compression = pipeline.compress(
       [{id: "short", content: "short"}],
@@ -306,29 +328,37 @@ describe("buildRuntimeContext", () => {
     const pipeline = new ContextCompressionPipeline({
       compressor: new MarkingCompressor(),
       thresholdRatio: 0.5,
+      tokenEstimator: charTokenEstimator,
     });
     const result = new ContextEngine({
       compressionPipeline: pipeline,
+      budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
+      tokenEstimator: charTokenEstimator,
     }).build({
       systemPrompt: "Base prompt.",
       outputInstructions: "Use Markdown.",
       sections: [{id: "long", content: "abcdefghijklmnop", source: {kind: "tool"}}],
-      tokenLimit: 6,
+      tokenLimit: 8,
     });
 
     expect(result.contextText).toBe("abcdefgh");
-    expect(result.tokenEstimate).toBe(estimateTokens(result.systemPrompt));
+    expect(result.tokenEstimate).toBe(charTokenEstimator.countText(result.systemPrompt));
     expect(result.diagnostics).toMatchObject({
       budget: {
-        tokenLimit: 6,
+        tokenLimit: 8,
+        maxContextTokens: 8,
+        reservedOutputTokens: 0,
+        maxInputTokens: 8,
         runtimeContextRatio: 0.35,
-        maxContextChars: 8,
+        maxContextChars: 32,
       },
       estimatedContextChars: 16,
+      estimatedContextTokens: 16,
       compressionThresholdRatio: 0.5,
       compressionTriggered: true,
-      contextTextTokens: estimateTokens(result.contextText),
-      systemPromptTokens: estimateTokens(result.systemPrompt),
+      compressionLimitTokens: 4,
+      contextTextTokens: charTokenEstimator.countText(result.contextText),
+      systemPromptTokens: charTokenEstimator.countText(result.systemPrompt),
     });
     expect(result.diagnostics?.compressionResults).toEqual([
       expect.objectContaining({
@@ -337,16 +367,23 @@ describe("buildRuntimeContext", () => {
         compressed: true,
         originalChars: 16,
         compressedChars: 8,
+        originalTokens: 16,
+        compressedTokens: 8,
         omittedChars: 8,
         savedChars: 8,
+        savedTokens: 8,
         compressionRatio: 0.5,
+        tokenCompressionRatio: 0.5,
         reason: "Marked by test compressor.",
       }),
     ]);
   });
 
   it("uses a default noop compression pipeline when no compressor is provided", () => {
-    const compression = new ContextCompressionPipeline({thresholdRatio: 0}).compress(
+    const compression = new ContextCompressionPipeline({
+      thresholdRatio: 0,
+      tokenEstimator: charTokenEstimator,
+    }).compress(
       [{id: "plain", content: "plain"}],
       new DefaultContextBudgetPolicy().createBudget({
         sections: [],
@@ -390,9 +427,12 @@ describe("buildRuntimeContext", () => {
 
   it("rule-based compressor only compresses long tool and file sections", () => {
     const compressor = new RuleBasedContextCompressor({
+      maxSectionTokens: 80,
+      minSectionTokens: 80,
       maxSectionChars: 80,
       headChars: 20,
       tailChars: 10,
+      tokenEstimator: charTokenEstimator,
     });
     const longContent = "abcdefghijklmnopqrstuvwxyz".repeat(10);
     const kinds = ["user", "memory", "workspace", "provider", "system"] as const;
@@ -421,6 +461,7 @@ describe("buildRuntimeContext", () => {
       expect(result.section.content.length).toBeLessThanOrEqual(80);
       expect(result).toMatchObject({
         strategy: "rule-based-head-tail",
+        maxSectionTokens: 80,
         maxSectionChars: 80,
       });
       expect(result.omittedChars).toBeGreaterThan(0);
@@ -431,22 +472,21 @@ describe("buildRuntimeContext", () => {
 
   it("reports omitted original chars separately from saved chars", () => {
     const compressor = new RuleBasedContextCompressor({
+      maxSectionTokens: 90,
+      minSectionTokens: 90,
       maxSectionChars: 90,
       minSectionChars: 90,
       maxSectionRatio: 1,
       headChars: 20,
       tailChars: 20,
       preserveLineBoundaries: false,
+      tokenEstimator: charTokenEstimator,
     });
     const section = {
       content: "0123456789".repeat(30),
       source: {kind: "tool" as const},
     };
-    const result = compressor.compress(section, {
-      tokenLimit: 1_000,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 90,
-    });
+    const result = compressor.compress(section, rawBudget(90));
     const markerMatch = /\[\.\.\.(\d+) chars omitted/.exec(result.section.content);
 
     expect(result.compressed).toBe(true);
@@ -464,29 +504,27 @@ describe("buildRuntimeContext", () => {
       source: {kind: "tool" as const},
     };
     const tailOnly = new RuleBasedContextCompressor({
+      maxSectionTokens: 80,
+      minSectionTokens: 80,
       maxSectionChars: 80,
       minSectionChars: 80,
       maxSectionRatio: 1,
       headChars: 0,
       tailChars: 20,
       preserveLineBoundaries: false,
-    }).compress(section, {
-      tokenLimit: 1_000,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 80,
-    });
+      tokenEstimator: charTokenEstimator,
+    }).compress(section, rawBudget(80));
     const headOnly = new RuleBasedContextCompressor({
+      maxSectionTokens: 80,
+      minSectionTokens: 80,
       maxSectionChars: 80,
       minSectionChars: 80,
       maxSectionRatio: 1,
       headChars: 20,
       tailChars: 0,
       preserveLineBoundaries: false,
-    }).compress(section, {
-      tokenLimit: 1_000,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 80,
-    });
+      tokenEstimator: charTokenEstimator,
+    }).compress(section, rawBudget(80));
 
     expect(tailOnly.section.content.startsWith("\n\n[...")).toBe(true);
     expect(tailOnly.section.content).toContain("TAIL-");
@@ -500,17 +538,16 @@ describe("buildRuntimeContext", () => {
       source: {kind: "file" as const},
     };
     const result = new RuleBasedContextCompressor({
+      maxSectionTokens: 100,
+      minSectionTokens: 100,
       maxSectionChars: 100,
       minSectionChars: 100,
       maxSectionRatio: 1,
       headChars: 0,
       tailChars: 0,
       preserveLineBoundaries: false,
-    }).compress(section, {
-      tokenLimit: 1_000,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 100,
-    });
+      tokenEstimator: charTokenEstimator,
+    }).compress(section, rawBudget(100));
     const markerStart = result.section.content.indexOf("[...");
     const markerEnd = result.section.content.indexOf("]\n\n");
     const head = result.section.content.slice(0, markerStart);
@@ -522,33 +559,28 @@ describe("buildRuntimeContext", () => {
 
   it("uses ContextBudget to resolve dynamic per-section compression limits", () => {
     const compressor = new RuleBasedContextCompressor({
+      maxSectionTokens: 500,
+      minSectionTokens: 80,
       maxSectionChars: 500,
       minSectionChars: 80,
       maxSectionRatio: 0.25,
       headChars: 60,
       tailChars: 40,
       preserveLineBoundaries: false,
+      tokenEstimator: charTokenEstimator,
     });
     const section = {
       content: "0123456789".repeat(100),
       source: {kind: "tool" as const},
     };
-    const smallBudgetResult = compressor.compress(section, {
-      tokenLimit: 100,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 400,
-    });
-    const largeBudgetResult = compressor.compress(section, {
-      tokenLimit: 10_000,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 20_000,
-    });
+    const smallBudgetResult = compressor.compress(section, rawBudget(400));
+    const largeBudgetResult = compressor.compress(section, rawBudget(20_000));
 
     expect(smallBudgetResult.compressed).toBe(true);
-    expect(smallBudgetResult.maxSectionChars).toBe(100);
-    expect(smallBudgetResult.section.content.length).toBeLessThanOrEqual(100);
+    expect(smallBudgetResult.maxSectionTokens).toBe(100);
+    expect(smallBudgetResult.compressedTokens).toBeLessThanOrEqual(100);
     expect(largeBudgetResult.compressed).toBe(true);
-    expect(largeBudgetResult.maxSectionChars).toBe(500);
+    expect(largeBudgetResult.maxSectionTokens).toBe(500);
     expect(largeBudgetResult.section.content.length).toBeGreaterThan(
       smallBudgetResult.section.content.length,
     );
@@ -556,9 +588,12 @@ describe("buildRuntimeContext", () => {
 
   it("does not compress tool or file sections below the dynamic limit", () => {
     const compressor = new RuleBasedContextCompressor({
+      maxSectionTokens: 500,
+      minSectionTokens: 1,
       maxSectionChars: 500,
       minSectionChars: 1,
       maxSectionRatio: 1,
+      tokenEstimator: charTokenEstimator,
     });
     const section = {
       content: "short tool output",
@@ -570,20 +605,25 @@ describe("buildRuntimeContext", () => {
       section,
       originalSection: section,
       compressed: false,
-      reason: "Section is within the dynamic section limit (17 <= 140 chars).",
+      reason: "Section is within the dynamic section token limit (17 <= 100 tokens).",
       strategy: "rule-based-head-tail",
-      maxSectionChars: 140,
+      maxSectionTokens: 100,
     });
   });
 
   it("preserves line boundaries for head and tail slices when configured", () => {
     const compressor = new RuleBasedContextCompressor({
-      maxSectionChars: 120,
-      minSectionChars: 120,
+      maxSectionTokens: 140,
+      minSectionTokens: 140,
+      maxSectionChars: 140,
+      minSectionChars: 140,
       maxSectionRatio: 1,
       headChars: 40,
       tailChars: 40,
+      headTokenRatio: 0.5,
+      tailTokenRatio: 0.5,
       preserveLineBoundaries: true,
+      tokenEstimator: charTokenEstimator,
     });
     const section = {
       content: [
@@ -596,36 +636,33 @@ describe("buildRuntimeContext", () => {
       ].join("\n"),
       source: {kind: "file" as const},
     };
-    const result = compressor.compress(section, {
-      tokenLimit: 1_000,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 120,
-    });
+    const result = compressor.compress(section, rawBudget(140));
 
     expect(result.compressed).toBe(true);
     expect(result.section.content).toContain("head-line-1\nhead-line-2\n");
-    expect(result.section.content).not.toContain("head-line-3");
+    expect(result.section.content).not.toContain("middle-linemiddle-line");
     expect(result.section.content).toContain("tail-line-1\ntail-line-2");
   });
 
   it("falls back to plain line slicing when line preservation would keep too little", () => {
     const compressor = new RuleBasedContextCompressor({
-      maxSectionChars: 80,
-      minSectionChars: 80,
+      maxSectionTokens: 100,
+      minSectionTokens: 100,
+      maxSectionChars: 100,
+      minSectionChars: 100,
       maxSectionRatio: 1,
       headChars: 10,
       tailChars: 10,
+      headTokenRatio: 0.5,
+      tailTokenRatio: 0.5,
       preserveLineBoundaries: true,
+      tokenEstimator: charTokenEstimator,
     });
     const section = {
       content: `ab\n${"c".repeat(120)}\n${"d".repeat(120)}\nij`,
       source: {kind: "tool" as const},
     };
-    const result = compressor.compress(section, {
-      tokenLimit: 1_000,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 80,
-    });
+    const result = compressor.compress(section, rawBudget(100));
 
     expect(result.section.content).toContain("ab\nccccc");
     expect(result.section.content).toContain("ddddd\nij");
@@ -635,23 +672,22 @@ describe("buildRuntimeContext", () => {
     const compressor = new RuleBasedContextCompressor({
       maxSectionChars: 0,
       minSectionChars: 99_999,
+      maxSectionTokens: 0,
+      minSectionTokens: 99_999,
       maxSectionRatio: 10,
       headChars: -1,
       tailChars: -1,
+      tokenEstimator: charTokenEstimator,
     });
     const section = {
       content: "x".repeat(20_000),
       source: {kind: "tool" as const},
     };
-    const result = compressor.compress(section, {
-      tokenLimit: 100,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 140,
-    });
+    const result = compressor.compress(section, rawBudget(100));
 
     expect(result.compressed).toBe(true);
     expect(result.section.content.trim().length).toBeGreaterThan(0);
-    expect(result.maxSectionChars).toBe(8_000);
+    expect(result.maxSectionTokens).toBe(8_000);
   });
 
   it("keeps omission marker details visible through compressor output", () => {
@@ -660,15 +696,14 @@ describe("buildRuntimeContext", () => {
       source: {kind: "tool" as const},
     };
     const result = new RuleBasedContextCompressor({
+      maxSectionTokens: 100,
+      minSectionTokens: 100,
       maxSectionChars: 100,
       minSectionChars: 100,
       maxSectionRatio: 1,
       preserveLineBoundaries: false,
-    }).compress(section, {
-      tokenLimit: 1_000,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 100,
-    });
+      tokenEstimator: charTokenEstimator,
+    }).compress(section, rawBudget(100));
 
     expect(result.section.content).toMatch(
       new RegExp(`\\[\\.\\.\\.${result.omittedChars} chars omitted`),
@@ -677,8 +712,19 @@ describe("buildRuntimeContext", () => {
 });
 
 function budgetFor(section: ContextSection): ContextBudget {
-  return new DefaultContextBudgetPolicy().createBudget({
+  return new DefaultContextBudgetPolicy({reservedOutputTokens: 0}).createBudget({
     sections: [section],
     tokenLimit: 100,
   });
+}
+
+function rawBudget(maxInputTokens: number): ContextBudget {
+  return {
+    tokenLimit: maxInputTokens,
+    maxContextTokens: maxInputTokens,
+    reservedOutputTokens: 0,
+    maxInputTokens,
+    runtimeContextRatio: 0.35,
+    maxContextChars: maxInputTokens * 4,
+  };
 }

@@ -4,6 +4,7 @@ import type {ContextCompressor} from "./context-compressor.js";
 import type {ContextTruncator} from "./context-truncator.js";
 import type {ContextPriorityPolicy} from "./priority-policy.js";
 import type {SystemPromptAssembler} from "./system-prompt-assembler.js";
+import type {TokenEstimator} from "./token-estimator.js";
 
 /** Source metadata for a context section. */
 export type ContextSource =
@@ -48,8 +49,13 @@ export type BuildContextResult = {
 /** Runtime context budget derived from the model token limit. */
 export type ContextBudget = {
   tokenLimit: number;
-  runtimeContextRatio: number;
-  maxContextChars: number;
+  maxContextTokens: number;
+  reservedOutputTokens: number;
+  maxInputTokens: number;
+  /** @deprecated kept for compatibility and diagnostics only. */
+  runtimeContextRatio?: number;
+  /** @deprecated char budget is a diagnostic fallback only. */
+  maxContextChars?: number;
 };
 
 /** Explicit section-level truncation status. */
@@ -62,6 +68,9 @@ export type ContextSectionUsage = {
   originalLength: number;
   includedLength: number;
   formattedLength: number;
+  originalTokens?: number;
+  includedTokens?: number;
+  formattedTokens?: number;
   reason?: string;
 };
 
@@ -77,6 +86,11 @@ export type ContextCompressionResult = {
   savedChars?: number;
   compressionRatio?: number;
   maxSectionChars?: number;
+  originalTokens?: number;
+  compressedTokens?: number;
+  savedTokens?: number;
+  tokenCompressionRatio?: number;
+  maxSectionTokens?: number;
   reason?: string;
 };
 
@@ -84,8 +98,10 @@ export type ContextCompressionResult = {
 export type BuildContextDiagnostics = {
   budget: ContextBudget;
   estimatedContextChars: number;
+  estimatedContextTokens: number;
   compressionThresholdRatio: number;
   compressionTriggered: boolean;
+  compressionLimitTokens: number;
   compressionResults: ContextCompressionResult[];
   contextTextTokens: number;
   systemPromptTokens: number;
@@ -100,4 +116,5 @@ export type ContextEngineOptions = {
   compressionThresholdRatio?: number;
   truncator?: ContextTruncator;
   assembler?: SystemPromptAssembler;
+  tokenEstimator?: TokenEstimator;
 };

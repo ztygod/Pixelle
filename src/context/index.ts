@@ -21,7 +21,11 @@ export type {
 } from "./context-compressor.js";
 export {compareContextSection, formatContextSection} from "./context-formatter.js";
 export {ContextRegistry} from "./context-registry.js";
-export {ContextTruncator, truncateContext} from "./context-truncator.js";
+export {
+  ContextTruncator,
+  truncateContext,
+  truncateTextToTokens,
+} from "./context-truncator.js";
 export type {
   FormattedContextSection,
   TruncateContextResult,
@@ -29,7 +33,13 @@ export type {
 export {DefaultContextPriorityPolicy} from "./priority-policy.js";
 export type {ContextPriorityPolicy} from "./priority-policy.js";
 export {SystemPromptAssembler} from "./system-prompt-assembler.js";
-export {estimateTokens} from "./token-estimator.js";
+export {
+  ApproxTokenEstimator,
+  createDefaultTokenEstimator,
+  estimateTokens,
+  GptTokenEstimator,
+} from "./token-estimator.js";
+export type {TokenCountableMessage, TokenEstimator} from "./token-estimator.js";
 export type {
   BuildContextInput,
   BuildContextDiagnostics,
