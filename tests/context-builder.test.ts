@@ -5,15 +5,16 @@ import {
   buildRuntimeContext,
   ContextCompressionPipeline,
   ContextCompressionResultFactory,
+  ContextBudgetExceededError,
   ContextEngine,
   ContextRegistry,
   DefaultContextBudgetPolicy,
   estimateTokens,
   GptTokenEstimator,
-  NoopContextCompressor,
   RuleBasedContextCompressor,
   truncateTextToTokens,
   type ContextBudget,
+  type ContextBudgetPolicy,
   type ContextCompressionResult,
   type ContextCompressor,
   type ContextSection,
@@ -74,7 +75,7 @@ describe("buildRuntimeContext", () => {
 
   it("matches the default ContextEngine output", () => {
     const input = {
-      systemPrompt: "Base.",
+      baseSystemPrompt: "Base.",
       outputInstructions: "Use Markdown.",
       sections: [{title: "Runtime", content: "details"}],
       tokenLimit: 100,
@@ -85,7 +86,7 @@ describe("buildRuntimeContext", () => {
 
   it("sorts context sections by descending priority", () => {
     const result = new ContextEngine().build({
-      systemPrompt: "Base.",
+      baseSystemPrompt: "Base.",
       sections: [
         {id: "low", content: "low", priority: 1},
         {id: "high", content: "high", priority: 10},
@@ -104,7 +105,7 @@ describe("buildRuntimeContext", () => {
 
   it("uses source priority when explicit priority is absent", () => {
     const result = new ContextEngine().build({
-      systemPrompt: "Base.",
+      baseSystemPrompt: "Base.",
       sections: [
         {id: "file", content: "file", source: {kind: "file"}},
         {id: "workspace", content: "workspace", source: {kind: "workspace"}},
@@ -118,7 +119,7 @@ describe("buildRuntimeContext", () => {
 
   it("skips empty section content", () => {
     const result = buildRuntimeContext({
-      systemPrompt: "Base.",
+      baseSystemPrompt: "Base.",
       sections: [
         {id: "empty", title: "Empty", content: "   ", priority: 100},
         {id: "filled", content: "filled"},
@@ -129,12 +130,12 @@ describe("buildRuntimeContext", () => {
     expect(result.contextText).toBe("filled");
     expect(result.includedSections.map((section) => section.id)).toEqual(["filled"]);
     expect(result.sectionUsages.map((usage) => usage.section.id)).toEqual(["filled"]);
-    expect(result.droppedSections).toEqual([]);
+    expect(result.omittedSections).toEqual([]);
   });
 
   it("formats titled sections with markdown headings", () => {
     const result = buildRuntimeContext({
-      systemPrompt: "Base.",
+      baseSystemPrompt: "Base.",
       sections: [{title: "Notes", content: "  keep this  "}],
       tokenLimit: 100,
     });
@@ -148,65 +149,96 @@ describe("buildRuntimeContext", () => {
         sections: [],
         tokenLimit: 100,
       }),
-    ).toEqual({
+    ).toMatchObject({
       tokenLimit: 100,
-      maxContextTokens: 100,
+      modelContextWindow: 100,
       reservedOutputTokens: 20,
-      maxInputTokens: 80,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 320,
+      runtimeContextTokens: 80,
+      systemPromptTokens: 0,
+      outputInstructionTokens: 0,
+      toolSchemaTokens: 0,
+      conversationTokens: 0,
+      safetyMarginTokens: 0,
     });
   });
 
-  it("truncates over-budget runtime context and records included, partial, and dropped sections", () => {
+  it("deducts prompt, conversation, tool schema, and safety tokens from runtime context budget", () => {
+    const budget = new DefaultContextBudgetPolicy({
+      reservedOutputTokens: 10,
+    }).createBudget(
+      {
+        baseSystemPrompt: "system",
+        outputInstructions: "output",
+        sections: [],
+        tokenLimit: 100,
+        conversationMessages: [{role: "user", content: "conversation"}],
+        toolSchemas: [{name: "tool"}],
+        safetyMarginTokens: 3,
+      },
+      charTokenEstimator,
+    );
+
+    expect(budget).toMatchObject({
+      modelContextWindow: 100,
+      reservedOutputTokens: 10,
+      systemPromptTokens: 6,
+      outputInstructionTokens: 6,
+      conversationTokens: 17,
+      toolSchemaTokens: 17,
+      safetyMarginTokens: 3,
+      runtimeContextTokens: 41,
+    });
+  });
+
+  it("truncates over-budget runtime context and records included, partial, and omitted sections", () => {
     const result = new ContextEngine({
-      budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
+      budgetPolicy: fixedRuntimeBudgetPolicy(4),
       tokenEstimator: charTokenEstimator,
     }).build({
-      systemPrompt: "Base.",
+      baseSystemPrompt: "Base.",
       sections: [
         {id: "first", content: "abcdefghij", priority: 10},
         {id: "second", content: "klmnopqrst", priority: 9},
       ],
-      tokenLimit: 4,
+      tokenLimit: 100,
     });
 
     expect(result.contextText).toBe("abcd");
     expect(result.includedSections).toEqual([]);
-    expect(result.partialSections.map((section) => section.id)).toEqual(["first"]);
-    expect(result.droppedSections.map((section) => section.id)).toEqual([
+    expect(result.partiallyIncludedSections.map((section) => section.id)).toEqual([
       "first",
-      "second",
     ]);
+    expect(result.omittedSections.map((section) => section.id)).toEqual(["second"]);
     expect(result.sectionUsages.map((usage) => usage.status)).toEqual([
       "partial",
-      "dropped",
+      "omitted",
     ]);
     expect(result.diagnostics?.contextTextTokens).toBe(4);
-    expect(result.tokenEstimate).toBe(charTokenEstimator.countText(result.systemPrompt));
+    expect(result.tokenEstimate).toBe(
+      charTokenEstimator.countText(result.assembledSystemPrompt),
+    );
   });
 
-  it("keeps fully injected sections separate from partial and dropped sections", () => {
+  it("keeps fully injected sections separate from partial and omitted sections", () => {
     const result = new ContextEngine({
-      budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
+      budgetPolicy: fixedRuntimeBudgetPolicy(7),
       tokenEstimator: charTokenEstimator,
     }).build({
-      systemPrompt: "Base.",
+      baseSystemPrompt: "Base.",
       sections: [
         {id: "first", content: "abc", priority: 10},
         {id: "second", content: "defghij", priority: 9},
         {id: "third", content: "klm", priority: 8},
       ],
-      tokenLimit: 7,
+      tokenLimit: 100,
     });
 
     expect(result.contextText).toBe("abc\n\nde");
     expect(result.includedSections.map((section) => section.id)).toEqual(["first"]);
-    expect(result.partialSections.map((section) => section.id)).toEqual(["second"]);
-    expect(result.droppedSections.map((section) => section.id)).toEqual([
+    expect(result.partiallyIncludedSections.map((section) => section.id)).toEqual([
       "second",
-      "third",
     ]);
+    expect(result.omittedSections.map((section) => section.id)).toEqual(["third"]);
     expect(result.sectionUsages).toEqual([
       expect.objectContaining({
         section: expect.objectContaining({id: "first"}),
@@ -221,7 +253,7 @@ describe("buildRuntimeContext", () => {
       }),
       expect.objectContaining({
         section: expect.objectContaining({id: "third"}),
-        status: "dropped",
+        status: "omitted",
         reason: "No remaining context budget for this section.",
       }),
     ]);
@@ -229,15 +261,35 @@ describe("buildRuntimeContext", () => {
 
   it("builds system prompt with output instructions and runtime context", () => {
     const result = buildRuntimeContext({
-      systemPrompt: "Base prompt.",
+      baseSystemPrompt: "Base prompt.",
       outputInstructions: "Use Markdown.",
       sections: [{title: "Runtime", content: "details"}],
       tokenLimit: 100,
     });
 
-    expect(result.systemPrompt).toBe(
+    expect(result.assembledSystemPrompt).toBe(
       "Base prompt.\n\nUse Markdown.\n\n# Runtime Context\n## Runtime\ndetails",
     );
+  });
+
+  it("throws when protected required context makes the final prompt exceed the model window", () => {
+    expect(() =>
+      new ContextEngine({
+        budgetPolicy: fixedRuntimeBudgetPolicy(0),
+        tokenEstimator: charTokenEstimator,
+      }).build({
+        baseSystemPrompt: "Base.",
+        sections: [
+          {
+            id: "required",
+            content: "required content",
+            required: true,
+            truncation: "none",
+          },
+        ],
+        tokenLimit: 20,
+      }),
+    ).toThrow(ContextBudgetExceededError);
   });
 
   it("dedupes sections by replaceKey or id with the later section winning", () => {
@@ -259,34 +311,6 @@ describe("buildRuntimeContext", () => {
     ]);
   });
 
-  it("does not alter ordinary sections with the default compressor", () => {
-    const section = {
-      id: "plain",
-      title: "Plain",
-      content: "content",
-      source: {kind: "user" as const},
-    };
-    const result = new NoopContextCompressor().compress(
-      section,
-      new DefaultContextBudgetPolicy().createBudget({
-        sections: [section],
-        tokenLimit: 100,
-      }),
-    );
-
-    expect(result).toMatchObject({
-      section,
-      originalSection: section,
-      compressed: false,
-      originalChars: section.content.length,
-      compressedChars: section.content.length,
-      omittedChars: 0,
-      savedChars: 0,
-      compressionRatio: 1,
-      reason: "No compression applied.",
-    });
-  });
-
   it("does not trigger compression below the configured threshold", () => {
     const compressor = new ThrowingCompressor();
     const pipeline = new ContextCompressionPipeline({
@@ -304,7 +328,7 @@ describe("buildRuntimeContext", () => {
     const result = new ContextEngine({
       compressionPipeline: pipeline,
     }).build({
-      systemPrompt: "Base.",
+      baseSystemPrompt: "Base.",
       sections: [{id: "short", content: "short"}],
       tokenLimit: 100,
     });
@@ -320,7 +344,8 @@ describe("buildRuntimeContext", () => {
     expect(compression.results).toEqual([
       expect.objectContaining({
         compressed: false,
-        reason: "Compression was not triggered.",
+        reason:
+          "Compression was not triggered because runtime context is below the configured total threshold.",
       }),
     ]);
     expect(result.diagnostics).toMatchObject({
@@ -328,7 +353,7 @@ describe("buildRuntimeContext", () => {
       compressionTriggered: false,
       estimatedContextChars: 5,
       estimatedContextTokens: 5,
-      compressionLimitTokens: 68,
+      compressionLimitTokens: 66,
     });
     expect(result.diagnostics?.compressionResults).toEqual([
       expect.objectContaining({
@@ -336,8 +361,46 @@ describe("buildRuntimeContext", () => {
         compressed: false,
         originalChars: 5,
         compressedChars: 5,
-        reason: "Compression was not triggered.",
+        reason:
+          "Compression was not triggered because runtime context is below the configured total threshold.",
       }),
+    ]);
+  });
+
+  it("skips compression for sections that are protected or below strategy thresholds", () => {
+    const pipeline = new ContextCompressionPipeline({
+      compressor: new ThrowingCompressor(),
+      thresholdRatio: 0,
+      minSectionTokens: 10,
+      tokenEstimator: charTokenEstimator,
+    });
+    const sections: ContextSection[] = [
+      {
+        id: "required",
+        content: "required long content",
+        required: true,
+        truncation: "none",
+        source: {kind: "tool"},
+      },
+      {
+        id: "opt-out",
+        content: "opt out long content",
+        compressible: false,
+        source: {kind: "tool"},
+      },
+      {
+        id: "short",
+        content: "short",
+        source: {kind: "file"},
+      },
+    ];
+
+    const compression = pipeline.compress(sections, rawBudget(100));
+
+    expect(compression.results.map((result) => result.reason)).toEqual([
+      "Required section disallows truncation and is protected from compression.",
+      "Section opted out of compression.",
+      "Section is below the minimum compression threshold (5 < 10 tokens).",
     ]);
   });
 
@@ -345,6 +408,7 @@ describe("buildRuntimeContext", () => {
     const pipeline = new ContextCompressionPipeline({
       compressor: new MarkingCompressor(),
       thresholdRatio: 0.5,
+      minSectionTokens: 1,
       tokenEstimator: charTokenEstimator,
     });
     const result = new ContextEngine({
@@ -352,30 +416,30 @@ describe("buildRuntimeContext", () => {
       budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
       tokenEstimator: charTokenEstimator,
     }).build({
-      systemPrompt: "Base prompt.",
+      baseSystemPrompt: "Base prompt.",
       outputInstructions: "Use Markdown.",
       sections: [{id: "long", content: "abcdefghijklmnop", source: {kind: "tool"}}],
-      tokenLimit: 8,
+      tokenLimit: 55,
     });
 
     expect(result.contextText).toBe("abcdefgh");
-    expect(result.tokenEstimate).toBe(charTokenEstimator.countText(result.systemPrompt));
+    expect(result.tokenEstimate).toBe(
+      charTokenEstimator.countText(result.assembledSystemPrompt),
+    );
     expect(result.diagnostics).toMatchObject({
       budget: {
-        tokenLimit: 8,
-        maxContextTokens: 8,
+        tokenLimit: 55,
+        modelContextWindow: 55,
         reservedOutputTokens: 0,
-        maxInputTokens: 8,
-        runtimeContextRatio: 0.35,
-        maxContextChars: 32,
+        runtimeContextTokens: 30,
       },
       estimatedContextChars: 16,
       estimatedContextTokens: 16,
       compressionThresholdRatio: 0.5,
       compressionTriggered: true,
-      compressionLimitTokens: 4,
+      compressionLimitTokens: 15,
       contextTextTokens: charTokenEstimator.countText(result.contextText),
-      systemPromptTokens: charTokenEstimator.countText(result.systemPrompt),
+      systemPromptTokens: charTokenEstimator.countText(result.assembledSystemPrompt),
     });
     expect(result.diagnostics?.compressionResults).toEqual([
       expect.objectContaining({
@@ -396,24 +460,24 @@ describe("buildRuntimeContext", () => {
     ]);
   });
 
-  it("uses a default noop compression pipeline when no compressor is provided", () => {
+  it("uses rule-based compression by default when no compressor is provided", () => {
+    const section = {
+      id: "plain",
+      content: "0123456789".repeat(300),
+      source: {kind: "file" as const},
+    };
     const compression = new ContextCompressionPipeline({
       thresholdRatio: 0,
+      minSectionTokens: 1,
       tokenEstimator: charTokenEstimator,
-    }).compress(
-      [{id: "plain", content: "plain"}],
-      new DefaultContextBudgetPolicy().createBudget({
-        sections: [],
-        tokenLimit: 1,
-      }),
-    );
+    }).compress([section], rawBudget(4_000));
 
     expect(compression.triggered).toBe(true);
-    expect(compression.sections).toEqual([{id: "plain", content: "plain"}]);
+    expect(compression.sections[0]?.content.length).toBeLessThan(section.content.length);
     expect(compression.results).toEqual([
       expect.objectContaining({
-        compressed: false,
-        reason: "No compression applied.",
+        compressed: true,
+        strategy: "rule-based-head-tail",
       }),
     ]);
   });
@@ -746,13 +810,29 @@ function budgetFor(section: ContextSection): ContextBudget {
   });
 }
 
-function rawBudget(maxInputTokens: number): ContextBudget {
+function fixedRuntimeBudgetPolicy(runtimeContextTokens: number): ContextBudgetPolicy {
+  const basePolicy = new DefaultContextBudgetPolicy({reservedOutputTokens: 0});
+
   return {
-    tokenLimit: maxInputTokens,
-    maxContextTokens: maxInputTokens,
+    createBudget(input, tokenEstimator) {
+      return {
+        ...basePolicy.createBudget(input, tokenEstimator),
+        runtimeContextTokens,
+      };
+    },
+  };
+}
+
+function rawBudget(runtimeContextTokens: number): ContextBudget {
+  return {
+    tokenLimit: runtimeContextTokens,
+    modelContextWindow: runtimeContextTokens,
     reservedOutputTokens: 0,
-    maxInputTokens,
-    runtimeContextRatio: 0.35,
-    maxContextChars: maxInputTokens * 4,
+    systemPromptTokens: 0,
+    outputInstructionTokens: 0,
+    toolSchemaTokens: 0,
+    conversationTokens: 0,
+    safetyMarginTokens: 0,
+    runtimeContextTokens,
   };
 }

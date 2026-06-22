@@ -211,7 +211,7 @@ describe("Agent runtime loop", () => {
     const workspaceRoot = await createWorkspace();
     const registry = new ToolRegistry();
     const beforeModelBuildCounts: number[] = [];
-    const longOutput = "0123456789".repeat(1_500);
+    const longOutput = "0123456789".repeat(15_000);
 
     registry.register({
       definition: {
@@ -243,7 +243,7 @@ describe("Agent runtime loop", () => {
     ]);
 
     const config = createConfig(workspaceRoot);
-    config.runtime.tokensLimit = 2_000;
+    config.runtime.tokensLimit = 60_000;
     config.runtime.maxIterations = 4;
 
     const result = await new Agent({
@@ -266,8 +266,10 @@ describe("Agent runtime loop", () => {
     expect(result.stopReason).toBe("completed");
     expect(llm.requests).toHaveLength(3);
     expect(beforeModelBuildCounts).toEqual([1, 2, 3]);
+    expect(thirdSystemPrompt).toContain("## Tool Args: large_output");
     expect(thirdSystemPrompt).toContain("## Tool Result: large_output");
     expect(thirdSystemPrompt).toContain("Call ID: call-first");
+    expect(thirdSystemPrompt).toContain('"label": "first"');
     expect(thirdSystemPrompt).toContain("chars omitted");
     expect(
       thirdRequest?.messages.some(

@@ -106,19 +106,6 @@ export class ContextCompressionResultFactory {
   }
 }
 
-/** Default compressor that leaves sections unchanged. */
-export class NoopContextCompressor implements ContextCompressor {
-  private readonly resultFactory: ContextCompressionResultFactory;
-
-  constructor(resultFactory = new ContextCompressionResultFactory()) {
-    this.resultFactory = resultFactory;
-  }
-
-  compress(section: ContextSection, _budget: ContextBudget): ContextCompressionResult {
-    return this.resultFactory.unchanged(section, "No compression applied.");
-  }
-}
-
 export type RuleBasedContextCompressorOptions = {
   maxSectionTokens?: number;
   minSectionTokens?: number;
@@ -179,6 +166,17 @@ export class RuleBasedContextCompressor implements ContextCompressor {
   }
 
   compress(section: ContextSection, budget: ContextBudget): ContextCompressionResult {
+    if (section.compressible === false) {
+      return this.resultFactory.unchanged(section, "Section opted out of compression.");
+    }
+
+    if (section.required && section.truncation === "none") {
+      return this.resultFactory.unchanged(
+        section,
+        "Required section disallows truncation and is protected from compression.",
+      );
+    }
+
     if (!isCompressibleSection(section)) {
       return this.resultFactory.unchanged(section, "Section source is not compressible.");
     }
@@ -211,7 +209,9 @@ export class RuleBasedContextCompressor implements ContextCompressor {
   }
 
   private resolveMaxSectionTokens(budget: ContextBudget): number {
-    const budgetBasedLimit = Math.floor(budget.maxInputTokens * this.maxSectionRatio);
+    const budgetBasedLimit = Math.floor(
+      budget.runtimeContextTokens * this.maxSectionRatio,
+    );
 
     return this.clampInteger(
       Math.min(this.maxSectionTokens, budgetBasedLimit),
@@ -627,20 +627,9 @@ export class RuleBasedContextCompressor implements ContextCompressor {
 }
 
 export function isCompressibleSection(section: ContextSection): boolean {
-  return section.source?.kind === "tool" || section.source?.kind === "file";
-}
-
-export function createCompressionResult(
-  section: ContextSection,
-  originalSection: ContextSection,
-  compressed: boolean,
-  reason?: string,
-  metadata: ContextCompressionMetadata = {},
-): ContextCompressionResult {
-  const factory = new ContextCompressionResultFactory();
-  if (compressed) {
-    return factory.compressed(section, originalSection, reason ?? "", metadata);
+  if (section.compressible === false) {
+    return false;
   }
 
-  return factory.unchanged(section, reason ?? "", metadata);
+  return section.source?.kind === "tool" || section.source?.kind === "file";
 }
