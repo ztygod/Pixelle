@@ -1,10 +1,10 @@
 import type {ContextBudgetPolicy} from "./budget/context-budget.js";
 import type {ContextPriorityPolicy} from "./budget/priority-policy.js";
-import type {TokenEstimator} from "./budget/token-estimator.js";
+import type {TokenCountableMessage, TokenEstimator} from "./budget/token-estimator.js";
 import type {ContextCompressionPipeline} from "./compression/context-compression-pipeline.js";
 import type {ContextCompressor} from "./compression/context-compressor.js";
-import type {ContextTruncator} from "./compression/context-truncator.js";
-import type {SystemPromptAssembler} from "./formatting/system-prompt-assembler.js";
+import type {ContextTruncator} from "./truncate/context-truncator.js";
+import type {SystemPromptAssembler} from "./assembler/system-prompt-assembler.js";
 
 /** Source metadata for a context section. */
 export type ContextSource =
@@ -24,24 +24,38 @@ export type ContextSection = {
   content: string;
   priority?: number;
   source?: ContextSource;
+  required?: boolean;
+  pinned?: boolean;
+  compressible?: boolean;
+  truncation?: ContextSectionTruncation;
+  metadata?: Record<string, unknown>;
 };
+
+export type ContextSectionTruncation = "none" | "head" | "tail" | "middle" | "semantic";
 
 /** Input accepted by the generic runtime context builder. */
 export type BuildContextInput = {
-  systemPrompt?: string;
+  // Base system prompt before output instructions and runtime context are appended.
+  baseSystemPrompt?: string;
   outputInstructions?: string;
   sections: readonly ContextSection[];
   tokenLimit: number;
+  conversationMessages?: readonly TokenCountableMessage[];
+  toolSchemas?: readonly unknown[];
+  conversationTokens?: number;
+  toolSchemaTokens?: number;
+  safetyMarginTokens?: number;
 };
 
 /** Result returned after formatting and truncating runtime context. */
 export type BuildContextResult = {
-  systemPrompt: string;
+  // Final system message content after assembling base prompt, output rules, and runtime context.
+  assembledSystemPrompt: string;
   contextText: string;
   tokenEstimate: number;
   includedSections: ContextSection[];
-  partialSections: ContextSection[];
-  droppedSections: ContextSection[];
+  partiallyIncludedSections: ContextSection[];
+  omittedSections: ContextSection[];
   sectionUsages: ContextSectionUsage[];
   diagnostics?: BuildContextDiagnostics;
 };
@@ -49,17 +63,20 @@ export type BuildContextResult = {
 /** Runtime context budget derived from the model token limit. */
 export type ContextBudget = {
   tokenLimit: number;
-  maxContextTokens: number;
+  modelContextWindow: number;
   reservedOutputTokens: number;
-  maxInputTokens: number;
-  /** @deprecated kept for compatibility and diagnostics only. */
-  runtimeContextRatio?: number;
-  /** @deprecated char budget is a diagnostic fallback only. */
-  maxContextChars?: number;
+  systemPromptTokens: number;
+  outputInstructionTokens: number;
+  toolSchemaTokens: number;
+  conversationTokens: number;
+  safetyMarginTokens: number;
+  runtimeContextTokens: number;
+  finalInputTokens?: number;
+  remainingInputTokens?: number;
 };
 
 /** Explicit section-level truncation status. */
-export type ContextSectionUsageStatus = "included" | "partial" | "dropped";
+export type ContextSectionUsageStatus = "included" | "partial" | "omitted";
 
 /** Truncation and injection details for a single context section. */
 export type ContextSectionUsage = {
@@ -94,9 +111,34 @@ export type ContextCompressionResult = {
   reason?: string;
 };
 
+export type ContextSectionDecision = {
+  section: ContextSection;
+  stage: "compression" | "truncation";
+  action: "included" | "partial" | "omitted" | "compressed" | "skipped";
+  reason: string;
+  originalTokens?: number;
+  outputTokens?: number;
+  savedTokens?: number;
+};
+
+export type ContextTokenUsageDiagnostics = {
+  modelContextWindow: number;
+  reservedOutputTokens: number;
+  systemPromptTokens: number;
+  outputInstructionTokens: number;
+  toolSchemaTokens: number;
+  conversationTokens: number;
+  safetyMarginTokens: number;
+  runtimeContextTokens: number;
+  contextTextTokens: number;
+  finalInputTokens: number;
+  remainingInputTokens: number;
+};
+
 /** Diagnostics produced while building runtime context. */
 export type BuildContextDiagnostics = {
   budget: ContextBudget;
+  tokenUsage: ContextTokenUsageDiagnostics;
   estimatedContextChars: number;
   estimatedContextTokens: number;
   compressionThresholdRatio: number;
@@ -105,6 +147,9 @@ export type BuildContextDiagnostics = {
   compressionResults: ContextCompressionResult[];
   contextTextTokens: number;
   systemPromptTokens: number;
+  finalInputTokens: number;
+  remainingInputTokens: number;
+  sectionDecisions: ContextSectionDecision[];
 };
 
 /** Optional strategy overrides for the class-based context engine. */

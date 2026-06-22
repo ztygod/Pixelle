@@ -9,7 +9,11 @@ export interface ContextPriorityPolicy {
 /** Default priority policy with explicit priority taking precedence. */
 export class DefaultContextPriorityPolicy implements ContextPriorityPolicy {
   priorityOf(section: ContextSection): number {
-    return section.priority ?? priorityForSource(section.source);
+    const basePriority = section.priority ?? priorityForSource(section.source);
+    const requiredBoost = section.required ? 10_000 : 0;
+    const pinnedBoost = section.pinned ? 1_000 : 0;
+
+    return basePriority + requiredBoost + pinnedBoost;
   }
 
   compare(left: ContextSection, right: ContextSection): number {

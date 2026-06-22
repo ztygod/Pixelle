@@ -16,6 +16,7 @@ export class ContextRegistry {
   }
 
   normalize(): this {
+    // Trim blank padding early so downstream token estimates match inserted text.
     this.sections = this.sections
       .map((section) => ({...section, content: section.content.trim()}))
       .filter((section) => section.content.length > 0);
@@ -26,6 +27,7 @@ export class ContextRegistry {
     const seen = new Set<string>();
     const deduped: ContextSection[] = [];
 
+    // Walk backward so the newest section wins for the same id or replaceKey.
     for (let index = this.sections.length - 1; index >= 0; index -= 1) {
       const section = this.sections[index];
       if (!section) {
@@ -48,6 +50,7 @@ export class ContextRegistry {
   }
 
   sort(policy: ContextPriorityPolicy): this {
+    // Stable sort keeps original order when two sections have equal priority.
     this.sections = this.sections
       .map((section, index) => ({section, index}))
       .sort((left, right) => {

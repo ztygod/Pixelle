@@ -147,6 +147,7 @@ export class Agent {
         memory: this.memory,
         observer: this.observer,
         contextProviders: options.contextProviders,
+        toolSchemasProvider: () => this.tools.schemas(),
       });
     this.verification =
       options.verification ??

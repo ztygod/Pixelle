@@ -35,7 +35,7 @@ describe("ContextManager system prompt", () => {
           workspaceDir: workspaceRoot,
           maxIterations: 1,
           maxRepairAttempts: 0,
-          tokensLimit: 1000,
+          tokensLimit: 32_000,
           rollbackOnFailure: false,
         },
         permissions: {
@@ -90,7 +90,7 @@ describe("ContextManager system prompt", () => {
           workspaceDir: workspaceRoot,
           maxIterations: 1,
           maxRepairAttempts: 0,
-          tokensLimit: 1000,
+          tokensLimit: 32_000,
           rollbackOnFailure: false,
         },
         permissions: {

@@ -1,4 +1,4 @@
-import type {LLMMessage} from "../../llm/types.js";
+import type {LLMMessage, LLMTool, LLMToolCall} from "../../llm/types.js";
 import {
   ContextEngine,
   RuleBasedContextCompressor,
@@ -34,6 +34,8 @@ export type ContextManagerOptions = {
   observer: AgentObserver;
   /** Agent-level context providers invoked for every run. */
   contextProviders?: readonly AgentContextProvider[];
+  /** Returns the tool schemas that will be sent with model requests. */
+  toolSchemasProvider?: () => readonly LLMTool[];
 };
 
 /** Builds model context and owns transcript mutation for assistant/tool turns. */
@@ -117,20 +119,26 @@ export class ContextManager {
   buildModelRequest(run: AgentRunState): readonly LLMMessage[] {
     const state = this.getRunState(run);
     const projection = this.projectTranscript(run);
+    const toolSchemas = this.options.toolSchemasProvider?.() ?? [];
     const result = this.contextEngine.build({
-      systemPrompt:
+      baseSystemPrompt:
         run.input.systemPrompt ??
         this.options.config.runtime.systemPrompt ??
         DEFAULT_SYSTEM_PROMPT,
       outputInstructions: CLI_MARKDOWN_OUTPUT_INSTRUCTIONS,
       sections: [...state.baseSections, ...projection.archivedToolSections],
       tokenLimit: this.options.config.runtime.tokensLimit,
+      conversationMessages: projection.messages,
+      toolSchemas,
     });
 
     this.recordContextBuild(run, state, result.diagnostics);
     this.options.observer.contextBuilt(run, result.tokenEstimate);
 
-    return [{role: "system", content: result.systemPrompt}, ...projection.messages];
+    return [
+      {role: "system", content: result.assembledSystemPrompt},
+      ...projection.messages,
+    ];
   }
 
   /** Appends a normalized assistant response to the transcript. */
@@ -226,9 +234,10 @@ export class ContextManager {
             messages.push(message, ...exchange.toolMessages);
           } else {
             archivedToolSections.push(
-              ...exchange.toolMessages.map((toolMessage) =>
-                createToolResultSection(message, toolMessage),
-              ),
+              ...createArchivedToolSections(message, exchange.toolMessages, {
+                exchangeAge:
+                  latestExchangeStart === undefined ? 0 : latestExchangeStart - index,
+              }),
             );
           }
           index = exchange.endIndex;
@@ -336,9 +345,62 @@ function findLatestCompletedToolExchangeStart(
   return undefined;
 }
 
+function createArchivedToolSections(
+  assistant: AssistantToolMessage,
+  toolMessages: readonly ToolMessage[],
+  metadata: {exchangeAge: number},
+): ContextSection[] {
+  return toolMessages.flatMap((toolMessage) => {
+    const toolCall = assistant.toolCalls.find(
+      (candidate) => candidate.id === toolMessage.toolCallId,
+    );
+
+    return [
+      createToolArgsSection(toolCall, toolMessage, metadata),
+      createToolResultSection(assistant, toolMessage, metadata),
+    ];
+  });
+}
+
+function createToolArgsSection(
+  toolCall: LLMToolCall | undefined,
+  toolMessage: ToolMessage,
+  metadata: {exchangeAge: number},
+): ContextSection {
+  const argumentsText = JSON.stringify(
+    redactToolArguments(toolMessage.name, toolCall?.arguments ?? {}),
+    null,
+    2,
+  );
+
+  return {
+    id: `tool-args:${toolMessage.toolCallId}`,
+    replaceKey: `tool-args:${toolMessage.toolCallId}`,
+    title: `Tool Args: ${toolMessage.name}`,
+    priority: 45,
+    source: {kind: "tool", ref: toolMessage.toolCallId},
+    compressible: false,
+    truncation: "none",
+    metadata: {
+      toolName: toolMessage.name,
+      toolCallId: toolMessage.toolCallId,
+      toolPart: "args",
+      exchangeAge: metadata.exchangeAge,
+      safeToCompress: false,
+    },
+    content: [
+      `Tool: ${toolMessage.name}`,
+      `Call ID: ${toolMessage.toolCallId}`,
+      "Arguments:",
+      argumentsText,
+    ].join("\n"),
+  };
+}
+
 function createToolResultSection(
   assistant: AssistantToolMessage,
   toolMessage: ToolMessage,
+  metadata: {exchangeAge: number},
 ): ContextSection {
   return {
     id: `tool-result:${toolMessage.toolCallId}`,
@@ -346,6 +408,16 @@ function createToolResultSection(
     title: `Tool Result: ${toolMessage.name}`,
     priority: 40,
     source: {kind: "tool", ref: toolMessage.toolCallId},
+    compressible: true,
+    truncation: "middle",
+    metadata: {
+      toolName: toolMessage.name,
+      toolCallId: toolMessage.toolCallId,
+      toolPart: "result",
+      toolResultKind: classifyToolResultKind(toolMessage.name, toolMessage.content),
+      exchangeAge: metadata.exchangeAge,
+      safeToCompress: isSafeToolResultToCompress(toolMessage.name),
+    },
     content: [
       `Tool: ${toolMessage.name}`,
       `Call ID: ${toolMessage.toolCallId}`,
@@ -356,4 +428,52 @@ function createToolResultSection(
       .filter((line): line is string => Boolean(line))
       .join("\n"),
   };
+}
+
+function redactToolArguments(
+  toolName: string,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  if (toolName !== "write_file") {
+    return args;
+  }
+
+  const content = args.content;
+  if (typeof content !== "string" || content.length === 0) {
+    return args;
+  }
+
+  return {
+    ...args,
+    content: `<omitted: approximately ${Math.ceil(
+      content.length / 4,
+    )} tokens, content already written to file>`,
+  };
+}
+
+function classifyToolResultKind(toolName: string, content: string): string {
+  if (toolName === "bash") {
+    return content.toLowerCase().includes("test") ? "test" : "bash";
+  }
+
+  if (toolName === "grep") {
+    return "grep";
+  }
+
+  if (toolName === "read_file") {
+    return "read_file";
+  }
+
+  return "old_tool_result";
+}
+
+function isSafeToolResultToCompress(toolName: string): boolean {
+  return (
+    toolName === "bash" ||
+    toolName === "grep" ||
+    toolName === "read_file" ||
+    toolName === "glob" ||
+    toolName === "web_fetch" ||
+    classifyToolResultKind(toolName, "") === "old_tool_result"
+  );
 }
