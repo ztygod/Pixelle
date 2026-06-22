@@ -2,8 +2,14 @@ import {countTokens} from "gpt-tokenizer";
 
 export type TokenCountableMessage = {
   role: string;
-  content?: string | null;
+  content?: unknown;
+  name?: string;
+  tool_call_id?: string;
+  tool_calls?: unknown[];
 };
+
+const APPROX_CHARS_PER_TOKEN = 3;
+const MESSAGE_OVERHEAD_TOKENS = 4;
 
 /** Counts model tokens for runtime context budgeting. */
 export interface TokenEstimator {
@@ -18,13 +24,16 @@ export class ApproxTokenEstimator implements TokenEstimator {
       return 0;
     }
 
-    return Math.max(1, Math.ceil(text.length / 4));
+    const cjkChars = text.match(/[\u4e00-\u9fff]/g)?.length ?? 0;
+    const nonCjkChars = text.length - cjkChars;
+
+    return Math.max(1, Math.ceil(cjkChars + nonCjkChars / APPROX_CHARS_PER_TOKEN));
   }
 
   countMessages(messages: readonly TokenCountableMessage[]): number {
     return messages.reduce(
       (total, message) =>
-        total + this.countText(`${message.role}\n${message.content ?? ""}`),
+        total + MESSAGE_OVERHEAD_TOKENS + this.countText(serializeMessage(message)),
       0,
     );
   }
@@ -49,18 +58,14 @@ export class GptTokenEstimator implements TokenEstimator {
   countMessages(messages: readonly TokenCountableMessage[]): number {
     return messages.reduce(
       (total, message) =>
-        total + this.countText(`${message.role}\n${message.content ?? ""}`),
+        total + MESSAGE_OVERHEAD_TOKENS + this.countText(serializeMessage(message)),
       0,
     );
   }
 }
 
 export function createDefaultTokenEstimator(): TokenEstimator {
-  try {
-    return new GptTokenEstimator();
-  } catch {
-    return new ApproxTokenEstimator();
-  }
+  return new GptTokenEstimator();
 }
 
 const defaultTokenEstimator = createDefaultTokenEstimator();
@@ -68,4 +73,12 @@ const defaultTokenEstimator = createDefaultTokenEstimator();
 /** Compatibility helper for older call sites. */
 export function estimateTokens(text: string): number {
   return defaultTokenEstimator.countText(text);
+}
+
+function serializeMessage(message: TokenCountableMessage): string {
+  try {
+    return JSON.stringify(message) ?? "";
+  } catch {
+    return `${message.role}\n${String(message.content ?? "")}`;
+  }
 }
