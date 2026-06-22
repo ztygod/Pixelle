@@ -1,5 +1,8 @@
-import {createDefaultTokenEstimator, type TokenEstimator} from "./token-estimator.js";
-import type {ContextBudget, ContextCompressionResult, ContextSection} from "./types.js";
+import {
+  createDefaultTokenEstimator,
+  type TokenEstimator,
+} from "../budget/token-estimator.js";
+import type {ContextBudget, ContextCompressionResult, ContextSection} from "../types.js";
 
 export type ContextCompressionMetadata = {
   strategy?: string;

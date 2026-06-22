@@ -1,45 +1,48 @@
-export {ContextEngine} from "./context-engine.js";
-export {buildRuntimeContext} from "./context-builder.js";
-export {ContextCompressionPipeline} from "./context-compression-pipeline.js";
+export {ContextEngine} from "./engine/context-engine.js";
+export {buildRuntimeContext} from "./engine/context-builder.js";
+export {ContextRegistry} from "./engine/context-registry.js";
+export {ContextCompressionPipeline} from "./compression/context-compression-pipeline.js";
 export type {
   ContextCompressionPipelineOptions,
   ContextCompressionPipelineResult,
-} from "./context-compression-pipeline.js";
-export {DefaultContextBudgetPolicy} from "./context-budget.js";
-export type {ContextBudgetPolicy} from "./context-budget.js";
+} from "./compression/context-compression-pipeline.js";
+export {DefaultContextBudgetPolicy} from "./budget/context-budget.js";
+export type {ContextBudgetPolicy} from "./budget/context-budget.js";
 export {
   ContextCompressionResultFactory,
   createCompressionResult,
   isCompressibleSection,
   NoopContextCompressor,
   RuleBasedContextCompressor,
-} from "./context-compressor.js";
+} from "./compression/context-compressor.js";
 export type {
   ContextCompressor,
   ContextCompressionMetadata,
   RuleBasedContextCompressorOptions,
-} from "./context-compressor.js";
-export {compareContextSection, formatContextSection} from "./context-formatter.js";
-export {ContextRegistry} from "./context-registry.js";
+} from "./compression/context-compressor.js";
+export {
+  compareContextSection,
+  formatContextSection,
+} from "./formatting/context-formatter.js";
 export {
   ContextTruncator,
   truncateContext,
   truncateTextToTokens,
-} from "./context-truncator.js";
+} from "./compression/context-truncator.js";
 export type {
   FormattedContextSection,
   TruncateContextResult,
-} from "./context-truncator.js";
-export {DefaultContextPriorityPolicy} from "./priority-policy.js";
-export type {ContextPriorityPolicy} from "./priority-policy.js";
-export {SystemPromptAssembler} from "./system-prompt-assembler.js";
+} from "./compression/context-truncator.js";
+export {DefaultContextPriorityPolicy} from "./budget/priority-policy.js";
+export type {ContextPriorityPolicy} from "./budget/priority-policy.js";
+export {SystemPromptAssembler} from "./formatting/system-prompt-assembler.js";
 export {
   ApproxTokenEstimator,
   createDefaultTokenEstimator,
   estimateTokens,
   GptTokenEstimator,
-} from "./token-estimator.js";
-export type {TokenCountableMessage, TokenEstimator} from "./token-estimator.js";
+} from "./budget/token-estimator.js";
+export type {TokenCountableMessage, TokenEstimator} from "./budget/token-estimator.js";
 export type {
   BuildContextInput,
   BuildContextDiagnostics,

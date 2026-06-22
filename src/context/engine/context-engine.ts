@@ -1,17 +1,20 @@
-import {ContextCompressionPipeline} from "./context-compression-pipeline.js";
-import {DefaultContextBudgetPolicy} from "./context-budget.js";
-import {ContextRegistry} from "./context-registry.js";
-import {ContextTruncator} from "./context-truncator.js";
-import {DefaultContextPriorityPolicy} from "./priority-policy.js";
-import {SystemPromptAssembler} from "./system-prompt-assembler.js";
-import {createDefaultTokenEstimator, type TokenEstimator} from "./token-estimator.js";
-import type {ContextBudgetPolicy} from "./context-budget.js";
-import type {ContextPriorityPolicy} from "./priority-policy.js";
+import {DefaultContextBudgetPolicy} from "../budget/context-budget.js";
+import {DefaultContextPriorityPolicy} from "../budget/priority-policy.js";
+import {
+  createDefaultTokenEstimator,
+  type TokenEstimator,
+} from "../budget/token-estimator.js";
+import {ContextCompressionPipeline} from "../compression/context-compression-pipeline.js";
+import {ContextTruncator} from "../compression/context-truncator.js";
+import {SystemPromptAssembler} from "../formatting/system-prompt-assembler.js";
+import type {ContextBudgetPolicy} from "../budget/context-budget.js";
+import type {ContextPriorityPolicy} from "../budget/priority-policy.js";
 import type {
   BuildContextInput,
   BuildContextResult,
   ContextEngineOptions,
-} from "./types.js";
+} from "../types.js";
+import {ContextRegistry} from "./context-registry.js";
 
 /** Class-based context engine that owns the full runtime context pipeline. */
 export class ContextEngine {

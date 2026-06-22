@@ -1,10 +1,10 @@
-import type {ContextCompressionPipeline} from "./context-compression-pipeline.js";
-import type {ContextBudgetPolicy} from "./context-budget.js";
-import type {ContextCompressor} from "./context-compressor.js";
-import type {ContextTruncator} from "./context-truncator.js";
-import type {ContextPriorityPolicy} from "./priority-policy.js";
-import type {SystemPromptAssembler} from "./system-prompt-assembler.js";
-import type {TokenEstimator} from "./token-estimator.js";
+import type {ContextBudgetPolicy} from "./budget/context-budget.js";
+import type {ContextPriorityPolicy} from "./budget/priority-policy.js";
+import type {TokenEstimator} from "./budget/token-estimator.js";
+import type {ContextCompressionPipeline} from "./compression/context-compression-pipeline.js";
+import type {ContextCompressor} from "./compression/context-compressor.js";
+import type {ContextTruncator} from "./compression/context-truncator.js";
+import type {SystemPromptAssembler} from "./formatting/system-prompt-assembler.js";
 
 /** Source metadata for a context section. */
 export type ContextSource =

@@ -1,4 +1,4 @@
-import type {ContextSection, ContextSource} from "./types.js";
+import type {ContextSection, ContextSource} from "../types.js";
 
 /** Strategy used to order context sections. */
 export interface ContextPriorityPolicy {

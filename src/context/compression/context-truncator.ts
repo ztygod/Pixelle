@@ -1,7 +1,10 @@
-import {DefaultContextBudgetPolicy} from "./context-budget.js";
-import {formatContextSection} from "./context-formatter.js";
-import {createDefaultTokenEstimator, type TokenEstimator} from "./token-estimator.js";
-import type {ContextBudget, ContextSection, ContextSectionUsage} from "./types.js";
+import {DefaultContextBudgetPolicy} from "../budget/context-budget.js";
+import {
+  createDefaultTokenEstimator,
+  type TokenEstimator,
+} from "../budget/token-estimator.js";
+import {formatContextSection} from "../formatting/context-formatter.js";
+import type {ContextBudget, ContextSection, ContextSectionUsage} from "../types.js";
 
 export type FormattedContextSection = {
   section: ContextSection;

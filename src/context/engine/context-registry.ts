@@ -1,5 +1,5 @@
-import type {ContextPriorityPolicy} from "./priority-policy.js";
-import type {ContextSection} from "./types.js";
+import type {ContextPriorityPolicy} from "../budget/priority-policy.js";
+import type {ContextSection} from "../types.js";
 
 /** Mutable registry for normalizing, deduping, and ordering context sections. */
 export class ContextRegistry {

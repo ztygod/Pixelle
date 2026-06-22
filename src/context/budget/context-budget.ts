@@ -1,4 +1,4 @@
-import type {BuildContextInput, ContextBudget} from "./types.js";
+import type {BuildContextInput, ContextBudget} from "../types.js";
 
 /** Strategy used to derive runtime context budget from build input. */
 export interface ContextBudgetPolicy {
