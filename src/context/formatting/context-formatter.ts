@@ -1,5 +1,5 @@
-import type {ContextSection} from "./types.js";
-import {DefaultContextPriorityPolicy} from "./priority-policy.js";
+import {DefaultContextPriorityPolicy} from "../budget/priority-policy.js";
+import type {ContextSection} from "../types.js";
 
 /** Returns a formatted section string, or an empty string for blank content. */
 export function formatContextSection(section: ContextSection): string {

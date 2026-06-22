@@ -1,5 +1,5 @@
 import {ContextEngine} from "./context-engine.js";
-import type {BuildContextInput, BuildContextResult} from "./types.js";
+import type {BuildContextInput, BuildContextResult} from "../types.js";
 
 const defaultContextEngine = new ContextEngine();
 

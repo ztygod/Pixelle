@@ -3,9 +3,12 @@ import {
   NoopContextCompressor,
   type ContextCompressor,
 } from "./context-compressor.js";
-import {formatContextSection} from "./context-formatter.js";
-import {createDefaultTokenEstimator, type TokenEstimator} from "./token-estimator.js";
-import type {ContextBudget, ContextCompressionResult, ContextSection} from "./types.js";
+import {
+  createDefaultTokenEstimator,
+  type TokenEstimator,
+} from "../budget/token-estimator.js";
+import {formatContextSection} from "../formatting/context-formatter.js";
+import type {ContextBudget, ContextCompressionResult, ContextSection} from "../types.js";
 
 export type ContextCompressionPipelineOptions = {
   compressor?: ContextCompressor;
