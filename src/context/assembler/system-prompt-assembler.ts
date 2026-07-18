@@ -1,11 +1,11 @@
 /** Assembles the final system prompt from base prompt, output rules, and context. */
 export class SystemPromptAssembler {
   assemble(input: {
-    systemPrompt?: string;
+    baseSystemPrompt?: string;
     outputInstructions?: string;
     contextText: string;
   }): string {
-    const promptParts = [input.systemPrompt, input.outputInstructions].filter(
+    const promptParts = [input.baseSystemPrompt, input.outputInstructions].filter(
       (part): part is string => Boolean(part),
     );
     const prompt = promptParts.join("\n\n");
