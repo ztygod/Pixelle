@@ -252,80 +252,125 @@ export class Agent {
     registerToolRuntimeRun(run);
 
     try {
-      this.observer.runStarted(run);
-      await this.middlewarePipeline.beforeAgentRun(run.context);
-
-      run.task.status = "planning";
-      await this.workspace.prepare(run);
-      this.changes.prepare(run);
-      await this.context.prepare(run);
-
-      run.task.status = "executing";
-      while (run.canContinue(maxIterations)) {
-        run.nextIteration();
-        this.observer.assistantStage(run);
-
-        const response = await this.model.generate(
-          {
-            messages: this.context.buildModelRequest(run),
-            tools: this.tools.schemas(),
-          },
-          run,
-        );
-        this.context.appendAssistantResponse(run, response);
-
-        if (!response.toolCalls.length) {
-          run.complete(response.content);
-          break;
-        }
-
-        const toolResults = await this.tools.execute(
-          run,
-          response.toolCalls.map((toolCall) => ({
-            ...toolCall,
-            iteration: run.iteration,
-          })),
-        );
-        this.context.appendToolResults(run, toolResults);
-        await this.changes.checkpoint(run);
-      }
-
-      if (input.signal?.aborted) {
-        run.stopReason = "aborted";
-      } else if (run.iteration >= maxIterations && run.stopReason === "completed") {
-        run.stopReason = "max_iterations";
-      }
-
-      if (run.stopReason !== "aborted") {
-        await this.verification.verifyAndRepair(run, maxIterations);
-      }
-
-      if (
-        run.stopReason !== "completed" &&
-        (input.rollbackOnFailure ?? this.config.runtime.rollbackOnFailure)
-      ) {
-        await this.changes.rollback(run);
-      } else {
-        run.task.status = run.stopReason === "completed" ? "completed" : "failed";
-      }
-      run.task.updatedAt = Date.now();
-      await this.context.save(run);
-
-      const result = await this.middlewarePipeline.afterAgentRun(
-        run.toResult(),
-        run.context,
-      );
-      this.observer.runCompleted(run);
-      return result;
+      await this.executeRun(run, maxIterations);
     } catch (error) {
       run.fail(error);
-      run.task.status = "failed";
-      run.task.updatedAt = Date.now();
-      this.observer.runFailed(run, error);
-      return run.toResult();
+    }
+
+    return this.finalizeRun(run);
+  }
+
+  /** Executes user work without owning terminal cleanup or result publication. */
+  private async executeRun(run: AgentRunState, maxIterations: number): Promise<void> {
+    this.observer.runStarted(run);
+    await this.middlewarePipeline.beforeAgentRun(run.context);
+
+    run.task.status = "planning";
+    await this.workspace.prepare(run);
+    this.changes.prepare(run);
+    await this.context.prepare(run);
+
+    run.task.status = "executing";
+    while (run.canContinue(maxIterations)) {
+      run.nextIteration();
+      this.observer.assistantStage(run);
+
+      const response = await this.model.generate(
+        {
+          messages: this.context.buildModelRequest(run),
+          tools: this.tools.schemas(),
+        },
+        run,
+      );
+      this.context.appendAssistantResponse(run, response);
+
+      if (!response.toolCalls.length) {
+        run.complete(response.content);
+        break;
+      }
+
+      const toolResults = await this.tools.execute(
+        run,
+        response.toolCalls.map((toolCall) => ({
+          ...toolCall,
+          iteration: run.iteration,
+        })),
+      );
+      this.context.appendToolResults(run, toolResults);
+      await this.changes.checkpoint(run);
+    }
+
+    if (run.input.signal?.aborted) {
+      run.stopReason = "aborted";
+    } else if (run.iteration >= maxIterations && run.stopReason === "completed") {
+      run.stopReason = "max_iterations";
+    }
+
+    if (run.stopReason !== "aborted") {
+      await this.verification.verifyAndRepair(run, maxIterations);
+    }
+  }
+
+  /** Runs every terminal action once, while preserving the primary run outcome. */
+  private async finalizeRun(run: AgentRunState): Promise<AgentRunResult> {
+    let result: AgentRunResult | undefined;
+
+    try {
+      if (this.shouldRollback(run)) {
+        try {
+          run.finalization.rollback = await this.changes.rollback(run);
+        } catch (error) {
+          run.finalization.rollback = {
+            status: "failed",
+            restoredFiles: [],
+            conflicts: [
+              {path: "", message: error instanceof Error ? error.message : String(error)},
+            ],
+          };
+          run.recordFinalizationIssue("rollback", error);
+        }
+      }
+
+      this.finalizeTaskStatus(run);
+
+      try {
+        await this.context.save(run);
+      } catch (error) {
+        run.recordFinalizationIssue("memory", error);
+      }
+
+      try {
+        result = await this.middlewarePipeline.afterAgentRun(run.toResult(), run.context);
+      } catch (error) {
+        run.recordFinalizationIssue("middleware", error);
+      }
+
+      this.observer.runTerminated(run);
     } finally {
       unregisterToolRuntimeRun(run);
+      run.task.updatedAt = Date.now();
     }
+
+    return result ?? run.toResult();
+  }
+
+  private shouldRollback(run: AgentRunState): boolean {
+    return (
+      run.stopReason !== "completed" &&
+      (run.input.rollbackOnFailure ?? this.config.runtime.rollbackOnFailure)
+    );
+  }
+
+  private finalizeTaskStatus(run: AgentRunState): void {
+    if (run.stopReason === "completed") {
+      run.task.status = "completed";
+    } else if (run.stopReason === "aborted") {
+      run.task.status = "cancelled";
+    } else {
+      run.task.status = "failed";
+    }
+
+    run.task.updatedAt = Date.now();
   }
 }
 

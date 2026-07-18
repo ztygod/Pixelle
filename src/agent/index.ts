@@ -38,6 +38,8 @@ export type {
 export type {
   AgentContextProvider,
   AgentContextValue,
+  AgentFinalization,
+  AgentFinalizationIssue,
   AgentMiddleware,
   AgentModelRequest,
   AgentModelResponse,

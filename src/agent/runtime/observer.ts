@@ -215,6 +215,16 @@ export class AgentObserver {
     this.emit(run, {type: "runtime.session_stopped", sessionId: run.sessionId, metadata});
   }
 
+  /** Emits exactly one terminal event sequence based on the final stop reason. */
+  runTerminated(run: AgentRunState): void {
+    if (run.stopReason === "error") {
+      this.runFailed(run, run.error);
+      return;
+    }
+
+    this.runCompleted(run);
+  }
+
   /** Hook for future model-completed observer behavior. */
   modelCompleted(_run: AgentRunState, _response: AgentModelResponse): void {}
 
@@ -224,11 +234,15 @@ export class AgentObserver {
   }
 
   private emit(run: AgentRunState, event: PixelleEvent): void {
-    emitAgentEvent(
-      this.options.eventBus,
-      event,
-      run.internalOptions as RunInternalOptions,
-    );
+    try {
+      emitAgentEvent(
+        this.options.eventBus,
+        event,
+        run.internalOptions as RunInternalOptions,
+      );
+    } catch (error) {
+      run.recordFinalizationIssue("observer", error);
+    }
   }
 }
 

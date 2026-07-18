@@ -29,6 +29,7 @@ import type {
   TaskRun,
   TraceStore,
   VerificationResult,
+  RollbackResult,
   Verifier,
   WorkspaceProfile,
   WorkspaceScanner,
@@ -50,6 +51,17 @@ import type {
 
 /** Reason why an agent run stopped. */
 export type AgentStopReason = "completed" | "max_iterations" | "aborted" | "error";
+
+export type AgentFinalizationIssue = {
+  stage: "rollback" | "memory" | "middleware" | "observer" | "cleanup";
+  message: string;
+  error?: unknown;
+};
+
+export type AgentFinalization = {
+  rollback: RollbackResult;
+  issues: AgentFinalizationIssue[];
+};
 
 /** Context that can be injected into the reserved runtime context section. */
 export type AgentContextValue =
@@ -148,6 +160,7 @@ export type AgentRunResult = {
   tracePath?: string;
   checkpointPath?: string;
   error?: unknown;
+  finalization: AgentFinalization;
 };
 
 /** Lifecycle hooks for observing or mutating agent execution. */

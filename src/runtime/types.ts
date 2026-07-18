@@ -14,6 +14,7 @@ export type TaskRunStatus =
   | "repairing"
   | "completed"
   | "failed"
+  | "cancelled"
   | "rolled_back";
 
 export type TaskStepStatus = "pending" | "running" | "completed" | "failed";
@@ -52,6 +53,15 @@ export type ChangeSet = {
   runId: string;
   files: ChangedFile[];
   createdAt: number;
+};
+
+export type RollbackResult = {
+  status: "not_required" | "completed" | "partial" | "failed";
+  restoredFiles: string[];
+  conflicts: Array<{
+    path: string;
+    message: string;
+  }>;
 };
 
 export type VerificationResult = {

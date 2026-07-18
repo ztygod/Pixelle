@@ -12,6 +12,7 @@ import type {
   AgentRunInput,
   AgentRunResult,
   AgentRuntimeConfig,
+  AgentFinalization,
   AgentStopReason,
   AgentToolResult,
   RunInternalOptions,
@@ -68,6 +69,11 @@ export class AgentRunState {
   checkpointPath?: string;
   /** Error captured when the run fails unexpectedly. */
   error?: unknown;
+  /** Best-effort cleanup results that must not replace the primary run outcome. */
+  readonly finalization: AgentFinalization = {
+    rollback: {status: "not_required", restoredFiles: [], conflicts: []},
+    issues: [],
+  };
 
   /** Creates a fresh run state and its legacy-compatible AgentRunContext. */
   constructor(options: AgentRunStateOptions) {
@@ -113,6 +119,18 @@ export class AgentRunState {
     this.stopReason = this.input.signal?.aborted ? "aborted" : "error";
   }
 
+  /** Records a non-primary failure encountered while finalizing the run. */
+  recordFinalizationIssue(
+    stage: AgentFinalization["issues"][number]["stage"],
+    error: unknown,
+  ): void {
+    this.finalization.issues.push({
+      stage,
+      message: error instanceof Error ? error.message : String(error),
+      error,
+    });
+  }
+
   /** Converts the mutable run state into the public Agent.run() result shape. */
   toResult(): AgentRunResult {
     return {
@@ -131,6 +149,7 @@ export class AgentRunState {
       workspaceProfile: this.workspaceProfile,
       checkpointPath: this.checkpointPath,
       error: this.error,
+      finalization: this.finalization,
     };
   }
 }

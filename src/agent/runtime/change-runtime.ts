@@ -2,6 +2,7 @@ import {
   ChangeTracker,
   JsonCheckpointStore,
   type CheckpointStore,
+  type RollbackResult,
 } from "../../runtime/index.js";
 import type {ToolFileWriter} from "../../tool/index.js";
 import type {AgentRuntimeConfig} from "../types.js";
@@ -62,18 +63,17 @@ export class ChangeRuntime {
   }
 
   /** Rolls back checkpointed changes in reverse order for a failed run. */
-  async rollback(run: AgentRunState): Promise<void> {
-    if (!run.changes.length) {
-      return;
+  async rollback(run: AgentRunState): Promise<RollbackResult> {
+    const tracker = this.trackers.get(run);
+    const changeSet = tracker?.createCurrentChangeSet();
+    if (!tracker || !changeSet) {
+      return {status: "not_required", restoredFiles: [], conflicts: []};
     }
 
-    const tracker = this.requireTracker(run);
-    run.task.status = "rolled_back";
-    for (const changeSet of [...run.changes].reverse()) {
-      this.options.observer.changeSetRollbackStarted(run, changeSet);
-      await tracker.rollback(changeSet);
-      this.options.observer.changeSetRollbackCompleted(run, changeSet);
-    }
+    this.options.observer.changeSetRollbackStarted(run, changeSet);
+    const result = await tracker.rollbackAll();
+    this.options.observer.changeSetRollbackCompleted(run, changeSet);
+    return result;
   }
 
   private requireTracker(run: AgentRunState): ChangeTracker {
