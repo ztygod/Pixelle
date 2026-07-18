@@ -1,4 +1,4 @@
-import {mkdtemp} from "node:fs/promises";
+import {mkdtemp, readFile, writeFile} from "node:fs/promises";
 import {join} from "node:path";
 import {tmpdir} from "node:os";
 
@@ -20,6 +20,7 @@ import type {
   CommandPolicyLike,
   WorkspaceProfile,
 } from "../../src/runtime/index.js";
+import {Verifier} from "../../src/runtime/index.js";
 import {
   errorToolResult,
   okToolResult,
@@ -667,6 +668,180 @@ describe("Agent runtime loop", () => {
         passed: false,
         stderr: "Rejected by injected policy: pnpm typecheck",
       }),
+    ]);
+  });
+
+  it("rolls back checkpointed writes when a later model call fails", async () => {
+    const workspaceRoot = await createWorkspace();
+    const filePath = join(workspaceRoot, "model-error.ts");
+    await writeFile(filePath, "original", "utf8");
+    const config = createConfig(workspaceRoot);
+    config.runtime.rollbackOnFailure = true;
+
+    const result = await new Agent({
+      config,
+      llm: new QueueLLMClient([
+        {
+          content: "Writing.",
+          toolCalls: [
+            {
+              id: "write-model-error",
+              name: "write_file",
+              arguments: {
+                reason: "test rollback",
+                path: "model-error.ts",
+                content: "changed",
+              },
+            },
+          ],
+        },
+      ]),
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+    }).run({prompt: "Write then fail."});
+
+    expect(result.stopReason).toBe("error");
+    expect(result.task?.status).toBe("failed");
+    expect(result.finalization.rollback.status).toBe("completed");
+    expect(await readFile(filePath, "utf8")).toBe("original");
+  });
+
+  it("rolls back writes that fail before a checkpoint is created", async () => {
+    const workspaceRoot = await createWorkspace();
+    const filePath = join(workspaceRoot, "uncheckpointed.ts");
+    await writeFile(filePath, "original", "utf8");
+    const config = createConfig(workspaceRoot);
+    config.runtime.rollbackOnFailure = true;
+
+    const result = await new Agent({
+      config,
+      llm: new QueueLLMClient([
+        {
+          content: "Writing.",
+          toolCalls: [
+            {
+              id: "write-uncheckpointed",
+              name: "write_file",
+              arguments: {
+                reason: "test dirty rollback",
+                path: "uncheckpointed.ts",
+                content: "changed",
+              },
+            },
+          ],
+        },
+      ]),
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+      middleware: [
+        {
+          afterTool: () => {
+            throw new Error("afterTool failed");
+          },
+        },
+      ],
+    }).run({prompt: "Write then fail before checkpoint."});
+
+    expect(result.stopReason).toBe("error");
+    expect(result.finalization.rollback.status).toBe("completed");
+    expect(await readFile(filePath, "utf8")).toBe("original");
+  });
+
+  it("rolls back writes when verification infrastructure throws", async () => {
+    const workspaceRoot = await createWorkspace();
+    const filePath = join(workspaceRoot, "verification-error.ts");
+    await writeFile(filePath, "original", "utf8");
+    const config = createConfig(workspaceRoot);
+    config.runtime.rollbackOnFailure = true;
+    config.verification.enabled = true;
+
+    class ThrowingVerifier extends Verifier {
+      override async verify(): Promise<never> {
+        throw new Error("verification infrastructure failed");
+      }
+    }
+
+    const result = await new Agent({
+      config,
+      llm: new QueueLLMClient([
+        {
+          content: "Writing.",
+          toolCalls: [
+            {
+              id: "write-before-verification",
+              name: "write_file",
+              arguments: {
+                reason: "test verification rollback",
+                path: "verification-error.ts",
+                content: "changed",
+              },
+            },
+          ],
+        },
+        {content: "Done.", toolCalls: []},
+      ]),
+      verifier: new ThrowingVerifier(),
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+    }).run({prompt: "Write then verify."});
+
+    expect(result.stopReason).toBe("error");
+    expect(result.finalization.rollback.status).toBe("completed");
+    expect(await readFile(filePath, "utf8")).toBe("original");
+  });
+
+  it("treats abort as cancellation and rolls back changes", async () => {
+    const workspaceRoot = await createWorkspace();
+    const filePath = join(workspaceRoot, "aborted.ts");
+    await writeFile(filePath, "original", "utf8");
+    const controller = new AbortController();
+    const config = createConfig(workspaceRoot);
+    config.runtime.rollbackOnFailure = true;
+
+    const result = await new Agent({
+      config,
+      llm: new QueueLLMClient([
+        {
+          content: "Writing.",
+          toolCalls: [
+            {
+              id: "write-before-abort",
+              name: "write_file",
+              arguments: {
+                reason: "test abort rollback",
+                path: "aborted.ts",
+                content: "changed",
+              },
+            },
+          ],
+        },
+      ]),
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+      middleware: [{afterTool: (toolResult) => (controller.abort(), toolResult)}],
+    }).run({prompt: "Write then abort.", signal: controller.signal});
+
+    expect(result.stopReason).toBe("aborted");
+    expect(result.task?.status).toBe("cancelled");
+    expect(result.finalization.rollback.status).toBe("completed");
+    expect(await readFile(filePath, "utf8")).toBe("original");
+  });
+
+  it("keeps a successful result when memory persistence fails", async () => {
+    const workspaceRoot = await createWorkspace();
+
+    const result = await new Agent({
+      config: createConfig(workspaceRoot),
+      llm: new QueueLLMClient([{content: "Done.", toolCalls: []}]),
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+      memory: {
+        saveRunMemory: () => {
+          throw new Error("memory unavailable");
+        },
+      },
+    }).run({prompt: "Finish successfully."});
+
+    expect(result.stopReason).toBe("completed");
+    expect(result.task?.status).toBe("completed");
+    expect(result.finalization.rollback.status).toBe("not_required");
+    expect(result.finalization.issues).toEqual([
+      expect.objectContaining({stage: "memory", message: "memory unavailable"}),
     ]);
   });
 });

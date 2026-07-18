@@ -17,6 +17,7 @@ export type {
   ChangedFile,
   ChangedFileStatus,
   ChangeSet,
+  RollbackResult,
   CheckpointStore,
   ExecutionTrace,
   TaskRun,

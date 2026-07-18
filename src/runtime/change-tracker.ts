@@ -3,7 +3,7 @@ import {mkdir, readFile, rm, writeFile} from "node:fs/promises";
 import path from "node:path";
 
 import {resolveWorkspacePath} from "../workspace/path-safety.js";
-import type {ChangeSet, ChangedFile, CheckpointStore} from "./types.js";
+import type {ChangeSet, ChangedFile, CheckpointStore, RollbackResult} from "./types.js";
 
 export type TrackedWriteResult = {
   path: string;
@@ -61,40 +61,94 @@ export class ChangeTracker {
     };
   }
 
+  /** Returns the run-level cumulative change set, including uncheckpointed writes. */
+  createCurrentChangeSet(): ChangeSet | undefined {
+    if (!this.files.size) {
+      return undefined;
+    }
+
+    return {
+      id: randomUUID(),
+      runId: this.input.runId,
+      files: [...this.files.values()],
+      createdAt: Date.now(),
+    };
+  }
+
   async checkpoint(): Promise<{changeSet?: ChangeSet; path?: string}> {
     const changeSet = this.createChangeSet();
     if (!changeSet) {
       return {};
     }
+    const checkpointPath = await this.input.checkpointStore?.save(changeSet);
     this.dirty = false;
 
+    return {changeSet, path: checkpointPath};
+  }
+
+  /** Restores every file to its state before the first write in this run. */
+  async rollbackAll(): Promise<RollbackResult> {
+    const changeSet = this.createCurrentChangeSet();
+    if (!changeSet) {
+      return {status: "not_required", restoredFiles: [], conflicts: []};
+    }
+
+    const restoredFiles: string[] = [];
+    const conflicts: RollbackResult["conflicts"] = [];
+
+    for (const file of [...changeSet.files].reverse()) {
+      try {
+        await this.rollbackFile(file);
+        restoredFiles.push(file.path);
+      } catch (error) {
+        conflicts.push({
+          path: file.path,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    if (!conflicts.length) {
+      this.files.clear();
+      this.dirty = false;
+    }
+
     return {
-      changeSet,
-      path: await this.input.checkpointStore?.save(changeSet),
+      status: conflicts.length
+        ? restoredFiles.length
+          ? "partial"
+          : "failed"
+        : "completed",
+      restoredFiles,
+      conflicts,
     };
   }
 
   async rollback(changeSet: ChangeSet): Promise<void> {
     for (const file of [...changeSet.files].reverse()) {
-      const safePath = resolveWorkspacePath(this.input.workspaceRoot, file.path);
-      const currentContent = await readExistingFile(safePath.absolutePath);
-      const currentHash =
-        currentContent === undefined ? undefined : hashText(currentContent);
-
-      if (currentHash !== file.afterHash) {
-        throw new Error(
-          `Cannot rollback "${file.path}" because it changed after the checkpoint was created.`,
-        );
-      }
-
-      if (file.beforeContent === undefined) {
-        await rm(safePath.absolutePath, {force: true});
-        continue;
-      }
-
-      await mkdir(path.dirname(safePath.absolutePath), {recursive: true});
-      await writeFile(safePath.absolutePath, file.beforeContent, "utf8");
+      await this.rollbackFile(file);
     }
+  }
+
+  private async rollbackFile(file: ChangedFile): Promise<void> {
+    const safePath = resolveWorkspacePath(this.input.workspaceRoot, file.path);
+    const currentContent = await readExistingFile(safePath.absolutePath);
+    const currentHash =
+      currentContent === undefined ? undefined : hashText(currentContent);
+
+    if (currentHash !== file.afterHash) {
+      throw new Error(
+        `Cannot rollback "${file.path}" because it changed after the agent wrote it.`,
+      );
+    }
+
+    if (file.beforeContent === undefined) {
+      await rm(safePath.absolutePath, {force: true});
+      return;
+    }
+
+    await mkdir(path.dirname(safePath.absolutePath), {recursive: true});
+    await writeFile(safePath.absolutePath, file.beforeContent, "utf8");
   }
 }
 
