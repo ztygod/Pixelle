@@ -1,0 +1,42 @@
+src/agent/index.ts
+  s_a7199f1a276d14::t_9cf7aa8997ddc9 41-42
+src/runtime/change-tracker.ts
+  s_a7199f1a276d14::t_9cf7aa8997ddc9 6,64-77,83,86-115,117-123,129-131,133-137,139-142,144-150
+  s_a7199f1a276d14::t_f72b8b27c4a7b9 151
+src/agent/agent.ts
+  s_a7199f1a276d14::t_3aa5a1d0d17fac 255-258,260-289,292-331,334-339,342-345,348,351,353-373
+tests/agent/runtime-loop.test.ts
+  s_a7199f1a276d14::t_70e0569a71292a 1,23,673-844,846
+  s_a7199f1a276d14::t_6ae830d9d1311f 845
+src/agent/types.ts
+  s_a7199f1a276d14::t_9cf7aa8997ddc9 32,55-65,163
+tests/runtime-change-tracker-rollback.test.ts
+  s_a7199f1a276d14::t_70e0569a71292a 1-42
+src/runtime/types.ts
+  s_a7199f1a276d14::t_9cf7aa8997ddc9 17,58-64
+  s_a7199f1a276d14::t_04446981a3d46c 65-66
+src/agent/runtime/run-state.ts
+  s_a7199f1a276d14::t_9cf7aa8997ddc9 15,72-76,122-133,152
+src/agent/runtime/observer.ts
+  s_a7199f1a276d14::t_3aa5a1d0d17fac 218-227,237-245
+src/runtime/index.ts
+  s_a7199f1a276d14::t_9cf7aa8997ddc9 20
+src/agent/runtime/change-runtime.ts
+  s_a7199f1a276d14::t_9cf7aa8997ddc9 5,66-70,73-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "d7ad8cd103f285957777305fda98ff32bc3cacd7",
+  "prompts": {},
+  "sessions": {
+    "s_a7199f1a276d14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f6dee-b782-7c62-bb57-fadae7838b88",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "ztygod <2739022972@qq.com>"
+    }
+  }
+}
