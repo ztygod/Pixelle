@@ -8,6 +8,7 @@ import {
   createDefaultTokenEstimator,
   PromptAssembler,
   RuleBasedContextCompressor,
+  type TokenEstimator,
   TranscriptProjector,
   type BuildContextDiagnostics,
   type ContextDocument,
@@ -36,27 +37,35 @@ export type ContextManagerOptions = {
   observer: AgentObserver;
   /** Agent-level context providers invoked for every run. */
   contextProviders?: readonly AgentContextProvider[];
+
+  /**
+   * Context build core dependencies.
+   */
+  transcriptProjector?: TranscriptProjector;
+
+  tokenEstimator?: TokenEstimator;
+
+  budgeter?: ContextBudgeter;
+
+  compressionPipeline?: ContextCompressionPipeline;
+
+  truncator?: ContextTruncator;
+
+  promptAssembler?: PromptAssembler;
+
+  systemPromptService?: SystemPromptService;
 };
 
 /** Builds model context and owns transcript mutation for assistant/tool turns. */
 export class ContextManager {
   private readonly collector: ContextCollector;
-  private readonly transcriptProjector = new TranscriptProjector();
-  private readonly tokenEstimator = createDefaultTokenEstimator();
-  private readonly budgeter = new ContextBudgeter({
-    tokenEstimator: this.tokenEstimator,
-  });
-  private readonly compressionPipeline = new ContextCompressionPipeline({
-    compressor: new RuleBasedContextCompressor({
-      tokenEstimator: this.tokenEstimator,
-    }),
-    tokenEstimator: this.tokenEstimator,
-  });
-  private readonly truncator = new ContextTruncator({
-    tokenEstimator: this.tokenEstimator,
-  });
-  private readonly promptAssembler = new PromptAssembler();
-  private readonly systemPromptService = new SystemPromptService();
+  private readonly transcriptProjector: TranscriptProjector;
+  private readonly tokenEstimator: TokenEstimator;
+  private readonly budgeter: ContextBudgeter;
+  private readonly compressionPipeline: ContextCompressionPipeline;
+  private readonly truncator: ContextTruncator;
+  private readonly promptAssembler: PromptAssembler;
+  private readonly systemPromptService: SystemPromptService;
   private readonly runStates = new WeakMap<AgentRunState, ContextManagerRunState>();
 
   /** Creates a context manager with static agent-level context providers. */
@@ -65,6 +74,36 @@ export class ContextManager {
       memory: options.memory,
       contextProviders: options.contextProviders,
     });
+
+    this.tokenEstimator = options.tokenEstimator ?? createDefaultTokenEstimator();
+
+    this.transcriptProjector = options.transcriptProjector ?? new TranscriptProjector();
+
+    this.budgeter =
+      options.budgeter ??
+      new ContextBudgeter({
+        tokenEstimator: this.tokenEstimator,
+      });
+
+    this.compressionPipeline =
+      options.compressionPipeline ??
+      new ContextCompressionPipeline({
+        compressor: new RuleBasedContextCompressor({
+          tokenEstimator: this.tokenEstimator,
+        }),
+
+        tokenEstimator: this.tokenEstimator,
+      });
+
+    this.truncator =
+      options.truncator ??
+      new ContextTruncator({
+        tokenEstimator: this.tokenEstimator,
+      });
+
+    this.promptAssembler = options.promptAssembler ?? new PromptAssembler();
+
+    this.systemPromptService = options.systemPromptService ?? new SystemPromptService();
   }
 
   /** Initializes static context sources and the mutable transcript for a run. */
