@@ -1,10 +1,4 @@
-import type {ContextBudgetPolicy} from "./budget/context-budget.js";
-import type {ContextPriorityPolicy} from "./budget/priority-policy.js";
-import type {TokenEstimator} from "./budget/token-estimator.js";
-import type {ContextCompressionPipeline} from "./compression/context-compression-pipeline.js";
-import type {ContextCompressor} from "./compression/context-compressor.js";
-import type {ContextTruncator} from "./compression/context-truncator.js";
-import type {SystemPromptAssembler} from "./formatting/system-prompt-assembler.js";
+import type {LLMMessage} from "../llm/types.js";
 
 /** Source metadata for a context section. */
 export type ContextSource =
@@ -14,7 +8,14 @@ export type ContextSource =
   | {kind: "provider"; ref?: string}
   | {kind: "user"; ref?: string}
   | {kind: "tool"; ref?: string}
-  | {kind: "file"; ref?: string};
+  | {kind: "file"; ref?: string}
+  | {kind: "runtime"; ref?: string}
+  | {kind: "verification"; ref?: string}
+  | {kind: "plan"; ref?: string}
+  | {kind: "git"; ref?: string};
+
+/** Retention intent carried by a section for future budget policies. */
+export type ContextRetention = "required" | "preferred" | "compressible" | "discardable";
 
 /** A model-visible runtime context block. */
 export type ContextSection = {
@@ -24,26 +25,28 @@ export type ContextSection = {
   content: string;
   priority?: number;
   source?: ContextSource;
+  /** Informational in the first architecture phase; current policies ignore it. */
+  retention?: ContextRetention;
 };
 
-/** Input accepted by the generic runtime context builder. */
-export type BuildContextInput = {
-  systemPrompt?: string;
-  outputInstructions?: string;
+/** Stage metadata attached to a context document. */
+export type ContextDocumentMetadata = {
+  runId: string;
+  iteration: number;
+  stage: "agent" | "verification" | "repair";
+};
+
+/** Collected context before projection, budgeting, compression, or assembly. */
+export type ContextDocument = {
   sections: readonly ContextSection[];
-  tokenLimit: number;
+  transcript: readonly LLMMessage[];
+  metadata: ContextDocumentMetadata;
 };
 
-/** Result returned after formatting and truncating runtime context. */
-export type BuildContextResult = {
-  systemPrompt: string;
-  contextText: string;
-  tokenEstimate: number;
-  includedSections: ContextSection[];
-  partialSections: ContextSection[];
-  droppedSections: ContextSection[];
-  sectionUsages: ContextSectionUsage[];
-  diagnostics?: BuildContextDiagnostics;
+/** Legal model transcript plus tool results projected out of older exchanges. */
+export type TranscriptProjection = {
+  messages: readonly LLMMessage[];
+  archivedSections: readonly ContextSection[];
 };
 
 /** Runtime context budget derived from the model token limit. */
@@ -52,10 +55,19 @@ export type ContextBudget = {
   maxContextTokens: number;
   reservedOutputTokens: number;
   maxInputTokens: number;
-  /** @deprecated kept for compatibility and diagnostics only. */
-  runtimeContextRatio?: number;
-  /** @deprecated char budget is a diagnostic fallback only. */
-  maxContextChars?: number;
+};
+
+/** Budget decision produced before any compression strategy is executed. */
+export type BudgetedContext = {
+  budget: ContextBudget;
+  sections: readonly ContextSection[];
+  compressionRequired: boolean;
+  diagnostics: {
+    estimatedContextChars: number;
+    estimatedContextTokens: number;
+    compressionLimitTokens: number;
+    compressionThresholdRatio: number;
+  };
 };
 
 /** Explicit section-level truncation status. */
@@ -104,17 +116,7 @@ export type BuildContextDiagnostics = {
   compressionLimitTokens: number;
   compressionResults: ContextCompressionResult[];
   contextTextTokens: number;
+  systemPromptVersion: string;
   systemPromptTokens: number;
-};
-
-/** Optional strategy overrides for the class-based context engine. */
-export type ContextEngineOptions = {
-  priorityPolicy?: ContextPriorityPolicy;
-  budgetPolicy?: ContextBudgetPolicy;
-  compressionPipeline?: ContextCompressionPipeline;
-  compressor?: ContextCompressor;
-  compressionThresholdRatio?: number;
-  truncator?: ContextTruncator;
-  assembler?: SystemPromptAssembler;
-  tokenEstimator?: TokenEstimator;
+  systemPromptSectionTokens: Array<{id: string; tokens: number}>;
 };

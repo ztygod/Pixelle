@@ -63,30 +63,41 @@ console.log(result);
 directory by default. All fields are optional in the TOML file; omitted values
 use the defaults below.
 
-| Section        | Field               | Default                 | Constraints                                         |
-| -------------- | ------------------- | ----------------------- | --------------------------------------------------- |
-| `llm`          | `provider`          | `openai-compatible`     | `openai-compatible` or `anthropic`                  |
-| `llm`          | `model`             | `gpt-4.1`               | Non-empty string                                    |
-| `llm`          | `temperature`       | `0.2`                   | Number from `0` to `2`                              |
-| `llm`          | `timeoutMs`         | `120000`                | Positive integer                                    |
-| `llm`          | `maxRetries`        | `2`                     | Integer from `0` to `10`                            |
-| `llm`          | `apiKey`            | None                    | Non-empty string when set                           |
-| `llm`          | `apiKeyEnv`         | None                    | Environment variable name used to read `apiKey`     |
-| `llm`          | `baseUrl`           | None                    | Valid URL when set                                  |
-| `runtime`      | `workspaceDir`      | `.`                     | Non-empty path, resolved relative to `pixelle.toml` |
-| `runtime`      | `maxIterations`     | `10`                    | Positive integer                                    |
-| `runtime`      | `maxRepairAttempts` | `2`                     | Integer `0` or greater                              |
-| `runtime`      | `tokensLimit`       | `32000`                 | Positive integer                                    |
-| `runtime`      | `systemPrompt`      | Built-in Pixelle prompt | Non-empty string                                    |
-| `runtime`      | `rollbackOnFailure` | `true`                  | Boolean                                             |
-| `permissions`  | `readFile`          | `true`                  | Boolean                                             |
-| `permissions`  | `writeFile`         | `false`                 | Boolean                                             |
-| `permissions`  | `shell`             | `false`                 | Boolean                                             |
-| `permissions`  | `network`           | `false`                 | Boolean                                             |
-| `verification` | `enabled`           | `true`                  | Boolean                                             |
-| `verification` | `commands`          | `[]`                    | Array of non-empty strings                          |
-| `trace`        | `enabled`           | `true`                  | Boolean                                             |
-| `trace`        | `directory`         | `.pixelle`              | Non-empty path, resolved relative to `pixelle.toml` |
+The built-in coding-agent system prompt is versioned and cannot be replaced.
+Add project-specific rules with supplemental instructions:
+
+```toml
+[runtime]
+systemInstructions = [
+  "Prefer functional TypeScript.",
+  "Do not modify generated files."
+]
+```
+
+| Section        | Field                | Default             | Constraints                                         |
+| -------------- | -------------------- | ------------------- | --------------------------------------------------- |
+| `llm`          | `provider`           | `openai-compatible` | `openai-compatible` or `anthropic`                  |
+| `llm`          | `model`              | `gpt-4.1`           | Non-empty string                                    |
+| `llm`          | `temperature`        | `0.2`               | Number from `0` to `2`                              |
+| `llm`          | `timeoutMs`          | `120000`            | Positive integer                                    |
+| `llm`          | `maxRetries`         | `2`                 | Integer from `0` to `10`                            |
+| `llm`          | `apiKey`             | None                | Non-empty string when set                           |
+| `llm`          | `apiKeyEnv`          | None                | Environment variable name used to read `apiKey`     |
+| `llm`          | `baseUrl`            | None                | Valid URL when set                                  |
+| `runtime`      | `workspaceDir`       | `.`                 | Non-empty path, resolved relative to `pixelle.toml` |
+| `runtime`      | `maxIterations`      | `10`                | Positive integer                                    |
+| `runtime`      | `maxRepairAttempts`  | `2`                 | Integer `0` or greater                              |
+| `runtime`      | `tokensLimit`        | `32000`             | Positive integer                                    |
+| `runtime`      | `systemInstructions` | `[]`                | Array of non-empty supplemental instructions        |
+| `runtime`      | `rollbackOnFailure`  | `true`              | Boolean                                             |
+| `permissions`  | `readFile`           | `true`              | Boolean                                             |
+| `permissions`  | `writeFile`          | `false`             | Boolean                                             |
+| `permissions`  | `shell`              | `false`             | Boolean                                             |
+| `permissions`  | `network`            | `false`             | Boolean                                             |
+| `verification` | `enabled`            | `true`              | Boolean                                             |
+| `verification` | `commands`           | `[]`                | Array of non-empty strings                          |
+| `trace`        | `enabled`            | `true`              | Boolean                                             |
+| `trace`        | `directory`          | `.pixelle`          | Non-empty path, resolved relative to `pixelle.toml` |
 
 CLI presentation APIs are available from the `./cli` export:
 

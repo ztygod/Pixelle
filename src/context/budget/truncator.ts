@@ -1,12 +1,8 @@
-import {DefaultContextBudgetPolicy} from "../budget/context-budget.js";
-import {
-  createDefaultTokenEstimator,
-  type TokenEstimator,
-} from "../budget/token-estimator.js";
-import {formatContextSection} from "../formatting/context-formatter.js";
+import {createDefaultTokenEstimator, type TokenEstimator} from "./token-estimator.js";
+import {formatContextSection} from "../assembly/context-formatter.js";
 import type {ContextBudget, ContextSection, ContextSectionUsage} from "../types.js";
 
-export type FormattedContextSection = {
+type FormattedContextSection = {
   section: ContextSection;
   text: string;
 };
@@ -39,7 +35,7 @@ export class ContextTruncator {
     );
   }
 
-  truncateFormatted(
+  private truncateFormatted(
     blocks: readonly FormattedContextSection[],
     budget: ContextBudget,
   ): TruncateContextResult {
@@ -155,20 +151,6 @@ export class ContextTruncator {
       reason,
     };
   }
-}
-
-/** Compatibility function for callers that still pass formatted blocks and a token limit. */
-export function truncateContext(
-  blocks: readonly FormattedContextSection[],
-  tokenLimit: number,
-): TruncateContextResult {
-  return new ContextTruncator().truncateFormatted(
-    blocks,
-    new DefaultContextBudgetPolicy().createBudget({
-      sections: blocks.map((block) => block.section),
-      tokenLimit,
-    }),
-  );
 }
 
 export function truncateTextToTokens(

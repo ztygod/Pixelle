@@ -1,15 +1,17 @@
-import type {BuildContextInput, ContextBudget} from "../types.js";
+import type {ContextBudget} from "../types.js";
+
+export type ContextBudgetInput = {
+  tokenLimit: number;
+};
 
 /** Strategy used to derive runtime context budget from build input. */
 export interface ContextBudgetPolicy {
-  createBudget(input: BuildContextInput): ContextBudget;
+  createBudget(input: ContextBudgetInput): ContextBudget;
 }
 
 export type DefaultContextBudgetPolicyOptions = {
   defaultMaxContextTokens?: number;
   reservedOutputTokens?: number;
-  /** @deprecated kept only to populate legacy char diagnostics. */
-  runtimeContextRatio?: number;
 };
 
 const DEFAULT_MAX_CONTEXT_TOKENS = 128_000;
@@ -19,7 +21,6 @@ const DEFAULT_RESERVED_OUTPUT_TOKENS = 4_000;
 export class DefaultContextBudgetPolicy implements ContextBudgetPolicy {
   private readonly defaultMaxContextTokens: number;
   private readonly reservedOutputTokens: number;
-  private readonly runtimeContextRatio: number;
 
   constructor(options: DefaultContextBudgetPolicyOptions = {}) {
     this.defaultMaxContextTokens = positiveIntegerOrDefault(
@@ -30,10 +31,9 @@ export class DefaultContextBudgetPolicy implements ContextBudgetPolicy {
       options.reservedOutputTokens,
       DEFAULT_RESERVED_OUTPUT_TOKENS,
     );
-    this.runtimeContextRatio = options.runtimeContextRatio ?? 0.35;
   }
 
-  createBudget(input: BuildContextInput): ContextBudget {
+  createBudget(input: ContextBudgetInput): ContextBudget {
     const maxContextTokens =
       input.tokenLimit > 0 ? Math.floor(input.tokenLimit) : this.defaultMaxContextTokens;
     const reservedOutputTokens = Math.min(
@@ -47,8 +47,6 @@ export class DefaultContextBudgetPolicy implements ContextBudgetPolicy {
       maxContextTokens,
       reservedOutputTokens,
       maxInputTokens,
-      runtimeContextRatio: this.runtimeContextRatio,
-      maxContextChars: Math.max(0, maxInputTokens * 4),
     };
   }
 }

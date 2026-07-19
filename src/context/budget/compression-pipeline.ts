@@ -2,17 +2,16 @@ import {
   ContextCompressionResultFactory,
   NoopContextCompressor,
   type ContextCompressor,
-} from "./context-compressor.js";
-import {
-  createDefaultTokenEstimator,
-  type TokenEstimator,
-} from "../budget/token-estimator.js";
-import {formatContextSection} from "../formatting/context-formatter.js";
-import type {ContextBudget, ContextCompressionResult, ContextSection} from "../types.js";
+} from "./compressor.js";
+import {createDefaultTokenEstimator, type TokenEstimator} from "./token-estimator.js";
+import type {
+  BudgetedContext,
+  ContextCompressionResult,
+  ContextSection,
+} from "../types.js";
 
 export type ContextCompressionPipelineOptions = {
   compressor?: ContextCompressor;
-  thresholdRatio?: number;
   resultFactory?: ContextCompressionResultFactory;
   tokenEstimator?: TokenEstimator;
 };
@@ -27,34 +26,25 @@ export type ContextCompressionPipelineResult = {
   triggered: boolean;
 };
 
-/** Decides when to apply context compression and records compression diagnostics. */
+/** Executes the compression decision produced by ContextBudgeter. */
 export class ContextCompressionPipeline {
   private readonly compressor: ContextCompressor;
-  private readonly thresholdRatio: number;
   private readonly resultFactory: ContextCompressionResultFactory;
   private readonly tokenEstimator: TokenEstimator;
 
   constructor(options: ContextCompressionPipelineOptions = {}) {
     this.resultFactory = options.resultFactory ?? new ContextCompressionResultFactory();
     this.compressor = options.compressor ?? new NoopContextCompressor(this.resultFactory);
-    this.thresholdRatio = options.thresholdRatio ?? 0.85;
     this.tokenEstimator = options.tokenEstimator ?? createDefaultTokenEstimator();
   }
 
-  compress(
-    sections: readonly ContextSection[],
-    budget: ContextBudget,
-  ): ContextCompressionPipelineResult {
-    const formattedContextText = formatContextSections(sections);
-    const estimatedContextChars = formattedContextText.length;
-    const estimatedContextTokens = this.tokenEstimator.countText(formattedContextText);
-    const compressionLimitTokens = Math.floor(
-      budget.maxInputTokens * this.thresholdRatio,
-    );
-    const triggered = estimatedContextTokens > compressionLimitTokens;
-    const results = triggered
-      ? sections.map((section) => this.compressor.compress(section, budget))
-      : sections.map((section) =>
+  /** Executes a compression decision made by ContextBudgeter. */
+  process(budgeted: BudgetedContext): ContextCompressionPipelineResult {
+    const results = budgeted.compressionRequired
+      ? budgeted.sections.map((section) =>
+          this.compressor.compress(section, budgeted.budget),
+        )
+      : budgeted.sections.map((section) =>
           this.resultFactory.skipped(section, "Compression was not triggered.", {
             originalTokens: this.tokenEstimator.countText(section.content),
             compressedTokens: this.tokenEstimator.countText(section.content),
@@ -66,18 +56,11 @@ export class ContextCompressionPipeline {
     return {
       sections: results.map((result) => result.section),
       results,
-      estimatedContextChars,
-      estimatedContextTokens,
-      compressionLimitTokens,
-      thresholdRatio: this.thresholdRatio,
-      triggered,
+      estimatedContextChars: budgeted.diagnostics.estimatedContextChars,
+      estimatedContextTokens: budgeted.diagnostics.estimatedContextTokens,
+      compressionLimitTokens: budgeted.diagnostics.compressionLimitTokens,
+      thresholdRatio: budgeted.diagnostics.compressionThresholdRatio,
+      triggered: budgeted.compressionRequired,
     };
   }
-}
-
-function formatContextSections(sections: readonly ContextSection[]): string {
-  return sections
-    .map((section) => formatContextSection(section))
-    .filter((text) => text.length > 0)
-    .join("\n\n");
 }

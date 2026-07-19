@@ -34,7 +34,7 @@ describe("loadAgentConfig", () => {
         "",
         "[runtime]",
         'workspaceDir = "workspace"',
-        'systemPrompt = "Be useful."',
+        'systemInstructions = ["Be useful."]',
         "",
         "[trace]",
         'directory = ".trace"',
@@ -51,6 +51,7 @@ describe("loadAgentConfig", () => {
       temperature: 0.2,
     });
     expect(config.runtime.workspaceDir).toBe(join(cwd, "workspace"));
+    expect(config.runtime.systemInstructions).toEqual(["Be useful."]);
     expect(config.trace.directory).toBe(join(cwd, ".trace"));
     expect(config.permissions.writeFile).toBe(false);
   });
@@ -60,6 +61,42 @@ describe("loadAgentConfig", () => {
     await writeFile(
       join(cwd, "pixelle.toml"),
       ["[llm]", 'provider = "openai-compatible"', 'model = ""'].join("\n"),
+      "utf8",
+    );
+
+    await expect(loadAgentConfig({cwd})).rejects.toThrow();
+  });
+
+  it("rejects the removed systemPrompt field", async () => {
+    const cwd = await createTempWorkspace();
+    await writeFile(
+      join(cwd, "pixelle.toml"),
+      [
+        "[llm]",
+        'provider = "openai-compatible"',
+        'model = "gpt-test"',
+        "",
+        "[runtime]",
+        'systemPrompt = "legacy override"',
+      ].join("\n"),
+      "utf8",
+    );
+
+    await expect(loadAgentConfig({cwd})).rejects.toThrow();
+  });
+
+  it("rejects blank system instructions", async () => {
+    const cwd = await createTempWorkspace();
+    await writeFile(
+      join(cwd, "pixelle.toml"),
+      [
+        "[llm]",
+        'provider = "openai-compatible"',
+        'model = "gpt-test"',
+        "",
+        "[runtime]",
+        'systemInstructions = ["   "]',
+      ].join("\n"),
       "utf8",
     );
 

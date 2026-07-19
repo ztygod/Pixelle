@@ -13,14 +13,16 @@ export const LLMConfigSchema = z.object({
 });
 
 /** Validates runtime controls for agent execution. */
-export const RuntimeConfigSchema = z.object({
-  maxIterations: z.number().int().positive(),
-  maxRepairAttempts: z.number().int().min(0),
-  tokensLimit: z.number().int().positive(),
-  systemPrompt: z.string().min(1),
-  workspaceDir: z.string().min(1),
-  rollbackOnFailure: z.boolean(),
-});
+export const RuntimeConfigSchema = z
+  .object({
+    maxIterations: z.number().int().positive(),
+    maxRepairAttempts: z.number().int().min(0),
+    tokensLimit: z.number().int().positive(),
+    systemInstructions: z.array(z.string().trim().min(1)),
+    workspaceDir: z.string().min(1),
+    rollbackOnFailure: z.boolean(),
+  })
+  .strict();
 
 export const PermissionConfigSchema = z.object({
   readFile: z.boolean(),
