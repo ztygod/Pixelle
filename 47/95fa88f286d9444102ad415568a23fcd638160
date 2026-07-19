@@ -1,0 +1,72 @@
+tests/system-prompt-service.test.ts
+  s_7e4f3205a818b2::t_715b23f954b7f4 1-102
+src/agent/types.ts
+  s_7e4f3205a818b2::t_aa8a501545d1d7 87
+src/agent/runtime/context-manager.ts
+  s_7e4f3205a818b2::t_02d0d9f3837b0e 21,59,72-75,77-78,100,112,114-117,123-127,161-165,168,187-190
+  s_7e4f3205a818b2::t_fac27e7b076952 191
+tests/agent/system-prompt.test.ts
+  s_7e4f3205a818b2::t_96d0e43114e617 20,34,66-67,90,131,145-149
+  s_7e4f3205a818b2::t_715b23f954b7f4 163-165
+src/agent/runtime-utils.ts
+  s_7e4f3205a818b2::t_aa8a501545d1d7 35
+src/context/types.ts
+  s_7e4f3205a818b2::t_0894047e38f4d6 119,121
+src/config/types.ts
+  s_7e4f3205a818b2::t_aa8a501545d1d7 27
+src/agent/prompt/coding-agent-prompt.ts
+  s_7e4f3205a818b2::t_0738ec4e69564e 1-98
+src/agent/prompt/index.ts
+  s_7e4f3205a818b2::t_0738ec4e69564e 1-8
+tests/config/loader.test.ts
+  s_7e4f3205a818b2::t_5dbba96267d258 37,54,69-101,103-104
+  s_7e4f3205a818b2::t_8ef24af5b124fd 102
+pixelle.toml
+  s_7e4f3205a818b2::t_5dbba96267d258 14
+src/context/assembly/prompt-assembler.ts
+  s_7e4f3205a818b2::t_0894047e38f4d6 2-3,7,9,12,16,21
+README.zh-CN.md
+  s_7e4f3205a818b2::t_71bfd082ae4026 65-74
+  s_7e4f3205a818b2::t_5dbba96267d258 89
+  s_7e4f3205a818b2::t_19242b95d2e4c4 75-77,86-88
+  s_7e4f3205a818b2::t_d02d13a8ed7105 90-92
+tests/context-builder.test.ts
+  s_7e4f3205a818b2::t_e4d57502f418a6 25,70,92,125-129,131,154,156-159,353
+  s_7e4f3205a818b2::t_715b23f954b7f4 302
+  s_7e4f3205a818b2::t_ec40b1d414da8a 354-356
+  s_7e4f3205a818b2::t_982de982e1c27e 301
+src/agent/prompt/system-prompt-service.ts
+  s_7e4f3205a818b2::t_0738ec4e69564e 1-35,50-54
+  s_7e4f3205a818b2::t_534c7b432f33cf 36-49
+src/agent/prompt/types.ts
+  s_7e4f3205a818b2::t_0738ec4e69564e 1-23
+src/config/schema.ts
+  s_7e4f3205a818b2::t_aa8a501545d1d7 16-25
+tests/agent/runtime-loop.test.ts
+  s_7e4f3205a818b2::t_96d0e43114e617 95
+src/config/loader.ts
+  s_7e4f3205a818b2::t_aa8a501545d1d7 42
+src/config/local-cli-config.ts
+  s_7e4f3205a818b2::t_aa8a501545d1d7 136
+README.md
+  s_7e4f3205a818b2::t_5dbba96267d258 91
+  s_7e4f3205a818b2::t_71bfd082ae4026 66-76
+  s_7e4f3205a818b2::t_6aa630ff0526c6 77-79,88-90
+  s_7e4f3205a818b2::t_8e4ed7bbf0bb56 92-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "4795fa88f286d9444102ad415568a23fcd638160",
+  "prompts": {},
+  "sessions": {
+    "s_7e4f3205a818b2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7996-1782-7cd2-9c72-73738adb7d3c",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "ztygod <2739022972@qq.com>"
+    }
+  }
+}
