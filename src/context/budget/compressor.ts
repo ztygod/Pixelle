@@ -1,7 +1,4 @@
-import {
-  createDefaultTokenEstimator,
-  type TokenEstimator,
-} from "../budget/token-estimator.js";
+import {createDefaultTokenEstimator, type TokenEstimator} from "./token-estimator.js";
 import type {ContextBudget, ContextCompressionResult, ContextSection} from "../types.js";
 
 export type ContextCompressionMetadata = {
@@ -628,19 +625,4 @@ export class RuleBasedContextCompressor implements ContextCompressor {
 
 export function isCompressibleSection(section: ContextSection): boolean {
   return section.source?.kind === "tool" || section.source?.kind === "file";
-}
-
-export function createCompressionResult(
-  section: ContextSection,
-  originalSection: ContextSection,
-  compressed: boolean,
-  reason?: string,
-  metadata: ContextCompressionMetadata = {},
-): ContextCompressionResult {
-  const factory = new ContextCompressionResultFactory();
-  if (compressed) {
-    return factory.compressed(section, originalSection, reason ?? "", metadata);
-  }
-
-  return factory.unchanged(section, reason ?? "", metadata);
 }

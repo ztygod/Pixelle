@@ -1,57 +1,60 @@
-export {ContextEngine} from "./engine/context-engine.js";
-export {buildRuntimeContext} from "./engine/context-builder.js";
-export {ContextRegistry} from "./engine/context-registry.js";
-export {ContextCompressionPipeline} from "./compression/context-compression-pipeline.js";
+// Layer 1: collection
+export {ContextCollector} from "./collector/context-collector.js";
+export type {
+  CollectContextOptions,
+  ContextCollectorOptions,
+} from "./collector/context-collector.js";
+
+// Layer 2: transcript projection
+export {TranscriptProjector} from "./transcript/transcript-projector.js";
+
+// Layer 3: budgeting and compression
+export {ContextBudgeter} from "./budget/context-budgeter.js";
+export type {ContextBudgeterOptions} from "./budget/context-budgeter.js";
+export {DefaultContextBudgetPolicy} from "./budget/context-budget.js";
+export type {ContextBudgetInput, ContextBudgetPolicy} from "./budget/context-budget.js";
+export {DefaultContextPriorityPolicy} from "./budget/priority-policy.js";
+export type {ContextPriorityPolicy} from "./budget/priority-policy.js";
+export {
+  ApproxTokenEstimator,
+  createDefaultTokenEstimator,
+  GptTokenEstimator,
+} from "./budget/token-estimator.js";
+export type {TokenCountableMessage, TokenEstimator} from "./budget/token-estimator.js";
+export {ContextCompressionPipeline} from "./budget/compression-pipeline.js";
 export type {
   ContextCompressionPipelineOptions,
   ContextCompressionPipelineResult,
-} from "./compression/context-compression-pipeline.js";
-export {DefaultContextBudgetPolicy} from "./budget/context-budget.js";
-export type {ContextBudgetPolicy} from "./budget/context-budget.js";
+} from "./budget/compression-pipeline.js";
 export {
   ContextCompressionResultFactory,
-  createCompressionResult,
   isCompressibleSection,
-  NoopContextCompressor,
   RuleBasedContextCompressor,
-} from "./compression/context-compressor.js";
+} from "./budget/compressor.js";
 export type {
   ContextCompressor,
   ContextCompressionMetadata,
   RuleBasedContextCompressorOptions,
-} from "./compression/context-compressor.js";
-export {
-  compareContextSection,
-  formatContextSection,
-} from "./formatting/context-formatter.js";
-export {
-  ContextTruncator,
-  truncateContext,
-  truncateTextToTokens,
-} from "./compression/context-truncator.js";
+} from "./budget/compressor.js";
+export {ContextTruncator, truncateTextToTokens} from "./budget/truncator.js";
+export type {TruncateContextResult} from "./budget/truncator.js";
+
+// Layer 4: prompt assembly
+export {formatContextSection} from "./assembly/context-formatter.js";
+export {PromptAssembler} from "./assembly/prompt-assembler.js";
+
+// Shared contracts
 export type {
-  FormattedContextSection,
-  TruncateContextResult,
-} from "./compression/context-truncator.js";
-export {DefaultContextPriorityPolicy} from "./budget/priority-policy.js";
-export type {ContextPriorityPolicy} from "./budget/priority-policy.js";
-export {SystemPromptAssembler} from "./formatting/system-prompt-assembler.js";
-export {
-  ApproxTokenEstimator,
-  createDefaultTokenEstimator,
-  estimateTokens,
-  GptTokenEstimator,
-} from "./budget/token-estimator.js";
-export type {TokenCountableMessage, TokenEstimator} from "./budget/token-estimator.js";
-export type {
-  BuildContextInput,
+  BudgetedContext,
   BuildContextDiagnostics,
-  BuildContextResult,
   ContextBudget,
   ContextCompressionResult,
-  ContextEngineOptions,
+  ContextDocument,
+  ContextDocumentMetadata,
+  ContextRetention,
   ContextSection,
   ContextSectionUsage,
   ContextSectionUsageStatus,
   ContextSource,
+  TranscriptProjection,
 } from "./types.js";

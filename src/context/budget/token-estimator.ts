@@ -62,10 +62,3 @@ export function createDefaultTokenEstimator(): TokenEstimator {
     return new ApproxTokenEstimator();
   }
 }
-
-const defaultTokenEstimator = createDefaultTokenEstimator();
-
-/** Compatibility helper for older call sites. */
-export function estimateTokens(text: string): number {
-  return defaultTokenEstimator.countText(text);
-}

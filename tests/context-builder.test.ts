@@ -2,20 +2,23 @@ import {describe, expect, it} from "vitest";
 
 import {
   ApproxTokenEstimator,
-  buildRuntimeContext,
   ContextCompressionPipeline,
   ContextCompressionResultFactory,
-  ContextEngine,
-  ContextRegistry,
+  ContextBudgeter,
+  ContextTruncator,
+  createDefaultTokenEstimator,
   DefaultContextBudgetPolicy,
-  estimateTokens,
+  DefaultContextPriorityPolicy,
   GptTokenEstimator,
-  NoopContextCompressor,
+  PromptAssembler,
   RuleBasedContextCompressor,
   truncateTextToTokens,
   type ContextBudget,
   type ContextCompressionResult,
   type ContextCompressor,
+  type ContextBudgetPolicy,
+  type ContextPriorityPolicy,
+  type ContextDocument,
   type ContextSection,
   type TokenEstimator,
 } from "../src/context/index.js";
@@ -62,29 +65,135 @@ class MarkingCompressor implements ContextCompressor {
   }
 }
 
-describe("buildRuntimeContext", () => {
+type TestBuildInput = {
+  systemPrompt?: string;
+  outputInstructions?: string;
+  sections: readonly ContextSection[];
+  tokenLimit: number;
+};
+
+type TestContextPipelineOptions = {
+  priorityPolicy?: ContextPriorityPolicy;
+  budgetPolicy?: ContextBudgetPolicy;
+  compressionPipeline?: ContextCompressionPipeline;
+  compressor?: ContextCompressor;
+  compressionThresholdRatio?: number;
+  truncator?: ContextTruncator;
+  tokenEstimator?: TokenEstimator;
+};
+
+/** Test-only composition proving the four context layers work together. */
+class TestContextPipeline {
+  private readonly tokenEstimator: TokenEstimator;
+  private readonly budgeter: ContextBudgeter;
+  private readonly compressionPipeline: ContextCompressionPipeline;
+  private readonly truncator: ContextTruncator;
+  private readonly assembler = new PromptAssembler();
+
+  constructor(options: TestContextPipelineOptions = {}) {
+    this.tokenEstimator = options.tokenEstimator ?? createDefaultTokenEstimator();
+    this.compressionPipeline =
+      options.compressionPipeline ??
+      new ContextCompressionPipeline({
+        compressor: options.compressor,
+        tokenEstimator: this.tokenEstimator,
+      });
+    this.budgeter = new ContextBudgeter({
+      priorityPolicy: options.priorityPolicy ?? new DefaultContextPriorityPolicy(),
+      budgetPolicy: options.budgetPolicy ?? new DefaultContextBudgetPolicy(),
+      compressionThresholdRatio: options.compressionThresholdRatio,
+      tokenEstimator: this.tokenEstimator,
+    });
+    this.truncator =
+      options.truncator ?? new ContextTruncator({tokenEstimator: this.tokenEstimator});
+  }
+
+  build(input: TestBuildInput) {
+    const document: ContextDocument = {
+      systemPrompt: input.systemPrompt,
+      outputInstructions: input.outputInstructions,
+      sections: input.sections,
+      transcript: [],
+      metadata: {runId: "test", iteration: 0, stage: "agent"},
+    };
+    const budgeted = this.budgeter.budget(
+      document,
+      {messages: [], archivedSections: []},
+      input.tokenLimit,
+    );
+    const compression = this.compressionPipeline.process(budgeted);
+    const truncation = this.truncator.truncate(compression.sections, budgeted.budget);
+    const systemPrompt = this.assembler.assembleSystemPrompt(
+      document,
+      truncation.contextText,
+    );
+    const contextTextTokens = this.tokenEstimator.countText(truncation.contextText);
+    const systemPromptTokens = this.tokenEstimator.countText(systemPrompt);
+
+    return {
+      systemPrompt,
+      contextText: truncation.contextText,
+      tokenEstimate: systemPromptTokens,
+      includedSections: truncation.includedSections,
+      partialSections: truncation.partialSections,
+      droppedSections: truncation.droppedSections,
+      sectionUsages: truncation.sectionUsages,
+      diagnostics: {
+        budget: budgeted.budget,
+        estimatedContextChars: compression.estimatedContextChars,
+        estimatedContextTokens: compression.estimatedContextTokens,
+        compressionThresholdRatio: compression.thresholdRatio,
+        compressionTriggered: compression.triggered,
+        compressionLimitTokens: compression.compressionLimitTokens,
+        compressionResults: compression.results,
+        contextTextTokens,
+        systemPromptTokens,
+      },
+    };
+  }
+}
+
+function buildContext(input: TestBuildInput) {
+  return new TestContextPipeline().build(input);
+}
+
+describe("context pipeline", () => {
+  it("separates budget decisions from compression execution", () => {
+    const budgeted = new ContextBudgeter({
+      budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
+      compressionThresholdRatio: 0.5,
+      tokenEstimator: charTokenEstimator,
+    }).budget(
+      {
+        systemPrompt: "Base.",
+        sections: [{id: "long", content: "abcdefgh", priority: 10}],
+        transcript: [],
+        metadata: {runId: "test", iteration: 1, stage: "agent"},
+      },
+      {messages: [], archivedSections: []},
+      10,
+    );
+
+    expect(budgeted.sections.map((section) => section.id)).toEqual(["long"]);
+    expect(budgeted.compressionRequired).toBe(true);
+    expect(budgeted.diagnostics).toEqual({
+      estimatedContextChars: 8,
+      estimatedContextTokens: 8,
+      compressionLimitTokens: 5,
+      compressionThresholdRatio: 0.5,
+    });
+  });
+
   it("provides approximate and gpt-backed token estimators", () => {
     const approx = new ApproxTokenEstimator();
     const gpt = new GptTokenEstimator();
 
     expect(approx.countText("hello world")).toBeGreaterThan(0);
     expect(gpt.countText("hello world")).toBeGreaterThan(0);
-    expect(estimateTokens("hello world")).toBeGreaterThan(0);
-  });
-
-  it("matches the default ContextEngine output", () => {
-    const input = {
-      systemPrompt: "Base.",
-      outputInstructions: "Use Markdown.",
-      sections: [{title: "Runtime", content: "details"}],
-      tokenLimit: 100,
-    };
-
-    expect(buildRuntimeContext(input)).toEqual(new ContextEngine().build(input));
   });
 
   it("sorts context sections by descending priority", () => {
-    const result = new ContextEngine().build({
+    const result = new TestContextPipeline().build({
       systemPrompt: "Base.",
       sections: [
         {id: "low", content: "low", priority: 1},
@@ -103,7 +212,7 @@ describe("buildRuntimeContext", () => {
   });
 
   it("uses source priority when explicit priority is absent", () => {
-    const result = new ContextEngine().build({
+    const result = new TestContextPipeline().build({
       systemPrompt: "Base.",
       sections: [
         {id: "file", content: "file", source: {kind: "file"}},
@@ -117,7 +226,7 @@ describe("buildRuntimeContext", () => {
   });
 
   it("skips empty section content", () => {
-    const result = buildRuntimeContext({
+    const result = buildContext({
       systemPrompt: "Base.",
       sections: [
         {id: "empty", title: "Empty", content: "   ", priority: 100},
@@ -133,7 +242,7 @@ describe("buildRuntimeContext", () => {
   });
 
   it("formats titled sections with markdown headings", () => {
-    const result = buildRuntimeContext({
+    const result = buildContext({
       systemPrompt: "Base.",
       sections: [{title: "Notes", content: "  keep this  "}],
       tokenLimit: 100,
@@ -145,7 +254,6 @@ describe("buildRuntimeContext", () => {
   it("builds a token-first runtime context budget policy", () => {
     expect(
       new DefaultContextBudgetPolicy().createBudget({
-        sections: [],
         tokenLimit: 100,
       }),
     ).toEqual({
@@ -153,13 +261,11 @@ describe("buildRuntimeContext", () => {
       maxContextTokens: 100,
       reservedOutputTokens: 20,
       maxInputTokens: 80,
-      runtimeContextRatio: 0.35,
-      maxContextChars: 320,
     });
   });
 
   it("truncates over-budget runtime context and records included, partial, and dropped sections", () => {
-    const result = new ContextEngine({
+    const result = new TestContextPipeline({
       budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
       tokenEstimator: charTokenEstimator,
     }).build({
@@ -187,7 +293,7 @@ describe("buildRuntimeContext", () => {
   });
 
   it("keeps fully injected sections separate from partial and dropped sections", () => {
-    const result = new ContextEngine({
+    const result = new TestContextPipeline({
       budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
       tokenEstimator: charTokenEstimator,
     }).build({
@@ -228,7 +334,7 @@ describe("buildRuntimeContext", () => {
   });
 
   it("builds system prompt with output instructions and runtime context", () => {
-    const result = buildRuntimeContext({
+    const result = buildContext({
       systemPrompt: "Base prompt.",
       outputInstructions: "Use Markdown.",
       sections: [{title: "Runtime", content: "details"}],
@@ -241,68 +347,38 @@ describe("buildRuntimeContext", () => {
   });
 
   it("dedupes sections by replaceKey or id with the later section winning", () => {
-    const registry = new ContextRegistry()
-      .addMany([
+    const budgeted = budgetContext(
+      [
         {id: "same", content: "old"},
         {id: "same", content: "new"},
         {replaceKey: "profile", content: "old profile"},
         {replaceKey: "profile", content: "new profile"},
         {content: "kept"},
-      ])
-      .normalize()
-      .dedupe();
+      ],
+      100,
+      0.85,
+    );
 
-    expect(registry.getAll().map((section) => section.content)).toEqual([
+    expect(budgeted.sections.map((section) => section.content)).toEqual([
       "new",
       "new profile",
       "kept",
     ]);
   });
 
-  it("does not alter ordinary sections with the default compressor", () => {
-    const section = {
-      id: "plain",
-      title: "Plain",
-      content: "content",
-      source: {kind: "user" as const},
-    };
-    const result = new NoopContextCompressor().compress(
-      section,
-      new DefaultContextBudgetPolicy().createBudget({
-        sections: [section],
-        tokenLimit: 100,
-      }),
-    );
-
-    expect(result).toMatchObject({
-      section,
-      originalSection: section,
-      compressed: false,
-      originalChars: section.content.length,
-      compressedChars: section.content.length,
-      omittedChars: 0,
-      savedChars: 0,
-      compressionRatio: 1,
-      reason: "No compression applied.",
-    });
-  });
-
   it("does not trigger compression below the configured threshold", () => {
     const compressor = new ThrowingCompressor();
     const pipeline = new ContextCompressionPipeline({
       compressor,
-      thresholdRatio: 0.85,
       tokenEstimator: charTokenEstimator,
     });
-    const compression = pipeline.compress(
-      [{id: "short", content: "short"}],
-      new DefaultContextBudgetPolicy().createBudget({
-        sections: [],
-        tokenLimit: 100,
-      }),
+    const compression = pipeline.process(
+      budgetContext([{id: "short", content: "short"}], 100, 0.85),
     );
-    const result = new ContextEngine({
+    const result = new TestContextPipeline({
       compressionPipeline: pipeline,
+      compressionThresholdRatio: 0.85,
+      tokenEstimator: charTokenEstimator,
     }).build({
       systemPrompt: "Base.",
       sections: [{id: "short", content: "short"}],
@@ -344,11 +420,11 @@ describe("buildRuntimeContext", () => {
   it("triggers compression above the configured threshold and exposes diagnostics", () => {
     const pipeline = new ContextCompressionPipeline({
       compressor: new MarkingCompressor(),
-      thresholdRatio: 0.5,
       tokenEstimator: charTokenEstimator,
     });
-    const result = new ContextEngine({
+    const result = new TestContextPipeline({
       compressionPipeline: pipeline,
+      compressionThresholdRatio: 0.5,
       budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
       tokenEstimator: charTokenEstimator,
     }).build({
@@ -366,8 +442,6 @@ describe("buildRuntimeContext", () => {
         maxContextTokens: 8,
         reservedOutputTokens: 0,
         maxInputTokens: 8,
-        runtimeContextRatio: 0.35,
-        maxContextChars: 32,
       },
       estimatedContextChars: 16,
       estimatedContextTokens: 16,
@@ -398,15 +472,8 @@ describe("buildRuntimeContext", () => {
 
   it("uses a default noop compression pipeline when no compressor is provided", () => {
     const compression = new ContextCompressionPipeline({
-      thresholdRatio: 0,
       tokenEstimator: charTokenEstimator,
-    }).compress(
-      [{id: "plain", content: "plain"}],
-      new DefaultContextBudgetPolicy().createBudget({
-        sections: [],
-        tokenLimit: 1,
-      }),
-    );
+    }).process(budgetContext([{id: "plain", content: "plain"}], 1, 0));
 
     expect(compression.triggered).toBe(true);
     expect(compression.sections).toEqual([{id: "plain", content: "plain"}]);
@@ -467,7 +534,7 @@ describe("buildRuntimeContext", () => {
 
     for (const kind of kinds) {
       const section = {content: longContent, source: {kind}};
-      expect(compressor.compress(section, budgetFor(section))).toMatchObject({
+      expect(compressor.compress(section, budgetFor())).toMatchObject({
         section,
         originalSection: section,
         compressed: false,
@@ -477,7 +544,7 @@ describe("buildRuntimeContext", () => {
 
     for (const kind of ["tool", "file"] as const) {
       const section = {content: longContent, source: {kind}};
-      const result = compressor.compress(section, budgetFor(section));
+      const result = compressor.compress(section, budgetFor());
 
       expect(result.compressed).toBe(true);
       expect(result.section.content).toContain("abcdefghij");
@@ -627,7 +694,7 @@ describe("buildRuntimeContext", () => {
       content: "short tool output",
       source: {kind: "tool" as const},
     };
-    const result = compressor.compress(section, budgetFor(section));
+    const result = compressor.compress(section, budgetFor());
 
     expect(result).toMatchObject({
       section,
@@ -739,11 +806,30 @@ describe("buildRuntimeContext", () => {
   });
 });
 
-function budgetFor(section: ContextSection): ContextBudget {
+function budgetFor(): ContextBudget {
   return new DefaultContextBudgetPolicy({reservedOutputTokens: 0}).createBudget({
-    sections: [section],
     tokenLimit: 100,
   });
+}
+
+function budgetContext(
+  sections: readonly ContextSection[],
+  tokenLimit: number,
+  compressionThresholdRatio: number,
+) {
+  return new ContextBudgeter({
+    budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
+    compressionThresholdRatio,
+    tokenEstimator: charTokenEstimator,
+  }).budget(
+    {
+      sections,
+      transcript: [],
+      metadata: {runId: "test", iteration: 0, stage: "agent"},
+    },
+    {messages: [], archivedSections: []},
+    tokenLimit,
+  );
 }
 
 function rawBudget(maxInputTokens: number): ContextBudget {
@@ -752,7 +838,5 @@ function rawBudget(maxInputTokens: number): ContextBudget {
     maxContextTokens: maxInputTokens,
     reservedOutputTokens: 0,
     maxInputTokens,
-    runtimeContextRatio: 0.35,
-    maxContextChars: maxInputTokens * 4,
   };
 }
