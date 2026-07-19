@@ -39,7 +39,7 @@ export type ContextManagerOptions = {
   contextProviders?: readonly AgentContextProvider[];
 
   /**
-   * Context build dependencies.
+   * Context build core dependencies.
    */
   transcriptProjector?: TranscriptProjector;
 

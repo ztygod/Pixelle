@@ -75,8 +75,15 @@ export type AgentContextValue =
 /** Deferred context provider used to attach dynamic runtime context. */
 export type AgentContextProvider = {
   name: string;
-  description?: string;
-  build(context: AgentRunContext): AgentContextValue | Promise<AgentContextValue>;
+  critical?: boolean;
+  timeoutMs?: number;
+
+  build(
+    context: AgentRunContext,
+    options: {
+      signal: AbortSignal;
+    },
+  ): Promise<AgentContextValue>;
 };
 
 /** User-facing input for one agent run. */
