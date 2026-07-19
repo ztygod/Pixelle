@@ -38,8 +38,6 @@ export type ContextDocumentMetadata = {
 
 /** Collected context before projection, budgeting, compression, or assembly. */
 export type ContextDocument = {
-  systemPrompt?: string;
-  outputInstructions?: string;
   sections: readonly ContextSection[];
   transcript: readonly LLMMessage[];
   metadata: ContextDocumentMetadata;
@@ -118,5 +116,7 @@ export type BuildContextDiagnostics = {
   compressionLimitTokens: number;
   compressionResults: ContextCompressionResult[];
   contextTextTokens: number;
+  systemPromptVersion: string;
   systemPromptTokens: number;
+  systemPromptSectionTokens: Array<{id: string; tokens: number}>;
 };

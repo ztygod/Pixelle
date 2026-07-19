@@ -22,6 +22,7 @@ import {
   type ContextSection,
   type TokenEstimator,
 } from "../src/context/index.js";
+import {SystemPromptService} from "../src/agent/prompt/index.js";
 
 class CharTokenEstimator implements TokenEstimator {
   countText(text: string): number {
@@ -66,8 +67,7 @@ class MarkingCompressor implements ContextCompressor {
 }
 
 type TestBuildInput = {
-  systemPrompt?: string;
-  outputInstructions?: string;
+  systemInstructions?: readonly string[];
   sections: readonly ContextSection[];
   tokenLimit: number;
 };
@@ -89,6 +89,7 @@ class TestContextPipeline {
   private readonly compressionPipeline: ContextCompressionPipeline;
   private readonly truncator: ContextTruncator;
   private readonly assembler = new PromptAssembler();
+  private readonly systemPromptService = new SystemPromptService();
 
   constructor(options: TestContextPipelineOptions = {}) {
     this.tokenEstimator = options.tokenEstimator ?? createDefaultTokenEstimator();
@@ -110,8 +111,6 @@ class TestContextPipeline {
 
   build(input: TestBuildInput) {
     const document: ContextDocument = {
-      systemPrompt: input.systemPrompt,
-      outputInstructions: input.outputInstructions,
       sections: input.sections,
       transcript: [],
       metadata: {runId: "test", iteration: 0, stage: "agent"},
@@ -123,8 +122,13 @@ class TestContextPipeline {
     );
     const compression = this.compressionPipeline.process(budgeted);
     const truncation = this.truncator.truncate(compression.sections, budgeted.budget);
+    const prompt = this.systemPromptService.resolve({
+      mode: "edit",
+      configInstructions: input.systemInstructions ?? [],
+      runInstructions: [],
+    });
     const systemPrompt = this.assembler.assembleSystemPrompt(
-      document,
+      prompt,
       truncation.contextText,
     );
     const contextTextTokens = this.tokenEstimator.countText(truncation.contextText);
@@ -147,7 +151,12 @@ class TestContextPipeline {
         compressionLimitTokens: compression.compressionLimitTokens,
         compressionResults: compression.results,
         contextTextTokens,
+        systemPromptVersion: prompt.version,
         systemPromptTokens,
+        systemPromptSectionTokens: prompt.sections.map((section) => ({
+          id: section.id,
+          tokens: this.tokenEstimator.countText(`# ${section.title}\n${section.content}`),
+        })),
       },
     };
   }
@@ -165,7 +174,6 @@ describe("context pipeline", () => {
       tokenEstimator: charTokenEstimator,
     }).budget(
       {
-        systemPrompt: "Base.",
         sections: [{id: "long", content: "abcdefgh", priority: 10}],
         transcript: [],
         metadata: {runId: "test", iteration: 1, stage: "agent"},
@@ -194,7 +202,7 @@ describe("context pipeline", () => {
 
   it("sorts context sections by descending priority", () => {
     const result = new TestContextPipeline().build({
-      systemPrompt: "Base.",
+      systemInstructions: ["Base."],
       sections: [
         {id: "low", content: "low", priority: 1},
         {id: "high", content: "high", priority: 10},
@@ -213,7 +221,7 @@ describe("context pipeline", () => {
 
   it("uses source priority when explicit priority is absent", () => {
     const result = new TestContextPipeline().build({
-      systemPrompt: "Base.",
+      systemInstructions: ["Base."],
       sections: [
         {id: "file", content: "file", source: {kind: "file"}},
         {id: "workspace", content: "workspace", source: {kind: "workspace"}},
@@ -227,7 +235,7 @@ describe("context pipeline", () => {
 
   it("skips empty section content", () => {
     const result = buildContext({
-      systemPrompt: "Base.",
+      systemInstructions: ["Base."],
       sections: [
         {id: "empty", title: "Empty", content: "   ", priority: 100},
         {id: "filled", content: "filled"},
@@ -243,7 +251,7 @@ describe("context pipeline", () => {
 
   it("formats titled sections with markdown headings", () => {
     const result = buildContext({
-      systemPrompt: "Base.",
+      systemInstructions: ["Base."],
       sections: [{title: "Notes", content: "  keep this  "}],
       tokenLimit: 100,
     });
@@ -269,7 +277,7 @@ describe("context pipeline", () => {
       budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
       tokenEstimator: charTokenEstimator,
     }).build({
-      systemPrompt: "Base.",
+      systemInstructions: ["Base."],
       sections: [
         {id: "first", content: "abcdefghij", priority: 10},
         {id: "second", content: "klmnopqrst", priority: 9},
@@ -290,6 +298,8 @@ describe("context pipeline", () => {
     ]);
     expect(result.diagnostics?.contextTextTokens).toBe(4);
     expect(result.tokenEstimate).toBe(charTokenEstimator.countText(result.systemPrompt));
+    expect(result.systemPrompt).toContain("# Identity and Mission");
+    expect(result.systemPrompt).toContain("# Response Contract");
   });
 
   it("keeps fully injected sections separate from partial and dropped sections", () => {
@@ -297,7 +307,7 @@ describe("context pipeline", () => {
       budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
       tokenEstimator: charTokenEstimator,
     }).build({
-      systemPrompt: "Base.",
+      systemInstructions: ["Base."],
       sections: [
         {id: "first", content: "abc", priority: 10},
         {id: "second", content: "defghij", priority: 9},
@@ -333,17 +343,17 @@ describe("context pipeline", () => {
     ]);
   });
 
-  it("builds system prompt with output instructions and runtime context", () => {
+  it("builds the canonical system prompt with instructions and runtime context", () => {
     const result = buildContext({
-      systemPrompt: "Base prompt.",
-      outputInstructions: "Use Markdown.",
+      systemInstructions: ["Base prompt.", "Use Markdown."],
       sections: [{title: "Runtime", content: "details"}],
       tokenLimit: 100,
     });
 
-    expect(result.systemPrompt).toBe(
-      "Base prompt.\n\nUse Markdown.\n\n# Runtime Context\n## Runtime\ndetails",
-    );
+    expect(result.systemPrompt).toContain("# Identity and Mission");
+    expect(result.systemPrompt).toContain("# Configured Instruction\nBase prompt.");
+    expect(result.systemPrompt).toContain("# Configured Instruction\nUse Markdown.");
+    expect(result.systemPrompt).toContain("# Runtime Context\n## Runtime\ndetails");
   });
 
   it("dedupes sections by replaceKey or id with the later section winning", () => {
@@ -380,7 +390,7 @@ describe("context pipeline", () => {
       compressionThresholdRatio: 0.85,
       tokenEstimator: charTokenEstimator,
     }).build({
-      systemPrompt: "Base.",
+      systemInstructions: ["Base."],
       sections: [{id: "short", content: "short"}],
       tokenLimit: 100,
     });
@@ -428,8 +438,7 @@ describe("context pipeline", () => {
       budgetPolicy: new DefaultContextBudgetPolicy({reservedOutputTokens: 0}),
       tokenEstimator: charTokenEstimator,
     }).build({
-      systemPrompt: "Base prompt.",
-      outputInstructions: "Use Markdown.",
+      systemInstructions: ["Base prompt.", "Use Markdown."],
       sections: [{id: "long", content: "abcdefghijklmnop", source: {kind: "tool"}}],
       tokenLimit: 8,
     });

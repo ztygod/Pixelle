@@ -9,8 +9,6 @@ export type ContextCollectorOptions = {
 };
 
 export type CollectContextOptions = {
-  systemPrompt?: string;
-  outputInstructions?: string;
   stage?: ContextDocument["metadata"]["stage"];
 };
 
@@ -57,8 +55,6 @@ export class ContextCollector {
     }
 
     return {
-      systemPrompt: options.systemPrompt,
-      outputInstructions: options.outputInstructions,
       sections,
       transcript: run.messages,
       metadata: {

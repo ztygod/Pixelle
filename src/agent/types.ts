@@ -84,7 +84,7 @@ export type AgentRunInput = {
   prompt: string;
   mode?: "ask" | "edit";
   messages?: readonly LLMMessage[];
-  systemPrompt?: string;
+  systemInstructions?: readonly string[];
   context?: readonly AgentContextValue[];
   contextProviders?: readonly AgentContextProvider[];
   maxIterations?: number;

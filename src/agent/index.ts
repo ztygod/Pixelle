@@ -4,6 +4,13 @@ export {
   createAgentRuntime,
   createAgentRuntimeFromConfig,
 } from "./agent.js";
+export {CODING_AGENT_PROMPT_VERSION, SystemPromptService} from "./prompt/index.js";
+export type {
+  ResolveSystemPromptInput,
+  ResolvedSystemPrompt,
+  SystemPromptSection,
+  SystemPromptSource,
+} from "./prompt/index.js";
 export {
   AgentObserver,
   AgentRunState,

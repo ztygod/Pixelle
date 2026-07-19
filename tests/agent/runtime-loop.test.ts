@@ -92,7 +92,7 @@ function createConfig(workspaceRoot: string) {
       maxIterations: 3,
       maxRepairAttempts: 0,
       tokensLimit: 32_000,
-      systemPrompt: "Test system prompt.",
+      systemInstructions: [],
       workspaceDir: workspaceRoot,
       rollbackOnFailure: false,
     },

@@ -17,7 +17,7 @@ class CapturingLLMClient extends BaseLLMClient {
 }
 
 describe("ContextManager system prompt", () => {
-  it("adds CLI markdown output instructions", async () => {
+  it("uses the canonical coding-agent prompt and configured instructions", async () => {
     const workspaceRoot = process.cwd();
     const llm = new CapturingLLMClient();
     const profile: WorkspaceProfile = {
@@ -31,7 +31,7 @@ describe("ContextManager system prompt", () => {
     await new Agent({
       config: {
         runtime: {
-          systemPrompt: "Base prompt.",
+          systemInstructions: ["Base prompt."],
           workspaceDir: workspaceRoot,
           maxIterations: 1,
           maxRepairAttempts: 0,
@@ -63,7 +63,8 @@ describe("ContextManager system prompt", () => {
 
     const prompt = llm.request?.messages[0]?.content;
 
-    expect(prompt).toContain("Base prompt.");
+    expect(prompt).toContain("# Identity and Mission");
+    expect(prompt).toContain("# Configured Instruction\nBase prompt.");
     expect(prompt).toContain("Do not use Markdown tables");
     expect(prompt).toContain("always include a language identifier");
   });
@@ -86,7 +87,7 @@ describe("ContextManager system prompt", () => {
     await new Agent({
       config: {
         runtime: {
-          systemPrompt: "Config prompt.",
+          systemInstructions: ["Config prompt."],
           workspaceDir: workspaceRoot,
           maxIterations: 1,
           maxRepairAttempts: 0,
@@ -127,7 +128,7 @@ describe("ContextManager system prompt", () => {
       },
     }).run({
       prompt: "test",
-      systemPrompt: "Input prompt.",
+      systemInstructions: ["Input prompt."],
       context: [{title: "User Context", content: "user facts", priority: 50}],
       contextProviders: [
         {
@@ -141,8 +142,11 @@ describe("ContextManager system prompt", () => {
     const contextBuilt = events.find((event) => event.type === "runtime.context_built");
     const runtimeContext = prompt.split("# Runtime Context\n")[1] ?? "";
 
-    expect(prompt).toContain("Input prompt.");
-    expect(prompt).not.toContain("Config prompt.");
+    expect(prompt).toContain("# Configured Instruction\nConfig prompt.");
+    expect(prompt).toContain("# Run Instruction\nInput prompt.");
+    expect(prompt.indexOf("Config prompt.")).toBeLessThan(
+      prompt.indexOf("Input prompt."),
+    );
     expect(prompt).toContain("Do not use Markdown tables");
     expect(prompt).toContain("# Runtime Context");
     expect(runtimeContext).toContain("## Workspace Profile");
@@ -156,5 +160,8 @@ describe("ContextManager system prompt", () => {
       type: "runtime.context_built",
       tokenEstimate: createDefaultTokenEstimator().countText(prompt),
     });
+    expect(
+      llm.request?.messages.filter((message) => message.role === "system"),
+    ).toHaveLength(1);
   });
 });

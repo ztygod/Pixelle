@@ -24,7 +24,7 @@ export type RuntimeConfig = {
   maxIterations: number;
   maxRepairAttempts: number;
   tokensLimit: number;
-  systemPrompt: string;
+  systemInstructions: string[];
   workspaceDir: string;
   rollbackOnFailure: boolean;
 };

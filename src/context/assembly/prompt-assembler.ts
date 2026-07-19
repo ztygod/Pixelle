@@ -1,32 +1,24 @@
 import type {LLMMessage} from "../../llm/types.js";
-import type {ContextDocument, TranscriptProjection} from "../types.js";
+import type {ResolvedSystemPrompt} from "../../agent/prompt/index.js";
+import type {TranscriptProjection} from "../types.js";
 
 /** Assembles a context document and projected transcript into model messages. */
 export class PromptAssembler {
-  assembleSystemPrompt(document: ContextDocument, contextText: string): string {
-    const promptParts = [document.systemPrompt, document.outputInstructions].filter(
-      (part): part is string => Boolean(part),
-    );
-    const prompt = promptParts.join("\n\n");
-
+  assembleSystemPrompt(prompt: ResolvedSystemPrompt, contextText: string): string {
     if (!contextText) {
-      return prompt;
+      return prompt.content;
     }
 
-    if (!prompt) {
-      return `# Runtime Context\n${contextText}`;
-    }
-
-    return `${prompt}\n\n# Runtime Context\n${contextText}`;
+    return `${prompt.content}\n\n# Runtime Context\n${contextText}`;
   }
 
   assemble(
-    document: ContextDocument,
+    prompt: ResolvedSystemPrompt,
     projection: TranscriptProjection,
     contextText: string,
   ): readonly LLMMessage[] {
     return [
-      {role: "system", content: this.assembleSystemPrompt(document, contextText)},
+      {role: "system", content: this.assembleSystemPrompt(prompt, contextText)},
       ...projection.messages,
     ];
   }

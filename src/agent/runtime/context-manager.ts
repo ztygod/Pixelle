@@ -1,4 +1,5 @@
 import type {LLMMessage} from "../../llm/types.js";
+import {SystemPromptService, type ResolvedSystemPrompt} from "../prompt/index.js";
 import {
   ContextBudgeter,
   ContextCollector,
@@ -17,11 +18,7 @@ import type {
   AgentToolResult,
   AgentContextProvider,
 } from "../types.js";
-import {
-  CLI_MARKDOWN_OUTPUT_INSTRUCTIONS,
-  DEFAULT_SYSTEM_PROMPT,
-  stringifyToolResult,
-} from "../runtime-utils.js";
+import {stringifyToolResult} from "../runtime-utils.js";
 import type {AgentMemory} from "./memory.js";
 import type {AgentObserver} from "./observer.js";
 import type {AgentRunState} from "./run-state.js";
@@ -59,6 +56,7 @@ export class ContextManager {
     tokenEstimator: this.tokenEstimator,
   });
   private readonly promptAssembler = new PromptAssembler();
+  private readonly systemPromptService = new SystemPromptService();
   private readonly runStates = new WeakMap<AgentRunState, ContextManagerRunState>();
 
   /** Creates a context manager with static agent-level context providers. */
@@ -71,14 +69,13 @@ export class ContextManager {
 
   /** Initializes static context sources and the mutable transcript for a run. */
   async prepare(run: AgentRunState): Promise<void> {
-    const document = await this.collector.collect(run, {
-      systemPrompt:
-        run.input.systemPrompt ??
-        this.options.config.runtime.systemPrompt ??
-        DEFAULT_SYSTEM_PROMPT,
-      outputInstructions: CLI_MARKDOWN_OUTPUT_INSTRUCTIONS,
+    const prompt = this.systemPromptService.resolve({
+      mode: run.input.mode ?? "edit",
+      configInstructions: this.options.config.runtime.systemInstructions,
+      runInstructions: run.input.systemInstructions ?? [],
     });
-    this.initializeRunState(run, document);
+    const document = await this.collector.collect(run);
+    this.initializeRunState(run, document, prompt);
     run.messages.push(...(run.input.messages ?? []));
     run.messages.push({role: "user", content: run.input.prompt});
   }
@@ -100,7 +97,7 @@ export class ContextManager {
     const compression = this.compressionPipeline.process(budgeted);
     const truncation = this.truncator.truncate(compression.sections, budgeted.budget);
     const systemPrompt = this.promptAssembler.assembleSystemPrompt(
-      document,
+      state.prompt,
       truncation.contextText,
     );
     const diagnostics: BuildContextDiagnostics = {
@@ -112,13 +109,22 @@ export class ContextManager {
       compressionLimitTokens: compression.compressionLimitTokens,
       compressionResults: compression.results,
       contextTextTokens: this.tokenEstimator.countText(truncation.contextText),
+      systemPromptVersion: state.prompt.version,
       systemPromptTokens: this.tokenEstimator.countText(systemPrompt),
+      systemPromptSectionTokens: state.prompt.sections.map((section) => ({
+        id: section.id,
+        tokens: this.tokenEstimator.countText(`# ${section.title}\n${section.content}`),
+      })),
     };
 
     this.recordContextBuild(run, state, diagnostics);
     this.options.observer.contextBuilt(run, diagnostics.systemPromptTokens);
 
-    return this.promptAssembler.assemble(document, projection, truncation.contextText);
+    return this.promptAssembler.assemble(
+      state.prompt,
+      projection,
+      truncation.contextText,
+    );
   }
 
   /** Appends a normalized assistant response to the transcript. */
@@ -152,9 +158,14 @@ export class ContextManager {
     await this.options.memory.saveRunMemory?.(run);
   }
 
-  private initializeRunState(run: AgentRunState, document: ContextDocument): void {
+  private initializeRunState(
+    run: AgentRunState,
+    document: ContextDocument,
+    prompt: ResolvedSystemPrompt,
+  ): void {
     const state: ContextManagerRunState = {
       document: {...document, sections: [...document.sections]},
+      prompt,
       contextBuilds: [],
     };
     this.runStates.set(run, state);
@@ -169,15 +180,15 @@ export class ContextManager {
 
     const fallbackState: ContextManagerRunState = {
       document: {
-        systemPrompt:
-          run.input.systemPrompt ??
-          this.options.config.runtime.systemPrompt ??
-          DEFAULT_SYSTEM_PROMPT,
-        outputInstructions: CLI_MARKDOWN_OUTPUT_INSTRUCTIONS,
         sections: [],
         transcript: run.messages,
         metadata: {runId: run.runId, iteration: run.iteration, stage: "agent"},
       },
+      prompt: this.systemPromptService.resolve({
+        mode: run.input.mode ?? "edit",
+        configInstructions: this.options.config.runtime.systemInstructions,
+        runInstructions: run.input.systemInstructions ?? [],
+      }),
       contextBuilds: [],
     };
     this.runStates.set(run, fallbackState);
@@ -204,6 +215,7 @@ export function createContextManager(options: ContextManagerOptions): ContextMan
 
 type ContextManagerRunState = {
   document: ContextDocument;
+  prompt: ResolvedSystemPrompt;
   contextBuilds: Array<{
     iteration: number;
     diagnostics?: BuildContextDiagnostics;

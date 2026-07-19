@@ -34,9 +34,6 @@ export type LocalCliConfigPathOptions = {
 };
 
 const APP_DIR_NAME = "Pixelle";
-const DEFAULT_SYSTEM_PROMPT =
-  "You are Pixelle, an autonomous coding agent. Solve the user's request by reasoning carefully, using tools when needed, and explaining the final outcome clearly.";
-
 export function resolveLocalCliConfigDir(
   options: LocalCliConfigPathOptions = {},
 ): string {
@@ -136,7 +133,7 @@ export function localCliConfigToAgentConfig(config: LocalCliConfig): AgentConfig
       maxIterations: 10,
       maxRepairAttempts: 0,
       tokensLimit: 32_000,
-      systemPrompt: DEFAULT_SYSTEM_PROMPT,
+      systemInstructions: [],
       rollbackOnFailure: true,
     },
     permissions: {

@@ -11,7 +11,7 @@ workspaceDir = "."
 maxIterations = 10
 maxRepairAttempts = 2
 tokensLimit = 32000
-systemPrompt = "You are Pixelle, an autonomous coding agent. Solve the user's request by reasoning carefully, using tools when needed, and explaining the final outcome clearly."
+systemInstructions = []
 rollbackOnFailure = true
 
 [permissions]
