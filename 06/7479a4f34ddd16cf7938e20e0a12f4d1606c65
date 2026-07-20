@@ -1,0 +1,85 @@
+tests/transcript-projector.test.ts
+  s_c0ba71c200b6f4::t_097a1705715ce9 42-43
+src/context/transcript/transcript-budgeter.ts
+  s_c0ba71c200b6f4::t_994d3fac4b08fd 2,8-19,48-59,64-67,72-73,80-84,89,96-101,106-112,117-118,125-133,136-143,147-148,176-177,183-193
+  s_c0ba71c200b6f4::t_26da363bf0cddf 3-7,60-63,68-71,74-79,85-88,90-95,102-105,113-116,119-124,134-135,144-146,178-182
+  s_c0ba71c200b6f4::t_badc61e6f3df39 1
+  s_c0ba71c200b6f4::t_1cf0db348cc33f 20-24,45-47,149-157
+  s_c0ba71c200b6f4::t_290feae27635fd 25-44,159-175
+  s_c0ba71c200b6f4::t_bf2af67cec1783 158
+src/context/budget/compressor.ts
+  s_c0ba71c200b6f4::t_678cd6e66f3983 211-213
+src/context/index.ts
+  s_c0ba71c200b6f4::t_994d3fac4b08fd 13-14
+  s_c0ba71c200b6f4::t_1cf0db348cc33f 15-18
+  s_c0ba71c200b6f4::t_26da363bf0cddf 19-23
+  s_c0ba71c200b6f4::t_44559e226c81af 27-28
+src/agent/agent.ts
+  s_c0ba71c200b6f4::t_d930df78c35603 3-4,152-158
+  s_c0ba71c200b6f4::t_11297445239f75 288
+src/agent/runtime/verification-pipeline.ts
+  s_c0ba71c200b6f4::t_11297445239f75 77
+src/agent/runtime/model-runtime.ts
+  s_c0ba71c200b6f4::t_dad8390622d2c8 3-8,57-79,90-96
+src/context/budget/context-budget.ts
+  s_c0ba71c200b6f4::t_26da363bf0cddf 63-67,69-74,90-91
+  s_c0ba71c200b6f4::t_87a4a25d284fb6 5-9,55-62,68,81-89
+  s_c0ba71c200b6f4::t_678cd6e66f3983 49-54
+tests/agent/system-prompt.test.ts
+  s_c0ba71c200b6f4::t_82e6d6bdf8ad52 20-54
+  s_c0ba71c200b6f4::t_097a1705715ce9 73,129
+  s_c0ba71c200b6f4::t_5fec6ebfedec4b 197-199
+tests/context-builder.test.ts
+  s_c0ba71c200b6f4::t_097a1705715ce9 267,401
+src/context/budget/truncator.ts
+  s_c0ba71c200b6f4::t_678cd6e66f3983 42
+src/agent/runtime/context-manager.ts
+  s_c0ba71c200b6f4::t_30c460e0127a61 228
+  s_c0ba71c200b6f4::t_adcfd653513c94 1
+  s_c0ba71c200b6f4::t_11297445239f75 8-9,15-16,61,74,87-90,133-136,143-145,149-156,158-177,189-199,201,215-224,230-249
+  s_c0ba71c200b6f4::t_26da363bf0cddf 184-188
+tests/agent/runtime-loop.test.ts
+  s_c0ba71c200b6f4::t_097a1705715ce9 247
+src/context/types.ts
+  s_c0ba71c200b6f4::t_dad8390622d2c8 143
+  s_c0ba71c200b6f4::t_87a4a25d284fb6 57,59-68,133-142
+tests/context-request-budget.test.ts
+  s_c0ba71c200b6f4::t_26da363bf0cddf 93-97
+  s_c0ba71c200b6f4::t_f040f8ed6504c1 1-92,98-101
+src/context/transcript/transcript-projector.ts
+  s_c0ba71c200b6f4::t_26da363bf0cddf 118-119
+  s_c0ba71c200b6f4::t_44559e226c81af 117,120
+src/context/budget/token-estimator.ts
+  s_c0ba71c200b6f4::t_26da363bf0cddf 13-16,46-47,54-55,59-60,62-69,90-93,122-125
+  s_c0ba71c200b6f4::t_87a4a25d284fb6 2,17,19-45,48-53,56-58,61,89,94-95,121,126-127
+  s_c0ba71c200b6f4::t_19d664068419a9 18
+src/context/errors.ts
+  s_c0ba71c200b6f4::t_994d3fac4b08fd 1-22
+src/events/event-bus.ts
+  s_c0ba71c200b6f4::t_4d1114d33e1ae4 183-191
+src/context/budget/context-budgeter.ts
+  s_c0ba71c200b6f4::t_44559e226c81af 10-11,38-39,53-56,64-71,73
+  s_c0ba71c200b6f4::t_26da363bf0cddf 57-63
+src/agent/runtime/observer.ts
+  s_c0ba71c200b6f4::t_4d1114d33e1ae4 6,73-90
+  s_c0ba71c200b6f4::t_675dbcfc9f8490 91
+src/agent/types.ts
+  s_c0ba71c200b6f4::t_1cf0db348cc33f 11
+  s_c0ba71c200b6f4::t_badc61e6f3df39 226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "067479a4f34ddd16cf7938e20e0a12f4d1606c65",
+  "prompts": {},
+  "sessions": {
+    "s_c0ba71c200b6f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7e8d-c31f-7e52-acff-cd6353fce1ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "ztygod <2739022972@qq.com>"
+    }
+  }
+}
