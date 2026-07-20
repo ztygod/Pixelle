@@ -39,7 +39,8 @@ describe("TranscriptProjector", () => {
           title: "Tool Result: read",
           priority: 40,
           source: {kind: "tool", ref: "call-1"},
-          content: "Tool: read\nCall ID: call-1\nAssistant: first\nResult:\nold",
+          content:
+            "Tool: read\nCall ID: call-1\nArguments: {}\nAssistant: first\nResult:\nold",
         },
       ],
     });

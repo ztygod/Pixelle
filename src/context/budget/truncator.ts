@@ -39,7 +39,7 @@ export class ContextTruncator {
     blocks: readonly FormattedContextSection[],
     budget: ContextBudget,
   ): TruncateContextResult {
-    let remaining = budget.maxInputTokens;
+    let remaining = budget.availableSectionTokens ?? budget.maxInputTokens;
     const selectedBlocks: string[] = [];
     const includedSections: ContextSection[] = [];
     const partialSections: ContextSection[] = [];

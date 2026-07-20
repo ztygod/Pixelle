@@ -1,5 +1,6 @@
 import {loadAgentConfig, type AgentConfig} from "../config/index.js";
 import {EventBus, type PixelleEvent} from "../events/index.js";
+import {createDefaultContextPipeline} from "../context/index.js";
 import {AgentMiddlewarePipeline} from "./middleware.js";
 import {
   AgentRunState,
@@ -143,10 +144,14 @@ export class Agent {
       options.context ??
       createContextManager({
         config: this.config,
-        workspace: this.workspace,
         memory: this.memory,
         observer: this.observer,
         contextProviders: options.contextProviders,
+        pipeline: createDefaultContextPipeline({
+          transcriptSummarizer: options.transcriptSummarizer,
+          llm: options.llm,
+          llmConfig: this.config.llm,
+        }),
       });
     this.verification =
       options.verification ??
@@ -276,10 +281,10 @@ export class Agent {
       this.observer.assistantStage(run);
 
       const response = await this.model.generate(
-        {
-          messages: this.context.buildModelRequest(run),
+        await this.context.buildModelRequest(run, {
+          stage: "agent",
           tools: this.tools.schemas(),
-        },
+        }),
         run,
       );
       this.context.appendAssistantResponse(run, response);

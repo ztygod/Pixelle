@@ -264,7 +264,7 @@ describe("context pipeline", () => {
       new DefaultContextBudgetPolicy().createBudget({
         tokenLimit: 100,
       }),
-    ).toEqual({
+    ).toMatchObject({
       tokenLimit: 100,
       maxContextTokens: 100,
       reservedOutputTokens: 20,
@@ -398,7 +398,7 @@ describe("context pipeline", () => {
     expect(compression).toMatchObject({
       estimatedContextChars: 5,
       estimatedContextTokens: 5,
-      compressionLimitTokens: 68,
+      compressionLimitTokens: 85,
       thresholdRatio: 0.85,
       triggered: false,
     });

@@ -1,4 +1,5 @@
 import {Verifier, type VerificationResult} from "../../runtime/index.js";
+import type {ContextSection} from "../../context/index.js";
 import type {AgentRuntimeConfig} from "../types.js";
 import type {ChangeRuntime} from "./change-runtime.js";
 import type {ContextManager} from "./context-manager.js";
@@ -67,14 +68,16 @@ export class VerificationPipeline {
       }
 
       run.task.status = "repairing";
-      this.options.context.appendRepairPrompt(
-        run,
-        buildRepairPrompt(failedVerification, repairAttempt),
-      );
       run.nextIteration();
       this.options.observer.assistantStage(run);
       const response = await this.options.model.generate(
-        {messages: run.messages, tools: this.options.tools.schemas()},
+        await this.options.context.buildModelRequest(run, {
+          stage: "repair",
+          tools: this.options.tools.schemas(),
+          additionalSections: [
+            createVerificationFailureSection(failedVerification, repairAttempt),
+          ],
+        }),
         run,
       );
       this.options.context.appendAssistantResponse(run, response);
@@ -142,16 +145,27 @@ export function createVerificationPipeline(
   return new VerificationPipeline(options);
 }
 
-/** Builds the user message that asks the model to repair one failed command. */
-function buildRepairPrompt(failure: VerificationResult, repairAttempt: number): string {
+/** Builds the required runtime section for the current verification failure. */
+function createVerificationFailureSection(
+  failure: VerificationResult,
+  repairAttempt: number,
+): ContextSection {
   const output = [failure.stderr, failure.stdout].filter(Boolean).join("\n\n");
 
-  return [
-    `Verification failed on repair attempt ${repairAttempt}.`,
-    `Command: ${failure.command}`,
-    `Exit code: ${failure.exitCode ?? "none"}`,
-    "Fix the issue using the available tools, then stop when the change is ready for verification.",
-    "Verification output:",
-    output.slice(0, 12_000),
-  ].join("\n\n");
+  return {
+    id: `verification-failure:${repairAttempt}`,
+    replaceKey: "current-verification-failure",
+    title: "Current Verification Failure",
+    priority: 1_000,
+    retention: "required",
+    source: {kind: "verification", ref: failure.command},
+    content: [
+      `Verification failed on repair attempt ${repairAttempt}.`,
+      `Command: ${failure.command}`,
+      `Exit code: ${failure.exitCode ?? "none"}`,
+      "Fix the issue using the available tools, then stop when the change is ready for verification.",
+      "Verification output:",
+      output.slice(0, 12_000),
+    ].join("\n\n"),
+  };
 }

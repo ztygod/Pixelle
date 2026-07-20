@@ -1,17 +1,14 @@
-import type {LLMMessage} from "../../llm/types.js";
+import type {LLMGenerateInput, LLMTool} from "../../llm/types.js";
 import {SystemPromptService, type ResolvedSystemPrompt} from "../prompt/index.js";
 import {
-  ContextBudgeter,
   ContextCollector,
-  ContextCompressionPipeline,
-  ContextTruncator,
-  createDefaultTokenEstimator,
-  PromptAssembler,
-  RuleBasedContextCompressor,
-  type TokenEstimator,
-  TranscriptProjector,
+  ContextWindowExceededError,
+  createDefaultContextPipeline,
   type BuildContextDiagnostics,
+  type ContextPipelineLike,
   type ContextDocument,
+  type ContextDocumentMetadata,
+  type ContextSection,
 } from "../../context/index.js";
 import type {
   AgentModelResponse,
@@ -23,96 +20,98 @@ import {stringifyToolResult} from "../runtime-utils.js";
 import type {AgentMemory} from "./memory.js";
 import type {AgentObserver} from "./observer.js";
 import type {AgentRunState} from "./run-state.js";
-import type {WorkspaceService} from "./workspace-service.js";
 
-/** Dependencies used to build and maintain the model transcript. */
+/**
+ * Dependencies used to build and maintain the model transcript.
+ *
+ * ContextManager coordinates context collection, transformation, and lifecycle
+ * management before sending a request to the language model.
+ */
 export type ContextManagerOptions = {
-  /** Normalized agent config for prompt and token-limit settings. */
+  /**
+   * Normalized agent configuration used for prompt generation,
+   * context policies, and token-limit constraints.
+   */
   config: AgentRuntimeConfig;
-  /** Workspace service whose profile is injected into runtime context. */
-  workspace: WorkspaceService;
-  /** Memory implementation used to load contextual knowledge. */
+
+  /**
+   * Memory implementation responsible for loading and managing
+   * persistent contextual knowledge across agent runs.
+   */
   memory: AgentMemory;
-  /** Observer used to emit context lifecycle events. */
+
+  /**
+   * Observer used to emit context lifecycle events, such as
+   * context building, compression, truncation, and completion.
+   */
   observer: AgentObserver;
-  /** Agent-level context providers invoked for every run. */
+
+  /**
+   * Agent-level context providers executed during each run to
+   * collect additional runtime context.
+   *
+   * Examples:
+   * - workspace information
+   * - environment metadata
+   * - external knowledge sources
+   */
   contextProviders?: readonly AgentContextProvider[];
 
   /**
-   * Context build core dependencies.
+   * Component responsible for collecting raw context sources
+   * required to build the model transcript.
    */
-  transcriptProjector?: TranscriptProjector;
+  collector?: ContextCollector;
 
-  tokenEstimator?: TokenEstimator;
+  /**
+   * Pipeline responsible for transforming collected context into
+   * a model-ready transcript.
+   *
+   * Handles operations such as:
+   * - transcript projection
+   * - token budgeting
+   * - context compression
+   * - truncation
+   * - prompt assembly
+   */
+  pipeline?: ContextPipelineLike;
 
-  budgeter?: ContextBudgeter;
-
-  compressionPipeline?: ContextCompressionPipeline;
-
-  truncator?: ContextTruncator;
-
-  promptAssembler?: PromptAssembler;
-
+  /**
+   * Service responsible for resolving and building the system prompt
+   * used for the current agent execution.
+   */
   systemPromptService?: SystemPromptService;
+};
+
+export type BuildModelRequestOptions = {
+  stage: ContextDocumentMetadata["stage"];
+  additionalSections?: readonly ContextSection[];
+  tools?: readonly LLMTool[];
 };
 
 /** Builds model context and owns transcript mutation for assistant/tool turns. */
 export class ContextManager {
   private readonly collector: ContextCollector;
-  private readonly transcriptProjector: TranscriptProjector;
-  private readonly tokenEstimator: TokenEstimator;
-  private readonly budgeter: ContextBudgeter;
-  private readonly compressionPipeline: ContextCompressionPipeline;
-  private readonly truncator: ContextTruncator;
-  private readonly promptAssembler: PromptAssembler;
+  private readonly pipeline: ContextPipelineLike;
   private readonly systemPromptService: SystemPromptService;
   private readonly runStates = new WeakMap<AgentRunState, ContextManagerRunState>();
 
   /** Creates a context manager with static agent-level context providers. */
   constructor(private readonly options: ContextManagerOptions) {
-    this.collector = new ContextCollector({
-      memory: options.memory,
-      contextProviders: options.contextProviders,
-    });
-
-    this.tokenEstimator = options.tokenEstimator ?? createDefaultTokenEstimator();
-
-    this.transcriptProjector = options.transcriptProjector ?? new TranscriptProjector();
-
-    this.budgeter =
-      options.budgeter ??
-      new ContextBudgeter({
-        tokenEstimator: this.tokenEstimator,
+    this.collector =
+      options.collector ??
+      new ContextCollector({
+        memory: options.memory,
+        contextProviders: options.contextProviders,
       });
-
-    this.compressionPipeline =
-      options.compressionPipeline ??
-      new ContextCompressionPipeline({
-        compressor: new RuleBasedContextCompressor({
-          tokenEstimator: this.tokenEstimator,
-        }),
-
-        tokenEstimator: this.tokenEstimator,
-      });
-
-    this.truncator =
-      options.truncator ??
-      new ContextTruncator({
-        tokenEstimator: this.tokenEstimator,
-      });
-
-    this.promptAssembler = options.promptAssembler ?? new PromptAssembler();
-
+    this.pipeline =
+      options.pipeline ?? createDefaultContextPipeline({llmConfig: options.config.llm});
     this.systemPromptService = options.systemPromptService ?? new SystemPromptService();
   }
 
   /** Initializes static context sources and the mutable transcript for a run. */
   async prepare(run: AgentRunState): Promise<void> {
-    const prompt = this.systemPromptService.resolve({
-      mode: run.input.mode ?? "edit",
-      configInstructions: this.options.config.runtime.systemInstructions,
-      runInstructions: run.input.systemInstructions ?? [],
-    });
+    const prompt = this.resolveSystemPrompt(run);
     const document = await this.collector.collect(run);
     this.initializeRunState(run, document, prompt);
     run.messages.push(...(run.input.messages ?? []));
@@ -120,50 +119,40 @@ export class ContextManager {
   }
 
   /** Builds a fresh model transcript with dynamic runtime context. */
-  buildModelRequest(run: AgentRunState): readonly LLMMessage[] {
+  async buildModelRequest(
+    run: AgentRunState,
+    options: BuildModelRequestOptions,
+  ): Promise<LLMGenerateInput> {
     const state = this.getRunState(run);
     const document: ContextDocument = {
       ...state.document,
+      sections: [...state.document.sections, ...(options.additionalSections ?? [])],
       transcript: run.messages,
-      metadata: {...state.document.metadata, iteration: run.iteration},
+      metadata: {
+        ...state.document.metadata,
+        iteration: run.iteration,
+        stage: options.stage,
+      },
     };
-    const projection = this.transcriptProjector.project(document.transcript);
-    const budgeted = this.budgeter.budget(
-      document,
-      projection,
-      this.options.config.runtime.tokensLimit,
-    );
-    const compression = this.compressionPipeline.process(budgeted);
-    const truncation = this.truncator.truncate(compression.sections, budgeted.budget);
-    const systemPrompt = this.promptAssembler.assembleSystemPrompt(
-      state.prompt,
-      truncation.contextText,
-    );
-    const diagnostics: BuildContextDiagnostics = {
-      budget: budgeted.budget,
-      estimatedContextChars: compression.estimatedContextChars,
-      estimatedContextTokens: compression.estimatedContextTokens,
-      compressionThresholdRatio: compression.thresholdRatio,
-      compressionTriggered: compression.triggered,
-      compressionLimitTokens: compression.compressionLimitTokens,
-      compressionResults: compression.results,
-      contextTextTokens: this.tokenEstimator.countText(truncation.contextText),
-      systemPromptVersion: state.prompt.version,
-      systemPromptTokens: this.tokenEstimator.countText(systemPrompt),
-      systemPromptSectionTokens: state.prompt.sections.map((section) => ({
-        id: section.id,
-        tokens: this.tokenEstimator.countText(`# ${section.title}\n${section.content}`),
-      })),
-    };
-
-    this.recordContextBuild(run, state, diagnostics);
-    this.options.observer.contextBuilt(run, diagnostics.systemPromptTokens);
-
-    return this.promptAssembler.assemble(
-      state.prompt,
-      projection,
-      truncation.contextText,
-    );
+    try {
+      const result = await this.pipeline.build({
+        document,
+        resolvedSystemPrompt: state.prompt,
+        tools: options.tools,
+        tokenLimit: this.options.config.runtime.tokensLimit,
+      });
+      this.recordAndObserveContextBuild(run, state, result.diagnostics);
+      if (result.compacted) {
+        this.options.observer.contextCompacted(run, result.diagnostics);
+      }
+      return result.request;
+    } catch (error) {
+      if (error instanceof ContextWindowExceededError && error.diagnostics) {
+        this.recordAndObserveContextBuild(run, state, error.diagnostics);
+        this.options.observer.contextBudgetFailed(run, error.diagnostics);
+      }
+      throw error;
+    }
   }
 
   /** Appends a normalized assistant response to the transcript. */
@@ -185,11 +174,6 @@ export class ContextManager {
         content: stringifyToolResult(toolResult.result),
       });
     }
-  }
-
-  /** Appends a repair prompt as a user message before a repair model call. */
-  appendRepairPrompt(run: AgentRunState, content: string): void {
-    run.messages.push({role: "user", content});
   }
 
   /** Gives the memory implementation a chance to persist run knowledge. */
@@ -223,11 +207,7 @@ export class ContextManager {
         transcript: run.messages,
         metadata: {runId: run.runId, iteration: run.iteration, stage: "agent"},
       },
-      prompt: this.systemPromptService.resolve({
-        mode: run.input.mode ?? "edit",
-        configInstructions: this.options.config.runtime.systemInstructions,
-        runInstructions: run.input.systemInstructions ?? [],
-      }),
+      prompt: this.resolveSystemPrompt(run),
       contextBuilds: [],
     };
     this.runStates.set(run, fallbackState);
@@ -240,10 +220,26 @@ export class ContextManager {
     state: ContextManagerRunState,
     diagnostics: BuildContextDiagnostics | undefined,
   ): void {
-    state.lastBuildDiagnostics = diagnostics;
     state.contextBuilds.push({iteration: run.iteration, diagnostics});
     run.context.lastContextBuildDiagnostics = diagnostics;
     run.context.contextBuilds = state.contextBuilds;
+  }
+
+  private recordAndObserveContextBuild(
+    run: AgentRunState,
+    state: ContextManagerRunState,
+    diagnostics: BuildContextDiagnostics,
+  ): void {
+    this.recordContextBuild(run, state, diagnostics);
+    this.options.observer.contextBuilt(run, diagnostics.estimatedTotalInputTokens);
+  }
+
+  private resolveSystemPrompt(run: AgentRunState): ResolvedSystemPrompt {
+    return this.systemPromptService.resolve({
+      mode: run.input.mode ?? "edit",
+      configInstructions: this.options.config.runtime.systemInstructions,
+      runInstructions: run.input.systemInstructions ?? [],
+    });
   }
 }
 
@@ -259,5 +255,4 @@ type ContextManagerRunState = {
     iteration: number;
     diagnostics?: BuildContextDiagnostics;
   }>;
-  lastBuildDiagnostics?: BuildContextDiagnostics;
 };

@@ -8,6 +8,7 @@ import type {
 } from "../config/index.js";
 import type {PixelleEvent} from "../events/index.js";
 import type {BuildContextDiagnostics} from "../context/index.js";
+import type {TranscriptSummarizer} from "../context/index.js";
 import type {BaseLLMClient} from "../llm/index.js";
 import type {
   LLMGenerateInput,
@@ -222,6 +223,7 @@ export type AgentOptions = {
   eventBus?: EventBus<PixelleEvent>;
   middleware?: readonly AgentMiddleware[];
   contextProviders?: readonly AgentContextProvider[];
+  transcriptSummarizer?: TranscriptSummarizer;
   permissions?: ToolPermissions;
   traceStore?: TraceStore;
   checkpointStore?: CheckpointStore;

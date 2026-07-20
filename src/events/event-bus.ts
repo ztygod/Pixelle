@@ -180,6 +180,15 @@ type RuntimeEvent =
       tokenEstimate?: number;
       files?: readonly string[];
     })
+  | (BaseEvent<"runtime.context_compacted"> & {
+      summarizedMessageCount: number;
+      droppedSectionCount: number;
+      tokenEstimate: number;
+    })
+  | (BaseEvent<"runtime.context_budget_failed"> & {
+      tokenEstimate: number;
+      hardInputLimit: number;
+    })
   | (BaseEvent<"task.started"> & {taskId: string; prompt: string})
   | (BaseEvent<"task.plan_created"> & {taskId: string; steps: readonly string[]})
   | (BaseEvent<"change_set.created"> & {

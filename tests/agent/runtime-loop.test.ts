@@ -18,6 +18,7 @@ import type {
   CommandPolicyDecision,
   CommandPolicyEvaluateInput,
   CommandPolicyLike,
+  VerificationResult,
   WorkspaceProfile,
 } from "../../src/runtime/index.js";
 import {Verifier} from "../../src/runtime/index.js";
@@ -118,6 +119,76 @@ function collectToolEvents(events: readonly PixelleEvent[]): PixelleEvent[] {
 }
 
 describe("Agent runtime loop", () => {
+  it("builds repair requests through context with a required verification section", async () => {
+    const workspaceRoot = await createWorkspace();
+    const config = createConfig(workspaceRoot);
+    config.runtime.maxRepairAttempts = 1;
+    config.verification.enabled = true;
+    config.verification.commands = ["pnpm typecheck"];
+    const stages: Array<string | undefined> = [];
+
+    class RepairVerifier extends Verifier {
+      private attempt = 0;
+
+      override async verify(): Promise<VerificationResult[]> {
+        this.attempt += 1;
+        return [
+          this.attempt === 1
+            ? {
+                command: "pnpm typecheck",
+                exitCode: 1,
+                stdout: "",
+                stderr: "src/example.ts(1,1): error TS1005",
+                passed: false,
+                timedOut: false,
+              }
+            : {
+                command: "pnpm typecheck",
+                exitCode: 0,
+                stdout: "ok",
+                stderr: "",
+                passed: true,
+                timedOut: false,
+              },
+        ];
+      }
+    }
+
+    const llm = new QueueLLMClient([
+      {content: "Initial change complete.", toolCalls: []},
+      {content: "Repair complete.", toolCalls: []},
+    ]);
+    const result = await new Agent({
+      config,
+      llm,
+      verifier: new RepairVerifier(),
+      workspaceScanner: createWorkspaceScanner(workspaceRoot),
+      middleware: [
+        {
+          beforeModel: (_request, context) => {
+            stages.push(context.lastContextBuildDiagnostics?.stage);
+          },
+        },
+      ],
+    }).run({prompt: "Make the change."});
+
+    const repairRequest = llm.requests[1];
+    const repairSystemPrompt = repairRequest?.messages[0]?.content ?? "";
+    expect(result.stopReason).toBe("completed");
+    expect(stages).toEqual(["agent", "repair"]);
+    expect(repairSystemPrompt).toContain("## Current Verification Failure");
+    expect(repairSystemPrompt).toContain("Command: pnpm typecheck");
+    expect(repairSystemPrompt).toContain("error TS1005");
+    expect(repairSystemPrompt).toContain("## Workspace Profile");
+    expect(
+      repairRequest?.messages.some(
+        (message) =>
+          message.role === "user" &&
+          message.content.includes("Verification failed on repair attempt"),
+      ),
+    ).toBe(false);
+  });
+
   it("completes when the model returns no tool calls", async () => {
     const workspaceRoot = await createWorkspace();
     const llm = new QueueLLMClient([
@@ -244,7 +315,7 @@ describe("Agent runtime loop", () => {
     ]);
 
     const config = createConfig(workspaceRoot);
-    config.runtime.tokensLimit = 2_000;
+    config.runtime.tokensLimit = 8_000;
     config.runtime.maxIterations = 4;
 
     const result = await new Agent({
