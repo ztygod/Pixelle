@@ -1,20 +1,11 @@
 import type {LLMGenerateInput, LLMTool} from "../../llm/types.js";
 import {SystemPromptService, type ResolvedSystemPrompt} from "../prompt/index.js";
 import {
-  ContextBudgeter,
   ContextCollector,
-  ContextCompressionPipeline,
-  ContextTruncator,
   ContextWindowExceededError,
-  estimateRequestTokens,
-  createDefaultTokenEstimator,
-  PromptAssembler,
-  RuleBasedContextCompressor,
-  type TokenEstimator,
-  TranscriptProjector,
-  TranscriptBudgeter,
-  type TranscriptSummarizer,
+  createDefaultContextPipeline,
   type BuildContextDiagnostics,
+  type ContextPipelineLike,
   type ContextDocument,
 } from "../../context/index.js";
 import type {
@@ -27,92 +18,86 @@ import {stringifyToolResult} from "../runtime-utils.js";
 import type {AgentMemory} from "./memory.js";
 import type {AgentObserver} from "./observer.js";
 import type {AgentRunState} from "./run-state.js";
-import type {WorkspaceService} from "./workspace-service.js";
 
-/** Dependencies used to build and maintain the model transcript. */
+/**
+ * Dependencies used to build and maintain the model transcript.
+ *
+ * ContextManager coordinates context collection, transformation, and lifecycle
+ * management before sending a request to the language model.
+ */
 export type ContextManagerOptions = {
-  /** Normalized agent config for prompt and token-limit settings. */
+  /**
+   * Normalized agent configuration used for prompt generation,
+   * context policies, and token-limit constraints.
+   */
   config: AgentRuntimeConfig;
-  /** Workspace service whose profile is injected into runtime context. */
-  workspace: WorkspaceService;
-  /** Memory implementation used to load contextual knowledge. */
+
+  /**
+   * Memory implementation responsible for loading and managing
+   * persistent contextual knowledge across agent runs.
+   */
   memory: AgentMemory;
-  /** Observer used to emit context lifecycle events. */
+
+  /**
+   * Observer used to emit context lifecycle events, such as
+   * context building, compression, truncation, and completion.
+   */
   observer: AgentObserver;
-  /** Agent-level context providers invoked for every run. */
+
+  /**
+   * Agent-level context providers executed during each run to
+   * collect additional runtime context.
+   *
+   * Examples:
+   * - workspace information
+   * - environment metadata
+   * - external knowledge sources
+   */
   contextProviders?: readonly AgentContextProvider[];
 
   /**
-   * Context build core dependencies.
+   * Component responsible for collecting raw context sources
+   * required to build the model transcript.
    */
-  transcriptProjector?: TranscriptProjector;
+  collector?: ContextCollector;
 
-  tokenEstimator?: TokenEstimator;
+  /**
+   * Pipeline responsible for transforming collected context into
+   * a model-ready transcript.
+   *
+   * Handles operations such as:
+   * - transcript projection
+   * - token budgeting
+   * - context compression
+   * - truncation
+   * - prompt assembly
+   */
+  pipeline?: ContextPipelineLike;
 
-  budgeter?: ContextBudgeter;
-
-  compressionPipeline?: ContextCompressionPipeline;
-
-  truncator?: ContextTruncator;
-
-  promptAssembler?: PromptAssembler;
-
+  /**
+   * Service responsible for resolving and building the system prompt
+   * used for the current agent execution.
+   */
   systemPromptService?: SystemPromptService;
-  transcriptSummarizer?: TranscriptSummarizer;
 };
 
 /** Builds model context and owns transcript mutation for assistant/tool turns. */
 export class ContextManager {
   private readonly collector: ContextCollector;
-  private readonly transcriptProjector: TranscriptProjector;
-  private readonly tokenEstimator: TokenEstimator;
-  private readonly budgeter: ContextBudgeter;
-  private readonly compressionPipeline: ContextCompressionPipeline;
-  private readonly truncator: ContextTruncator;
-  private readonly promptAssembler: PromptAssembler;
+  private readonly pipeline: ContextPipelineLike;
   private readonly systemPromptService: SystemPromptService;
-  private readonly transcriptBudgeter: TranscriptBudgeter;
   private readonly runStates = new WeakMap<AgentRunState, ContextManagerRunState>();
 
   /** Creates a context manager with static agent-level context providers. */
   constructor(private readonly options: ContextManagerOptions) {
-    this.collector = new ContextCollector({
-      memory: options.memory,
-      contextProviders: options.contextProviders,
-    });
-
-    this.tokenEstimator = options.tokenEstimator ?? createDefaultTokenEstimator();
-
-    this.transcriptProjector = options.transcriptProjector ?? new TranscriptProjector();
-    this.transcriptBudgeter = new TranscriptBudgeter({
-      tokenEstimator: this.tokenEstimator,
-      summarizer: options.transcriptSummarizer,
-    });
-
-    this.budgeter =
-      options.budgeter ??
-      new ContextBudgeter({
-        tokenEstimator: this.tokenEstimator,
+    this.collector =
+      options.collector ??
+      new ContextCollector({
+        memory: options.memory,
+        contextProviders: options.contextProviders,
       });
-
-    this.compressionPipeline =
-      options.compressionPipeline ??
-      new ContextCompressionPipeline({
-        compressor: new RuleBasedContextCompressor({
-          tokenEstimator: this.tokenEstimator,
-        }),
-
-        tokenEstimator: this.tokenEstimator,
-      });
-
-    this.truncator =
-      options.truncator ??
-      new ContextTruncator({
-        tokenEstimator: this.tokenEstimator,
-      });
-
-    this.promptAssembler = options.promptAssembler ?? new PromptAssembler();
-
+    this.pipeline =
+      options.pipeline ?? createDefaultContextPipeline({llmConfig: options.config.llm});
     this.systemPromptService = options.systemPromptService ?? new SystemPromptService();
   }
 
@@ -140,113 +125,33 @@ export class ContextManager {
       transcript: run.messages,
       metadata: {...state.document.metadata, iteration: run.iteration},
     };
-    let projection = this.transcriptProjector.project(document.transcript);
-    const baseSystemPrompt = state.prompt.content;
-    let budgeted = this.budgeter.budget(
-      document,
-      projection,
-      this.options.config.runtime.tokensLimit,
-      baseSystemPrompt,
-      tools,
-    );
-    const fixedOverflow = Math.max(
-      0,
-      budgeted.budget.estimatedTotalInputTokens -
-        budgeted.diagnostics.estimatedContextTokens -
-        budgeted.budget.hardInputLimit,
-    );
-    let transcriptResult = {
-      messages: projection.messages,
-      tokensBefore: budgeted.budget.transcriptTokens,
-      tokensAfter: budgeted.budget.transcriptTokens,
-      summarizedMessageCount: 0,
-    };
-    if (fixedOverflow > 0) {
-      transcriptResult = await this.transcriptBudgeter.compact(
-        projection.messages,
-        Math.max(0, budgeted.budget.transcriptTokens - fixedOverflow),
-      );
-      projection = {...projection, messages: transcriptResult.messages};
-      budgeted = this.budgeter.budget(
+    try {
+      const result = await this.pipeline.build({
         document,
-        projection,
-        this.options.config.runtime.tokensLimit,
-        baseSystemPrompt,
+        resolvedSystemPrompt: state.prompt,
         tools,
+        tokenLimit: this.options.config.runtime.tokensLimit,
+      });
+      this.recordContextBuild(run, state, result.diagnostics);
+      this.options.observer.contextBuilt(
+        run,
+        result.diagnostics.estimatedTotalInputTokens,
       );
+      if (result.compacted) {
+        this.options.observer.contextCompacted(run, result.diagnostics);
+      }
+      return result.request;
+    } catch (error) {
+      if (error instanceof ContextWindowExceededError && error.diagnostics) {
+        this.recordContextBuild(run, state, error.diagnostics);
+        this.options.observer.contextBuilt(
+          run,
+          error.diagnostics.estimatedTotalInputTokens,
+        );
+        this.options.observer.contextBudgetFailed(run, error.diagnostics);
+      }
+      throw error;
     }
-    const compression = this.compressionPipeline.process(budgeted);
-    const truncation = this.truncator.truncate(compression.sections, budgeted.budget);
-    const systemPrompt = this.promptAssembler.assembleSystemPrompt(
-      state.prompt,
-      truncation.contextText,
-    );
-    const messages = this.promptAssembler.assemble(
-      state.prompt,
-      projection,
-      truncation.contextText,
-    );
-    const finalEstimate = estimateRequestTokens(this.tokenEstimator, messages, tools);
-    const sectionTokens = this.tokenEstimator.countText(truncation.contextText);
-    const finalBudget = {
-      ...budgeted.budget,
-      sectionTokens,
-      estimatedTotalInputTokens: finalEstimate.totalTokens,
-      estimatedTotalRequestTokens:
-        finalEstimate.totalTokens +
-        budgeted.budget.reservedOutputTokens +
-        budgeted.budget.safetyMarginTokens,
-    };
-    const diagnostics: BuildContextDiagnostics = {
-      budget: finalBudget,
-      estimatedContextChars: compression.estimatedContextChars,
-      estimatedContextTokens: compression.estimatedContextTokens,
-      compressionThresholdRatio: compression.thresholdRatio,
-      compressionTriggered: compression.triggered,
-      compressionLimitTokens: compression.compressionLimitTokens,
-      compressionResults: compression.results,
-      contextTextTokens: this.tokenEstimator.countText(truncation.contextText),
-      systemPromptVersion: state.prompt.version,
-      systemPromptTokens: this.tokenEstimator.countText(systemPrompt),
-      systemPromptSectionTokens: state.prompt.sections.map((section) => ({
-        id: section.id,
-        tokens: this.tokenEstimator.countText(`# ${section.title}\n${section.content}`),
-      })),
-      transcriptTokensBefore: transcriptResult.tokensBefore,
-      transcriptTokensAfter: transcriptResult.tokensAfter,
-      toolSchemaTokens: finalBudget.toolSchemaTokens,
-      requestOverheadTokens: finalEstimate.overheadTokens,
-      safetyMarginTokens: finalBudget.safetyMarginTokens,
-      estimatedTotalInputTokens: finalEstimate.totalTokens,
-      finalHeadroomTokens: finalBudget.hardInputLimit - finalEstimate.totalTokens,
-      archivedToolExchangeCount: projection.archivedSections.length,
-      summarizedMessageCount: transcriptResult.summarizedMessageCount,
-      droppedSectionCount: truncation.droppedSections.length,
-    };
-
-    this.recordContextBuild(run, state, diagnostics);
-    this.options.observer.contextBuilt(run, diagnostics.estimatedTotalInputTokens);
-
-    if (finalEstimate.totalTokens > finalBudget.hardInputLimit) {
-      this.options.observer.contextBudgetFailed(run, diagnostics);
-      throw new ContextWindowExceededError(
-        "Model request cannot fit the configured context window after safe compaction.",
-        {
-          tokenLimit: finalBudget.maxContextTokens,
-          hardInputLimit: finalBudget.hardInputLimit,
-          systemPromptTokens: finalBudget.systemPromptTokens,
-          transcriptTokens: finalBudget.transcriptTokens,
-          toolSchemaTokens: finalBudget.toolSchemaTokens,
-          requestOverheadTokens: finalEstimate.overheadTokens,
-          sectionTokens,
-        },
-      );
-    }
-
-    if (transcriptResult.summarizedMessageCount || truncation.droppedSections.length) {
-      this.options.observer.contextCompacted(run, diagnostics);
-    }
-    return {messages, tools};
   }
 
   /** Appends a normalized assistant response to the transcript. */

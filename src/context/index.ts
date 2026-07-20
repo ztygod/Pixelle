@@ -4,6 +4,14 @@ export type {
   CollectContextOptions,
   ContextCollectorOptions,
 } from "./collector/context-collector.js";
+export {ContextPipeline, createDefaultContextPipeline} from "./context-pipeline.js";
+export type {
+  ContextPipelineBuildInput,
+  ContextPipelineBuildResult,
+  ContextPipelineLike,
+  ContextPipelineOptions,
+  DefaultContextPipelineOptions,
+} from "./context-pipeline.js";
 
 // Layer 2: transcript projection
 export {TranscriptProjector} from "./transcript/transcript-projector.js";

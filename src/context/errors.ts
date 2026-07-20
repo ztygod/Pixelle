@@ -15,8 +15,10 @@ export class ContextWindowExceededError extends Error {
   constructor(
     message: string,
     readonly breakdown: ContextWindowBreakdown,
+    readonly diagnostics?: BuildContextDiagnostics,
   ) {
     super(message);
     this.name = "ContextWindowExceededError";
   }
 }
+import type {BuildContextDiagnostics} from "./types.js";

@@ -17,9 +17,16 @@ export class PromptAssembler {
     projection: TranscriptProjection,
     contextText: string,
   ): readonly LLMMessage[] {
-    return [
-      {role: "system", content: this.assembleSystemPrompt(prompt, contextText)},
-      ...projection.messages,
-    ];
+    return this.assembleWithSystemPrompt(
+      this.assembleSystemPrompt(prompt, contextText),
+      projection,
+    );
+  }
+
+  assembleWithSystemPrompt(
+    systemPrompt: string,
+    projection: TranscriptProjection,
+  ): readonly LLMMessage[] {
+    return [{role: "system", content: systemPrompt}, ...projection.messages];
   }
 }

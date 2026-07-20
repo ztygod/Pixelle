@@ -1,7 +1,6 @@
 import {loadAgentConfig, type AgentConfig} from "../config/index.js";
 import {EventBus, type PixelleEvent} from "../events/index.js";
-import {ModelTranscriptSummarizer} from "../context/index.js";
-import {LLMClient} from "../llm/index.js";
+import {createDefaultContextPipeline} from "../context/index.js";
 import {AgentMiddlewarePipeline} from "./middleware.js";
 import {
   AgentRunState,
@@ -145,17 +144,14 @@ export class Agent {
       options.context ??
       createContextManager({
         config: this.config,
-        workspace: this.workspace,
         memory: this.memory,
         observer: this.observer,
         contextProviders: options.contextProviders,
-        transcriptSummarizer:
-          options.transcriptSummarizer ??
-          (options.llm
-            ? new ModelTranscriptSummarizer(options.llm)
-            : this.config.llm
-              ? new ModelTranscriptSummarizer(new LLMClient(this.config.llm))
-              : undefined),
+        pipeline: createDefaultContextPipeline({
+          transcriptSummarizer: options.transcriptSummarizer,
+          llm: options.llm,
+          llmConfig: this.config.llm,
+        }),
       });
     this.verification =
       options.verification ??

@@ -16,14 +16,14 @@ export type ProviderExecutionResult = {
  * Executes context providers with isolation.
  *
  * Responsibilities:
- * - run providers concurrently
- * - handle provider errors
- * - apply timeout policy
- * - collect execution metrics
+ * - Execute providers concurrently.
+ * - Handle provider failures independently.
+ * - Apply timeout policies.
+ * - Collect execution metrics.
  *
  * Not responsible for:
- * - converting values to ContextSection
- * - deciding critical provider behavior
+ * - Converting provider results into ContextSection.
+ * - Deciding whether a provider failure is critical.
  */
 export class ContextProviderExecutor {
   async execute(
@@ -51,21 +51,15 @@ export class ContextProviderExecutor {
 
       return {
         provider,
-
         value,
-
         success: true,
-
         durationMs: Date.now() - start,
       };
     } catch (error) {
       return {
         provider,
-
         error: error instanceof Error ? error : new Error(String(error)),
-
         success: false,
-
         durationMs: Date.now() - start,
       };
     }
@@ -77,8 +71,8 @@ export class ContextProviderExecutor {
     providerName?: string,
   ): Promise<T> {
     /**
-     * Provider 没有配置 timeout
-     * 直接等待
+     * If the provider does not define a timeout,
+     * wait for the provider execution directly.
      */
     if (!timeoutMs) {
       return promise;
@@ -95,8 +89,8 @@ export class ContextProviderExecutor {
         }, timeoutMs);
 
         /**
-         * Node 环境:
-         * 防止 timer 阻止进程退出
+         * In Node.js environments:
+         * prevent the timer from keeping the process alive.
          */
         timer.unref?.();
       }),
