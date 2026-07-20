@@ -2,7 +2,7 @@
 export {ChangeRuntime, createChangeRuntime} from "./change-runtime.js";
 export type {ChangeRuntimeOptions} from "./change-runtime.js";
 export {ContextManager, createContextManager} from "./context-manager.js";
-export type {ContextManagerOptions} from "./context-manager.js";
+export type {BuildModelRequestOptions, ContextManagerOptions} from "./context-manager.js";
 export {createNoopMemory} from "./memory.js";
 export type {AgentMemory} from "./memory.js";
 export {createModelRuntime, ModelRuntime} from "./model-runtime.js";

@@ -7,6 +7,8 @@ import {
   type BuildContextDiagnostics,
   type ContextPipelineLike,
   type ContextDocument,
+  type ContextDocumentMetadata,
+  type ContextSection,
 } from "../../context/index.js";
 import type {
   AgentModelResponse,
@@ -81,6 +83,12 @@ export type ContextManagerOptions = {
   systemPromptService?: SystemPromptService;
 };
 
+export type BuildModelRequestOptions = {
+  stage: ContextDocumentMetadata["stage"];
+  additionalSections?: readonly ContextSection[];
+  tools?: readonly LLMTool[];
+};
+
 /** Builds model context and owns transcript mutation for assistant/tool turns. */
 export class ContextManager {
   private readonly collector: ContextCollector;
@@ -117,19 +125,24 @@ export class ContextManager {
   /** Builds a fresh model transcript with dynamic runtime context. */
   async buildModelRequest(
     run: AgentRunState,
-    tools: readonly LLMTool[] = [],
+    options: BuildModelRequestOptions,
   ): Promise<LLMGenerateInput> {
     const state = this.getRunState(run);
     const document: ContextDocument = {
       ...state.document,
+      sections: [...state.document.sections, ...(options.additionalSections ?? [])],
       transcript: run.messages,
-      metadata: {...state.document.metadata, iteration: run.iteration},
+      metadata: {
+        ...state.document.metadata,
+        iteration: run.iteration,
+        stage: options.stage,
+      },
     };
     try {
       const result = await this.pipeline.build({
         document,
         resolvedSystemPrompt: state.prompt,
-        tools,
+        tools: options.tools,
         tokenLimit: this.options.config.runtime.tokensLimit,
       });
       this.recordContextBuild(run, state, result.diagnostics);
@@ -173,11 +186,6 @@ export class ContextManager {
         content: stringifyToolResult(toolResult.result),
       });
     }
-  }
-
-  /** Appends a repair prompt as a user message before a repair model call. */
-  appendRepairPrompt(run: AgentRunState, content: string): void {
-    run.messages.push({role: "user", content});
   }
 
   /** Gives the memory implementation a chance to persist run knowledge. */

@@ -34,6 +34,7 @@ export {
 export type {
   AgentMemory,
   AgentRunStateOptions,
+  BuildModelRequestOptions,
   ChangeRuntimeOptions,
   ContextManagerOptions,
   ModelRuntimeOptions,

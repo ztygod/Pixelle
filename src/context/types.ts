@@ -119,6 +119,7 @@ export type ContextCompressionResult = {
 
 /** Diagnostics produced while building runtime context. */
 export type BuildContextDiagnostics = {
+  stage: ContextDocumentMetadata["stage"];
   budget: ContextBudget;
   estimatedContextChars: number;
   estimatedContextTokens: number;

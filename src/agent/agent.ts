@@ -281,7 +281,10 @@ export class Agent {
       this.observer.assistantStage(run);
 
       const response = await this.model.generate(
-        await this.context.buildModelRequest(run, this.tools.schemas()),
+        await this.context.buildModelRequest(run, {
+          stage: "agent",
+          tools: this.tools.schemas(),
+        }),
         run,
       );
       this.context.appendAssistantResponse(run, response);

@@ -268,6 +268,7 @@ export class ContextPipeline implements ContextPipelineLike {
      * Build diagnostics for debugging and monitoring.
      */
     const diagnostics: BuildContextDiagnostics = {
+      stage: input.document.metadata.stage,
       budget: finalBudget,
       estimatedContextChars: compression.estimatedContextChars,
       estimatedContextTokens: compression.estimatedContextTokens,
