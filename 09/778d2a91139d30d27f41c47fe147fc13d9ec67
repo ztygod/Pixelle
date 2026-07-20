@@ -1,0 +1,48 @@
+src/agent/agent.ts
+  s_c0ba71c200b6f4::t_95c906f1f33c07 3,150-154
+src/context/context-pipeline.ts
+  s_c0ba71c200b6f4::t_6287e0daa5ac85 3,55
+  s_c0ba71c200b6f4::t_283969d6cde9d6 37-40,59
+  s_c0ba71c200b6f4::t_5a72c50a2a4c32 206-207
+  s_c0ba71c200b6f4::t_ace83121d56e32 1-2,4-36,41-54,56-58,60-205,208-216
+  s_c0ba71c200b6f4::t_f54fad810a1a89 217-219
+src/context/errors.ts
+  s_c0ba71c200b6f4::t_ace83121d56e32 18,24
+src/context/index.ts
+  s_c0ba71c200b6f4::t_5a72c50a2a4c32 7
+  s_c0ba71c200b6f4::t_ace83121d56e32 8-10,12-14
+  s_c0ba71c200b6f4::t_283969d6cde9d6 11
+src/context/assembly/prompt-assembler.ts
+  s_c0ba71c200b6f4::t_ace83121d56e32 20-30
+src/agent/runtime/context-manager.ts
+  s_c0ba71c200b6f4::t_27f75664707698 6,51-56,58,68,87,93-97,99-100,129,134,153
+  s_c0ba71c200b6f4::t_283969d6cde9d6 8,22-27,29-32,36-37,39
+  s_c0ba71c200b6f4::t_5a72c50a2a4c32 59
+  s_c0ba71c200b6f4::t_a8359291d9c144 48-50
+  s_c0ba71c200b6f4::t_709a7ed02d98f0 60-62
+  s_c0ba71c200b6f4::t_f629fe282ed87d 65-67
+  s_c0ba71c200b6f4::t_e1b7becc8684d2 69-71
+  s_c0ba71c200b6f4::t_c46563057a99e0 128
+  s_c0ba71c200b6f4::t_349ee16cae1674 133
+  s_c0ba71c200b6f4::t_b594b67bcecd46 135-137
+  s_c0ba71c200b6f4::t_6dd77b3ad77526 150-152
+tests/context-pipeline.test.ts
+  s_c0ba71c200b6f4::t_fa91cf982e3aee 1-11,13-61,63-65
+  s_c0ba71c200b6f4::t_9dd0ba922cde06 12,62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "09778d2a91139d30d27f41c47fe147fc13d9ec67",
+  "prompts": {},
+  "sessions": {
+    "s_c0ba71c200b6f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7e8d-c31f-7e52-acff-cd6353fce1ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "ztygod <2739022972@qq.com>"
+    }
+  }
+}
