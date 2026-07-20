@@ -111,11 +111,7 @@ export class ContextManager {
 
   /** Initializes static context sources and the mutable transcript for a run. */
   async prepare(run: AgentRunState): Promise<void> {
-    const prompt = this.systemPromptService.resolve({
-      mode: run.input.mode ?? "edit",
-      configInstructions: this.options.config.runtime.systemInstructions,
-      runInstructions: run.input.systemInstructions ?? [],
-    });
+    const prompt = this.resolveSystemPrompt(run);
     const document = await this.collector.collect(run);
     this.initializeRunState(run, document, prompt);
     run.messages.push(...(run.input.messages ?? []));
@@ -145,22 +141,14 @@ export class ContextManager {
         tools: options.tools,
         tokenLimit: this.options.config.runtime.tokensLimit,
       });
-      this.recordContextBuild(run, state, result.diagnostics);
-      this.options.observer.contextBuilt(
-        run,
-        result.diagnostics.estimatedTotalInputTokens,
-      );
+      this.recordAndObserveContextBuild(run, state, result.diagnostics);
       if (result.compacted) {
         this.options.observer.contextCompacted(run, result.diagnostics);
       }
       return result.request;
     } catch (error) {
       if (error instanceof ContextWindowExceededError && error.diagnostics) {
-        this.recordContextBuild(run, state, error.diagnostics);
-        this.options.observer.contextBuilt(
-          run,
-          error.diagnostics.estimatedTotalInputTokens,
-        );
+        this.recordAndObserveContextBuild(run, state, error.diagnostics);
         this.options.observer.contextBudgetFailed(run, error.diagnostics);
       }
       throw error;
@@ -219,11 +207,7 @@ export class ContextManager {
         transcript: run.messages,
         metadata: {runId: run.runId, iteration: run.iteration, stage: "agent"},
       },
-      prompt: this.systemPromptService.resolve({
-        mode: run.input.mode ?? "edit",
-        configInstructions: this.options.config.runtime.systemInstructions,
-        runInstructions: run.input.systemInstructions ?? [],
-      }),
+      prompt: this.resolveSystemPrompt(run),
       contextBuilds: [],
     };
     this.runStates.set(run, fallbackState);
@@ -236,10 +220,26 @@ export class ContextManager {
     state: ContextManagerRunState,
     diagnostics: BuildContextDiagnostics | undefined,
   ): void {
-    state.lastBuildDiagnostics = diagnostics;
     state.contextBuilds.push({iteration: run.iteration, diagnostics});
     run.context.lastContextBuildDiagnostics = diagnostics;
     run.context.contextBuilds = state.contextBuilds;
+  }
+
+  private recordAndObserveContextBuild(
+    run: AgentRunState,
+    state: ContextManagerRunState,
+    diagnostics: BuildContextDiagnostics,
+  ): void {
+    this.recordContextBuild(run, state, diagnostics);
+    this.options.observer.contextBuilt(run, diagnostics.estimatedTotalInputTokens);
+  }
+
+  private resolveSystemPrompt(run: AgentRunState): ResolvedSystemPrompt {
+    return this.systemPromptService.resolve({
+      mode: run.input.mode ?? "edit",
+      configInstructions: this.options.config.runtime.systemInstructions,
+      runInstructions: run.input.systemInstructions ?? [],
+    });
   }
 }
 
@@ -255,5 +255,4 @@ type ContextManagerRunState = {
     iteration: number;
     diagnostics?: BuildContextDiagnostics;
   }>;
-  lastBuildDiagnostics?: BuildContextDiagnostics;
 };

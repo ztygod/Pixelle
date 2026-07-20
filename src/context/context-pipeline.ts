@@ -121,51 +121,11 @@ export class ContextPipeline implements ContextPipelineLike {
     this.promptAssembler = options.promptAssembler ?? new PromptAssembler();
   }
 
-  /**
-   * Executes the complete context building pipeline.
-   *
-   * Flow:
-   *
-   * Transcript
-   *    ↓
-   * Project
-   *    ↓
-   * Calculate budget
-   *    ↓
-   * Compact history if required
-   *    ↓
-   * Compress context sections
-   *    ↓
-   * Truncate oversized sections
-   *    ↓
-   * Assemble final prompt
-   *    ↓
-   * Validate token usage
-   *    ↓
-   * Return LLM request
-   */
+  /** Executes the complete context build and validates the final request budget. */
   async build(input: ContextPipelineBuildInput): Promise<ContextPipelineBuildResult> {
     const tools = input.tools ?? [];
-
-    /**
-     * Stage 1:
-     * Convert internal transcript representation into
-     * model-compatible messages.
-     */
     let projection = this.transcriptProjector.project(input.document.transcript);
-
     const baseSystemPrompt = input.resolvedSystemPrompt.content;
-
-    /**
-     * Stage 2:
-     * Calculate initial token budget.
-     *
-     * Determines how much space is available for:
-     * - transcript
-     * - context sections
-     * - tools
-     * - system prompt
-     */
     let budgeted = this.budgeter.budget(
       input.document,
       projection,
@@ -174,11 +134,6 @@ export class ContextPipeline implements ContextPipelineLike {
       tools,
     );
 
-    /**
-     * Stage 3:
-     * Compact transcript when fixed context overhead already
-     * consumes too much available space.
-     */
     const fixedOverflow = Math.max(
       0,
       budgeted.budget.estimatedTotalInputTokens -
@@ -213,28 +168,8 @@ export class ContextPipeline implements ContextPipelineLike {
       );
     }
 
-    /**
-     * Stage 4:
-     * Compress context sections.
-     *
-     * Example:
-     * - workspace information
-     * - memory
-     * - tool outputs
-     */
     const compression = this.compressionPipeline.process(budgeted);
-
-    /**
-     * Stage 5:
-     * Remove low-priority sections when compression
-     * is not enough.
-     */
     const truncation = this.truncator.truncate(compression.sections, budgeted.budget);
-
-    /**
-     * Stage 6:
-     * Assemble final LLM messages.
-     */
     const systemPrompt = this.promptAssembler.assembleSystemPrompt(
       input.resolvedSystemPrompt,
       truncation.contextText,
@@ -245,10 +180,6 @@ export class ContextPipeline implements ContextPipelineLike {
       projection,
     );
 
-    /**
-     * Stage 7:
-     * Estimate final request tokens.
-     */
     const finalEstimate = estimateRequestTokens(this.tokenEstimator, messages, tools);
 
     const sectionTokens = this.tokenEstimator.countText(truncation.contextText);
@@ -263,10 +194,6 @@ export class ContextPipeline implements ContextPipelineLike {
         budgeted.budget.safetyMarginTokens,
     };
 
-    /**
-     * Stage 8:
-     * Build diagnostics for debugging and monitoring.
-     */
     const diagnostics: BuildContextDiagnostics = {
       stage: input.document.metadata.stage,
       budget: finalBudget,
@@ -295,10 +222,6 @@ export class ContextPipeline implements ContextPipelineLike {
       droppedSectionCount: truncation.droppedSections.length,
     };
 
-    /**
-     * Stage 9:
-     * Ensure the final request fits within the model context window.
-     */
     if (finalEstimate.totalTokens > finalBudget.hardInputLimit) {
       throw new ContextWindowExceededError(
         "Model request cannot fit the configured context window after safe compaction.",
@@ -338,24 +261,24 @@ export class ContextPipeline implements ContextPipelineLike {
 export function createDefaultContextPipeline(
   options: DefaultContextPipelineOptions = {},
 ): ContextPipeline {
-  const tokenEstimator = options.tokenEstimator ?? createDefaultTokenEstimator();
+  const {transcriptSummarizer, llm, llmConfig, ...pipelineOptions} = options;
+  const tokenEstimator = pipelineOptions.tokenEstimator ?? createDefaultTokenEstimator();
 
-  const summaryClient =
-    options.llm ?? (options.llmConfig ? new LLMClient(options.llmConfig) : undefined);
+  const summaryClient = llm ?? (llmConfig ? new LLMClient(llmConfig) : undefined);
 
-  const transcriptSummarizer =
-    options.transcriptSummarizer ??
+  const resolvedTranscriptSummarizer =
+    transcriptSummarizer ??
     (summaryClient ? new ModelTranscriptSummarizer(summaryClient) : undefined);
 
   const transcriptBudgeter =
-    options.transcriptBudgeter ??
+    pipelineOptions.transcriptBudgeter ??
     new TranscriptBudgeter({
       tokenEstimator,
-      summarizer: transcriptSummarizer,
+      summarizer: resolvedTranscriptSummarizer,
     });
 
   return new ContextPipeline({
-    ...options,
+    ...pipelineOptions,
     tokenEstimator,
     transcriptBudgeter,
   });

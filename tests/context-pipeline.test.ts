@@ -3,9 +3,13 @@ import {describe, expect, it} from "vitest";
 import {
   ContextPipeline,
   PromptAssembler,
+  TranscriptBudgeter,
+  createDefaultContextPipeline,
   type ContextPipelineLike,
+  type TranscriptSummarizer,
   type TokenEstimator,
 } from "../src/context/index.js";
+import type {LLMMessage} from "../src/llm/types.js";
 import type {ResolvedSystemPrompt} from "../src/agent/prompt/index.js";
 
 const prompt: ResolvedSystemPrompt = {
@@ -31,6 +35,20 @@ class CountingPromptAssembler extends PromptAssembler {
   ): string {
     this.systemPromptBuilds += 1;
     return super.assembleSystemPrompt(resolvedPrompt, contextText);
+  }
+}
+
+class TrackingTranscriptBudgeter extends TranscriptBudgeter {
+  compactions = 0;
+
+  override async compact(messages: readonly LLMMessage[]) {
+    this.compactions += 1;
+    return {
+      messages: messages.slice(-1),
+      tokensBefore: 100,
+      tokensAfter: 4,
+      summarizedMessageCount: messages.length - 1,
+    };
   }
 }
 
@@ -61,5 +79,34 @@ describe("ContextPipeline", () => {
     });
     expect(result.diagnostics.systemPromptVersion).toBe("pixelle-coding-agent/v1");
     expect(result.compacted).toBe(false);
+  });
+
+  it("keeps an explicit transcript budgeter ahead of factory summarizer options", async () => {
+    const transcriptBudgeter = new TrackingTranscriptBudgeter();
+    const unusedSummarizer: TranscriptSummarizer = {
+      async summarize() {
+        throw new Error("Factory summarizer should not replace transcriptBudgeter.");
+      },
+    };
+    const pipeline = createDefaultContextPipeline({
+      transcriptBudgeter,
+      transcriptSummarizer: unusedSummarizer,
+      tokenEstimator: {countText: (text) => text.length},
+    });
+
+    await pipeline.build({
+      document: {
+        sections: [],
+        transcript: [
+          {role: "user", content: "old".repeat(40)},
+          {role: "user", content: "task"},
+        ],
+        metadata: {runId: "run", iteration: 1, stage: "agent"},
+      },
+      resolvedSystemPrompt: prompt,
+      tokenLimit: 100,
+    });
+
+    expect(transcriptBudgeter.compactions).toBe(1);
   });
 });

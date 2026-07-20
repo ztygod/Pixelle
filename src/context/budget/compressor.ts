@@ -56,7 +56,7 @@ export class ContextCompressionResultFactory {
     reason: string,
     metadata: ContextCompressionMetadata = {},
   ): ContextCompressionResult {
-    return this.create(section, section, false, reason, metadata);
+    return this.unchanged(section, reason, metadata);
   }
 
   private create(
@@ -180,30 +180,6 @@ export class RuleBasedContextCompressor implements ContextCompressor {
       return this.resultFactory.unchanged(section, "Section source is not compressible.");
     }
 
-    switch (section.source?.kind) {
-      case "tool":
-        return this.compressToolSection(section, budget);
-      case "file":
-        return this.compressFileSection(section, budget);
-      default:
-        return this.resultFactory.unchanged(
-          section,
-          "Section source is not compressible.",
-        );
-    }
-  }
-
-  private compressToolSection(
-    section: ContextSection,
-    budget: ContextBudget,
-  ): ContextCompressionResult {
-    return this.compressHeadTail(section, this.resolveMaxSectionTokens(budget));
-  }
-
-  private compressFileSection(
-    section: ContextSection,
-    budget: ContextBudget,
-  ): ContextCompressionResult {
     return this.compressHeadTail(section, this.resolveMaxSectionTokens(budget));
   }
 
