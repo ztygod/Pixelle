@@ -10,9 +10,22 @@ export {TranscriptProjector} from "./transcript/transcript-projector.js";
 
 // Layer 3: budgeting and compression
 export {ContextBudgeter} from "./budget/context-budgeter.js";
+export {ContextWindowExceededError} from "./errors.js";
+export type {ContextWindowBreakdown} from "./errors.js";
+export {
+  ModelTranscriptSummarizer,
+  TranscriptBudgeter,
+} from "./transcript/transcript-budgeter.js";
+export type {
+  TranscriptSummarizer,
+  TranscriptSummaryInput,
+  TranscriptBudgetResult,
+} from "./transcript/transcript-budgeter.js";
 export type {ContextBudgeterOptions} from "./budget/context-budgeter.js";
 export {DefaultContextBudgetPolicy} from "./budget/context-budget.js";
 export type {ContextBudgetInput, ContextBudgetPolicy} from "./budget/context-budget.js";
+export {estimateRequestTokens} from "./budget/token-estimator.js";
+export type {RequestTokenEstimate} from "./budget/token-estimator.js";
 export {DefaultContextPriorityPolicy} from "./budget/priority-policy.js";
 export type {ContextPriorityPolicy} from "./budget/priority-policy.js";
 export {

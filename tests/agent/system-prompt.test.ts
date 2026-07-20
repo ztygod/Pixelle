@@ -17,6 +17,41 @@ class CapturingLLMClient extends BaseLLMClient {
 }
 
 describe("ContextManager system prompt", () => {
+  it("fails before provider invocation when fixed request costs exceed the window", async () => {
+    const workspaceRoot = process.cwd();
+    const llm = new CapturingLLMClient();
+    const result = await new Agent({
+      config: {
+        runtime: {
+          systemInstructions: [],
+          workspaceDir: workspaceRoot,
+          maxIterations: 1,
+          maxRepairAttempts: 0,
+          tokensLimit: 1_000,
+          rollbackOnFailure: false,
+        },
+        verification: {enabled: false, commands: []},
+        trace: {enabled: false, directory: workspaceRoot},
+      },
+      llm,
+      workspaceScanner: {
+        async scan(): Promise<WorkspaceProfile> {
+          return {
+            root: workspaceRoot,
+            packageManager: "pnpm",
+            scripts: {},
+            projectFiles: [],
+            detectedFrameworks: [],
+          };
+        },
+      },
+    }).run({prompt: "test"});
+
+    expect(result.stopReason).toBe("error");
+    expect(result.error).toMatchObject({code: "CONTEXT_WINDOW_EXCEEDED"});
+    expect(llm.request).toBeUndefined();
+  });
+
   it("uses the canonical coding-agent prompt and configured instructions", async () => {
     const workspaceRoot = process.cwd();
     const llm = new CapturingLLMClient();
@@ -35,7 +70,7 @@ describe("ContextManager system prompt", () => {
           workspaceDir: workspaceRoot,
           maxIterations: 1,
           maxRepairAttempts: 0,
-          tokensLimit: 1000,
+          tokensLimit: 32_000,
           rollbackOnFailure: false,
         },
         permissions: {
@@ -91,7 +126,7 @@ describe("ContextManager system prompt", () => {
           workspaceDir: workspaceRoot,
           maxIterations: 1,
           maxRepairAttempts: 0,
-          tokensLimit: 1000,
+          tokensLimit: 32_000,
           rollbackOnFailure: false,
         },
         permissions: {
@@ -158,8 +193,10 @@ describe("ContextManager system prompt", () => {
     expect(runtimeContext).toContain("## Input Provider\ninput provider facts");
     expect(contextBuilt).toMatchObject({
       type: "runtime.context_built",
-      tokenEstimate: createDefaultTokenEstimator().countText(prompt),
     });
+    expect(contextBuilt?.tokenEstimate).toBeGreaterThan(
+      createDefaultTokenEstimator().countText(prompt),
+    );
     expect(
       llm.request?.messages.filter((message) => message.role === "system"),
     ).toHaveLength(1);

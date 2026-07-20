@@ -1,5 +1,7 @@
 import {loadAgentConfig, type AgentConfig} from "../config/index.js";
 import {EventBus, type PixelleEvent} from "../events/index.js";
+import {ModelTranscriptSummarizer} from "../context/index.js";
+import {LLMClient} from "../llm/index.js";
 import {AgentMiddlewarePipeline} from "./middleware.js";
 import {
   AgentRunState,
@@ -147,6 +149,13 @@ export class Agent {
         memory: this.memory,
         observer: this.observer,
         contextProviders: options.contextProviders,
+        transcriptSummarizer:
+          options.transcriptSummarizer ??
+          (options.llm
+            ? new ModelTranscriptSummarizer(options.llm)
+            : this.config.llm
+              ? new ModelTranscriptSummarizer(new LLMClient(this.config.llm))
+              : undefined),
       });
     this.verification =
       options.verification ??
@@ -276,10 +285,7 @@ export class Agent {
       this.observer.assistantStage(run);
 
       const response = await this.model.generate(
-        {
-          messages: this.context.buildModelRequest(run),
-          tools: this.tools.schemas(),
-        },
+        await this.context.buildModelRequest(run, this.tools.schemas()),
         run,
       );
       this.context.appendAssistantResponse(run, response);

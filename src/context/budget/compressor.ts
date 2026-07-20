@@ -208,7 +208,9 @@ export class RuleBasedContextCompressor implements ContextCompressor {
   }
 
   private resolveMaxSectionTokens(budget: ContextBudget): number {
-    const budgetBasedLimit = Math.floor(budget.maxInputTokens * this.maxSectionRatio);
+    const budgetBasedLimit = Math.floor(
+      (budget.availableSectionTokens ?? budget.maxInputTokens) * this.maxSectionRatio,
+    );
 
     return this.clampInteger(
       Math.min(this.maxSectionTokens, budgetBasedLimit),

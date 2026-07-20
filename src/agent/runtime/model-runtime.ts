@@ -1,5 +1,11 @@
 import {LLMClient, type BaseLLMClient} from "../../llm/index.js";
 import type {LLMGenerateInput} from "../../llm/types.js";
+import {
+  ContextWindowExceededError,
+  createDefaultTokenEstimator,
+  DefaultContextBudgetPolicy,
+  estimateRequestTokens,
+} from "../../context/index.js";
 import {mergeUsage, missingLLMClient} from "../runtime-utils.js";
 import type {
   AgentModelRequest,
@@ -48,6 +54,29 @@ export class ModelRuntime {
       },
       run.context,
     );
+    const estimate = estimateRequestTokens(
+      createDefaultTokenEstimator(),
+      request.messages,
+      request.tools,
+    );
+    const guardBudget = new DefaultContextBudgetPolicy().createBudget({
+      tokenLimit: this.options.config.runtime.tokensLimit,
+      sectionTokens: estimate.totalTokens,
+    });
+    if (estimate.totalTokens > guardBudget.hardInputLimit) {
+      throw new ContextWindowExceededError(
+        "Model request exceeded the context budget after model middleware.",
+        {
+          tokenLimit: guardBudget.maxContextTokens,
+          hardInputLimit: guardBudget.hardInputLimit,
+          systemPromptTokens: 0,
+          transcriptTokens: estimate.messageTokens,
+          toolSchemaTokens: estimate.toolSchemaTokens,
+          requestOverheadTokens: estimate.overheadTokens,
+          sectionTokens: 0,
+        },
+      );
+    }
     const response = await this.generateStreamingModelResponse(request, run);
     const modelResponse = await this.options.middleware.afterModel(
       {
@@ -58,6 +87,13 @@ export class ModelRuntime {
       run.context,
     );
     run.usage = mergeUsage(run.usage, modelResponse.usage);
+    if (
+      typeof modelResponse.usage?.inputTokens === "number" &&
+      run.context.lastContextBuildDiagnostics
+    ) {
+      run.context.lastContextBuildDiagnostics.estimationErrorTokens =
+        modelResponse.usage.inputTokens - estimate.totalTokens;
+    }
     run.content = modelResponse.content || run.content;
     this.options.observer.modelCompleted(run, modelResponse);
     return modelResponse;

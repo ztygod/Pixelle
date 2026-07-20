@@ -74,7 +74,7 @@ export class VerificationPipeline {
       run.nextIteration();
       this.options.observer.assistantStage(run);
       const response = await this.options.model.generate(
-        {messages: run.messages, tools: this.options.tools.schemas()},
+        await this.options.context.buildModelRequest(run, this.options.tools.schemas()),
         run,
       );
       this.options.context.appendAssistantResponse(run, response);

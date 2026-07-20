@@ -1,15 +1,19 @@
-import type {LLMMessage} from "../../llm/types.js";
+import type {LLMGenerateInput, LLMTool} from "../../llm/types.js";
 import {SystemPromptService, type ResolvedSystemPrompt} from "../prompt/index.js";
 import {
   ContextBudgeter,
   ContextCollector,
   ContextCompressionPipeline,
   ContextTruncator,
+  ContextWindowExceededError,
+  estimateRequestTokens,
   createDefaultTokenEstimator,
   PromptAssembler,
   RuleBasedContextCompressor,
   type TokenEstimator,
   TranscriptProjector,
+  TranscriptBudgeter,
+  type TranscriptSummarizer,
   type BuildContextDiagnostics,
   type ContextDocument,
 } from "../../context/index.js";
@@ -54,6 +58,7 @@ export type ContextManagerOptions = {
   promptAssembler?: PromptAssembler;
 
   systemPromptService?: SystemPromptService;
+  transcriptSummarizer?: TranscriptSummarizer;
 };
 
 /** Builds model context and owns transcript mutation for assistant/tool turns. */
@@ -66,6 +71,7 @@ export class ContextManager {
   private readonly truncator: ContextTruncator;
   private readonly promptAssembler: PromptAssembler;
   private readonly systemPromptService: SystemPromptService;
+  private readonly transcriptBudgeter: TranscriptBudgeter;
   private readonly runStates = new WeakMap<AgentRunState, ContextManagerRunState>();
 
   /** Creates a context manager with static agent-level context providers. */
@@ -78,6 +84,10 @@ export class ContextManager {
     this.tokenEstimator = options.tokenEstimator ?? createDefaultTokenEstimator();
 
     this.transcriptProjector = options.transcriptProjector ?? new TranscriptProjector();
+    this.transcriptBudgeter = new TranscriptBudgeter({
+      tokenEstimator: this.tokenEstimator,
+      summarizer: options.transcriptSummarizer,
+    });
 
     this.budgeter =
       options.budgeter ??
@@ -120,27 +130,75 @@ export class ContextManager {
   }
 
   /** Builds a fresh model transcript with dynamic runtime context. */
-  buildModelRequest(run: AgentRunState): readonly LLMMessage[] {
+  async buildModelRequest(
+    run: AgentRunState,
+    tools: readonly LLMTool[] = [],
+  ): Promise<LLMGenerateInput> {
     const state = this.getRunState(run);
     const document: ContextDocument = {
       ...state.document,
       transcript: run.messages,
       metadata: {...state.document.metadata, iteration: run.iteration},
     };
-    const projection = this.transcriptProjector.project(document.transcript);
-    const budgeted = this.budgeter.budget(
+    let projection = this.transcriptProjector.project(document.transcript);
+    const baseSystemPrompt = state.prompt.content;
+    let budgeted = this.budgeter.budget(
       document,
       projection,
       this.options.config.runtime.tokensLimit,
+      baseSystemPrompt,
+      tools,
     );
+    const fixedOverflow = Math.max(
+      0,
+      budgeted.budget.estimatedTotalInputTokens -
+        budgeted.diagnostics.estimatedContextTokens -
+        budgeted.budget.hardInputLimit,
+    );
+    let transcriptResult = {
+      messages: projection.messages,
+      tokensBefore: budgeted.budget.transcriptTokens,
+      tokensAfter: budgeted.budget.transcriptTokens,
+      summarizedMessageCount: 0,
+    };
+    if (fixedOverflow > 0) {
+      transcriptResult = await this.transcriptBudgeter.compact(
+        projection.messages,
+        Math.max(0, budgeted.budget.transcriptTokens - fixedOverflow),
+      );
+      projection = {...projection, messages: transcriptResult.messages};
+      budgeted = this.budgeter.budget(
+        document,
+        projection,
+        this.options.config.runtime.tokensLimit,
+        baseSystemPrompt,
+        tools,
+      );
+    }
     const compression = this.compressionPipeline.process(budgeted);
     const truncation = this.truncator.truncate(compression.sections, budgeted.budget);
     const systemPrompt = this.promptAssembler.assembleSystemPrompt(
       state.prompt,
       truncation.contextText,
     );
+    const messages = this.promptAssembler.assemble(
+      state.prompt,
+      projection,
+      truncation.contextText,
+    );
+    const finalEstimate = estimateRequestTokens(this.tokenEstimator, messages, tools);
+    const sectionTokens = this.tokenEstimator.countText(truncation.contextText);
+    const finalBudget = {
+      ...budgeted.budget,
+      sectionTokens,
+      estimatedTotalInputTokens: finalEstimate.totalTokens,
+      estimatedTotalRequestTokens:
+        finalEstimate.totalTokens +
+        budgeted.budget.reservedOutputTokens +
+        budgeted.budget.safetyMarginTokens,
+    };
     const diagnostics: BuildContextDiagnostics = {
-      budget: budgeted.budget,
+      budget: finalBudget,
       estimatedContextChars: compression.estimatedContextChars,
       estimatedContextTokens: compression.estimatedContextTokens,
       compressionThresholdRatio: compression.thresholdRatio,
@@ -154,16 +212,41 @@ export class ContextManager {
         id: section.id,
         tokens: this.tokenEstimator.countText(`# ${section.title}\n${section.content}`),
       })),
+      transcriptTokensBefore: transcriptResult.tokensBefore,
+      transcriptTokensAfter: transcriptResult.tokensAfter,
+      toolSchemaTokens: finalBudget.toolSchemaTokens,
+      requestOverheadTokens: finalEstimate.overheadTokens,
+      safetyMarginTokens: finalBudget.safetyMarginTokens,
+      estimatedTotalInputTokens: finalEstimate.totalTokens,
+      finalHeadroomTokens: finalBudget.hardInputLimit - finalEstimate.totalTokens,
+      archivedToolExchangeCount: projection.archivedSections.length,
+      summarizedMessageCount: transcriptResult.summarizedMessageCount,
+      droppedSectionCount: truncation.droppedSections.length,
     };
 
     this.recordContextBuild(run, state, diagnostics);
-    this.options.observer.contextBuilt(run, diagnostics.systemPromptTokens);
+    this.options.observer.contextBuilt(run, diagnostics.estimatedTotalInputTokens);
 
-    return this.promptAssembler.assemble(
-      state.prompt,
-      projection,
-      truncation.contextText,
-    );
+    if (finalEstimate.totalTokens > finalBudget.hardInputLimit) {
+      this.options.observer.contextBudgetFailed(run, diagnostics);
+      throw new ContextWindowExceededError(
+        "Model request cannot fit the configured context window after safe compaction.",
+        {
+          tokenLimit: finalBudget.maxContextTokens,
+          hardInputLimit: finalBudget.hardInputLimit,
+          systemPromptTokens: finalBudget.systemPromptTokens,
+          transcriptTokens: finalBudget.transcriptTokens,
+          toolSchemaTokens: finalBudget.toolSchemaTokens,
+          requestOverheadTokens: finalEstimate.overheadTokens,
+          sectionTokens,
+        },
+      );
+    }
+
+    if (transcriptResult.summarizedMessageCount || truncation.droppedSections.length) {
+      this.options.observer.contextCompacted(run, diagnostics);
+    }
+    return {messages, tools};
   }
 
   /** Appends a normalized assistant response to the transcript. */

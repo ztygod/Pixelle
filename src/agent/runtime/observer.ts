@@ -3,6 +3,7 @@ import type {VerificationResult, ChangeSet} from "../../runtime/index.js";
 import type {ToolResult, ToolStreamChunk} from "../../tool/index.js";
 import {createEventMetadata, emitAgentEvent} from "../runtime-utils.js";
 import type {AgentModelResponse, AgentToolCall, RunInternalOptions} from "../types.js";
+import type {BuildContextDiagnostics} from "../../context/index.js";
 import type {AgentRunState} from "./run-state.js";
 
 /** Constructor options for the event-backed default observer. */
@@ -65,6 +66,25 @@ export class AgentObserver {
     this.emit(run, {
       type: "runtime.context_built",
       tokenEstimate,
+      metadata: this.metadata(run),
+    });
+  }
+
+  contextCompacted(run: AgentRunState, diagnostics: BuildContextDiagnostics): void {
+    this.emit(run, {
+      type: "runtime.context_compacted",
+      summarizedMessageCount: diagnostics.summarizedMessageCount,
+      droppedSectionCount: diagnostics.droppedSectionCount,
+      tokenEstimate: diagnostics.estimatedTotalInputTokens,
+      metadata: this.metadata(run),
+    });
+  }
+
+  contextBudgetFailed(run: AgentRunState, diagnostics: BuildContextDiagnostics): void {
+    this.emit(run, {
+      type: "runtime.context_budget_failed",
+      tokenEstimate: diagnostics.estimatedTotalInputTokens,
+      hardInputLimit: diagnostics.budget.hardInputLimit,
       metadata: this.metadata(run),
     });
   }

@@ -114,6 +114,10 @@ function createToolResultSection(
     content: [
       `Tool: ${toolMessage.name}`,
       `Call ID: ${toolMessage.toolCallId}`,
+      `Arguments: ${JSON.stringify(
+        assistant.toolCalls.find((call) => call.id === toolMessage.toolCallId)
+          ?.arguments ?? {},
+      )}`,
       assistant.content ? `Assistant: ${assistant.content}` : undefined,
       "Result:",
       toolMessage.content,

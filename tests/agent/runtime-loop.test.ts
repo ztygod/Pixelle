@@ -244,7 +244,7 @@ describe("Agent runtime loop", () => {
     ]);
 
     const config = createConfig(workspaceRoot);
-    config.runtime.tokensLimit = 2_000;
+    config.runtime.tokensLimit = 8_000;
     config.runtime.maxIterations = 4;
 
     const result = await new Agent({

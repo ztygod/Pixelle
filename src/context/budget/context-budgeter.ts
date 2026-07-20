@@ -7,6 +7,8 @@ import {
   type ContextPriorityPolicy,
 } from "./priority-policy.js";
 import {createDefaultTokenEstimator, type TokenEstimator} from "./token-estimator.js";
+import {estimateRequestTokens} from "./token-estimator.js";
+import type {LLMTool} from "../../llm/types.js";
 
 export type ContextBudgeterOptions = {
   priorityPolicy?: ContextPriorityPolicy;
@@ -33,6 +35,8 @@ export class ContextBudgeter {
     document: ContextDocument,
     projection: TranscriptProjection,
     tokenLimit: number,
+    systemPrompt = "",
+    tools: readonly LLMTool[] = [],
   ): BudgetedContext {
     const sections = new ContextRegistry()
       .addMany([...document.sections, ...projection.archivedSections])
@@ -40,15 +44,33 @@ export class ContextBudgeter {
       .dedupe()
       .sort(this.priorityPolicy)
       .getAll();
-    const budget = this.budgetPolicy.createBudget({tokenLimit});
     const formattedContextText = sections
       .map((section) => formatContextSection(section))
       .filter((text) => text.length > 0)
       .join("\n\n");
     const estimatedContextChars = formattedContextText.length;
     const estimatedContextTokens = this.tokenEstimator.countText(formattedContextText);
+    const baseMessages = [
+      ...(systemPrompt ? [{role: "system" as const, content: systemPrompt}] : []),
+      ...projection.messages,
+    ];
+    const requestEstimate =
+      baseMessages.length || tools.length
+        ? estimateRequestTokens(this.tokenEstimator, baseMessages, tools)
+        : {messageTokens: 0, toolSchemaTokens: 0, overheadTokens: 0, totalTokens: 0};
+    const systemPromptTokens = systemPrompt
+      ? this.tokenEstimator.countText(systemPrompt)
+      : 0;
+    const budget = this.budgetPolicy.createBudget({
+      tokenLimit,
+      systemPromptTokens,
+      transcriptTokens: Math.max(0, requestEstimate.messageTokens - systemPromptTokens),
+      toolSchemaTokens: requestEstimate.toolSchemaTokens,
+      requestOverheadTokens: requestEstimate.overheadTokens,
+      sectionTokens: estimatedContextTokens,
+    });
     const compressionLimitTokens = Math.floor(
-      budget.maxInputTokens * this.compressionThresholdRatio,
+      budget.availableSectionTokens * this.compressionThresholdRatio,
     );
 
     return {

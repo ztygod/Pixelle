@@ -54,7 +54,18 @@ export type ContextBudget = {
   tokenLimit: number;
   maxContextTokens: number;
   reservedOutputTokens: number;
+  /** @deprecated Use availableSectionTokens for runtime sections. */
   maxInputTokens: number;
+  systemPromptTokens: number;
+  transcriptTokens: number;
+  toolSchemaTokens: number;
+  requestOverheadTokens: number;
+  safetyMarginTokens: number;
+  hardInputLimit: number;
+  availableSectionTokens: number;
+  sectionTokens: number;
+  estimatedTotalInputTokens: number;
+  estimatedTotalRequestTokens: number;
 };
 
 /** Budget decision produced before any compression strategy is executed. */
@@ -119,4 +130,15 @@ export type BuildContextDiagnostics = {
   systemPromptVersion: string;
   systemPromptTokens: number;
   systemPromptSectionTokens: Array<{id: string; tokens: number}>;
+  transcriptTokensBefore: number;
+  transcriptTokensAfter: number;
+  toolSchemaTokens: number;
+  requestOverheadTokens: number;
+  safetyMarginTokens: number;
+  estimatedTotalInputTokens: number;
+  finalHeadroomTokens: number;
+  archivedToolExchangeCount: number;
+  summarizedMessageCount: number;
+  droppedSectionCount: number;
+  estimationErrorTokens?: number;
 };
