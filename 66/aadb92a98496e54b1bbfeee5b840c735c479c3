@@ -1,0 +1,33 @@
+src/context/types.ts
+  s_c0ba71c200b6f4::t_235bb435fde76a 122
+src/agent/agent.ts
+  s_c0ba71c200b6f4::t_bea4de35c1f5da 284-287
+src/agent/runtime/verification-pipeline.ts
+  s_c0ba71c200b6f4::t_bea4de35c1f5da 2,74-80,148-152,155-170
+src/agent/runtime/context-manager.ts
+  s_c0ba71c200b6f4::t_bea4de35c1f5da 10-11,86-91,128,133,135-139,145
+src/agent/index.ts
+  s_c0ba71c200b6f4::t_f878faf3bde19b 37
+src/context/context-pipeline.ts
+  s_c0ba71c200b6f4::t_235bb435fde76a 271
+tests/agent/runtime-loop.test.ts
+  s_c0ba71c200b6f4::t_235bb435fde76a 21,122-191
+src/agent/runtime/index.ts
+  s_c0ba71c200b6f4::t_bec978e1df8257 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "66aadb92a98496e54b1bbfeee5b840c735c479c3",
+  "prompts": {},
+  "sessions": {
+    "s_c0ba71c200b6f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f7e8d-c31f-7e52-acff-cd6353fce1ed",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "ztygod <2739022972@qq.com>"
+    }
+  }
+}
